@@ -6,7 +6,19 @@ const DEFAULT_COLOR = '#2d3748';
 
 const MUNICIPALITIES = new Set(['北京市', '天津市', '上海市', '重庆市']);
 
-const NO_DRILLDOWN = new Set(['台湾省']);
+const NO_DRILLDOWN = new Set([]);
+
+const TAIWAN_CITIES = [
+  { name: '台北市', lon: 121.56, lat: 25.03 },
+  { name: '新北市', lon: 121.47, lat: 25.01 },
+  { name: '桃园市', lon: 121.31, lat: 24.99 },
+  { name: '台中市', lon: 120.67, lat: 24.15 },
+  { name: '台南市', lon: 120.21, lat: 23.00 },
+  { name: '高雄市', lon: 120.31, lat: 22.63 },
+  { name: '基隆市', lon: 121.74, lat: 25.13 },
+  { name: '新竹市', lon: 120.97, lat: 24.81 },
+  { name: '嘉义市', lon: 120.45, lat: 23.48 },
+];
 
 const PROVINCE_ADCODES = {
   '北京市': '110000', '天津市': '120000', '河北省': '130000', '山西省': '140000',
@@ -126,15 +138,14 @@ export default function MapView({ result, cities, mapLabel, accentColor, onProvi
       if (viewMode === 'city' && currentProvince) {
         if (clickHandlerRef.current) {
           const cityName = params.data?._cityName || params.name;
-          const mappedName = GEO_NAME_TO_CITY_NAME[params.name] || cityName;
-          clickHandlerRef.current(mappedName);
+          clickHandlerRef.current(cityName);
         }
         return;
       }
 
 
       if (viewMode === 'province' && params.name) {
-        if (MUNICIPALITIES.has(params.name) || NO_DRILLDOWN.has(params.name)) {
+        if (MUNICIPALITIES.has(params.name)) {
           if (clickHandlerRef.current) {
             clickHandlerRef.current(params.name);
           }
@@ -256,15 +267,76 @@ function renderMap(chart, result, manualSeatsData, currentProvince, viewMode, ci
   }
 
   if (viewMode === 'city' && currentProvince) {
+    if (currentProvince === '台湾省') {
+      const resultMap = {};
+      (result?.city_results || []).forEach(cr => {
+        resultMap[cr.city_id] = cr;
+      });
+
+      const twData = TAIWAN_CITIES.map(tc => {
+        const city = citiesData?.cities?.find(c => c.name === tc.name);
+        const cr = city ? resultMap[city.id] : null;
+        const party = cr ? partyMap[cr.winner_party_id] : null;
+        return {
+          name: tc.name,
+          value: [tc.lon, tc.lat, cr ? cr.seats || 1 : 1],
+          itemStyle: { color: party?.color || DEFAULT_COLOR },
+          _cityResult: cr || null,
+        };
+      });
+
+      chart.setOption({
+        tooltip: {
+          trigger: 'item',
+          backgroundColor: 'rgba(18, 22, 30, 0.95)',
+          borderColor: '#1e2636',
+          textStyle: { color: '#e8eaed', fontSize: 12 },
+          formatter: (params) => {
+            const d = params.data;
+            const cr = d?._cityResult;
+            if (!cr) return `<b>${params.name}</b><br/><span style="color:#5a6378;font-size:10px">暂无数据</span>`;
+            const sorted = Object.entries(cr.vote_shares).sort((a, b) => b[1] - a[1]);
+            let h = `<div style="font-weight:700;margin-bottom:4px">${params.name}</div>`;
+            h += `<div style="color:#66bb6a;margin-bottom:4px">● ${cr.winner_party_name}</div>`;
+            sorted.forEach(([pid, s]) => {
+              h += `<div style="display:flex;justify-content:space-between;gap:12px;font-size:11px">
+                <span>${partyMap[pid]?.name || pid}</span><span>${(s * 100).toFixed(1)}%</span></div>`;
+            });
+            return h;
+          },
+        },
+        geo: {
+          map: 'china',
+          roam: true,
+          center: [121.5, 24.0],
+          zoom: 8,
+          itemStyle: { areaColor: '#1a2030', borderColor: '#2a3344', borderWidth: 0.5 },
+          emphasis: { itemStyle: { areaColor: '#333' } },
+          regions: [{
+            name: '台湾省',
+            itemStyle: { areaColor: '#2d3748' },
+          }],
+        },
+        series: [{
+          type: 'scatter',
+          coordinateSystem: 'geo',
+          symbolSize: (val) => Math.max(8, Math.min(20, val[2] * 2)),
+          data: twData,
+          itemStyle: { borderColor: '#0f1419', borderWidth: 1 },
+          label: {
+            show: true,
+            position: 'right',
+            fontSize: 9,
+            color: '#e8eaed',
+            formatter: (params) => params.name,
+          },
+        }],
+      }, { replaceMerge: ['geo', 'series'] });
+    } else {
     const allProvinceCities = citiesData?.cities?.filter(c => c.province === currentProvince) || [];
     const resultMap = {};
     (result?.city_results || []).forEach(cr => {
       resultMap[cr.city_id] = cr;
-    });
-
-    const nameToCity = {};
-    allProvinceCities.forEach(city => {
-      nameToCity[city.name] = city;
     });
 
     const data = allProvinceCities.map(city => {
@@ -283,7 +355,7 @@ function renderMap(chart, result, manualSeatsData, currentProvince, viewMode, ci
     chart.setOption({
       tooltip: {
         trigger: 'item',
-        backgroundColor: 'rgba(18, 22, 30, 0.95)',
+        backgroundColor: 'rgba(18, 22, 30, 0.5)',
         borderColor: '#1e2636',
         textStyle: { color: '#e8eaed', fontSize: 12 },
         formatter: (params) => {
@@ -321,6 +393,7 @@ function renderMap(chart, result, manualSeatsData, currentProvince, viewMode, ci
         select: { disabled: true },
       }],
     }, { replaceMerge: ['series'] });
+    }
   } else {
     const provMap = {};
     if (result?.province_results) {
