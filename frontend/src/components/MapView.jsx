@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import * as echarts from 'echarts';
 
 const PROVINCE_GEO_URL = '/api/geojson';
@@ -279,67 +279,24 @@ function renderMap(chart, result, manualSeatsData, currentProvince, viewMode, ci
         resultMap[cr.city_id] = cr;
       });
 
-      console.log('Taiwan render:', { hasResult: !!result, cityResults: result?.city_results?.length, twCities: TAIWAN_CITIES.length });
-
-      const twData = TAIWAN_CITIES.map(tc => {
-        const city = citiesData?.cities?.find(c => c.name === tc.name);
-        const cr = city ? resultMap[city.id] : null;
-        const party = cr ? partyMap[cr.winner_party_id] : null;
-        return {
-          name: tc.name,
-          value: [tc.lon, tc.lat, cr ? cr.seats || 1 : 1],
-          itemStyle: { color: party?.color || DEFAULT_COLOR },
-          _cityResult: cr || null,
-        };
-      });
-
       chart.setOption({
-        tooltip: {
-          trigger: 'item',
-          backgroundColor: 'rgba(18, 22, 30, 0.95)',
-          borderColor: '#1e2636',
-          textStyle: { color: '#e8eaed', fontSize: 12 },
-          formatter: (params) => {
-            const d = params.data;
-            const cr = d?._cityResult;
-            if (!cr) return `<b>${params.name}</b><br/><span style="color:#5a6378;font-size:10px">暂无数据</span>`;
-            const sorted = Object.entries(cr.vote_shares).sort((a, b) => b[1] - a[1]);
-            let h = `<div style="font-weight:700;margin-bottom:4px">${params.name}</div>`;
-            h += `<div style="color:#66bb6a;margin-bottom:4px">● ${cr.winner_party_name}</div>`;
-            sorted.forEach(([pid, s]) => {
-              h += `<div style="display:flex;justify-content:space-between;gap:12px;font-size:11px">
-                <span>${partyMap[pid]?.name || pid}</span><span>${(s * 100).toFixed(1)}%</span></div>`;
-            });
-            return h;
-          },
-        },
-        geo: {
+        series: [{
+          type: 'map',
           map: 'china',
           roam: true,
           center: [121.5, 24.0],
-          zoom: 8,
-          itemStyle: { areaColor: '#1a2030', borderColor: '#2a3344', borderWidth: 0.5 },
-          emphasis: { itemStyle: { areaColor: '#333' } },
-          regions: [{
+          zoom: 7,
+          data: [{
             name: '台湾省',
             itemStyle: { areaColor: '#2d3748' },
           }],
-        },
-        series: [{
-          type: 'scatter',
-          coordinateSystem: 'geo',
-          symbolSize: (val) => Math.max(8, Math.min(20, val[2] * 2)),
-          data: twData,
-          itemStyle: { borderColor: '#0f1419', borderWidth: 1 },
-          label: {
-            show: true,
-            position: 'right',
-            fontSize: 9,
-            color: '#e8eaed',
-            formatter: (params) => params.name,
-          },
+          itemStyle: { areaColor: DEFAULT_COLOR, borderColor: '#2a3344', borderWidth: 0.8 },
+          emphasis: { itemStyle: { areaColor: '#555' } },
+          label: { show: false },
+          scaleLimit: { min: 3, max: 15 },
+          select: { disabled: true },
         }],
-      }, { replaceMerge: ['geo', 'series'] });
+      }, { replaceMerge: ['series'] });
     } else {
     const allProvinceCities = citiesData?.cities?.filter(c => c.province === currentProvince) || [];
     const resultMap = {};
