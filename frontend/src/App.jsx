@@ -128,14 +128,12 @@ export default function App() {
 
     const cityPopMap = {};
     if (cities?.cities) {
-      cities.cities.forEach(c => { cityPopMap[c.id] = c.population; }
-      );
+      cities.cities.forEach(c => { cityPopMap[c.id] = c.population; });
     }
 
     const cityProvinceMap = {};
     if (cities?.cities) {
-      cities.cities.forEach(c => { cityProvinceMap[c.id] = c.province; }
-      );
+      cities.cities.forEach(c => { cityProvinceMap[c.id] = c.province; });
     }
 
     const provinceCityPops = {};
@@ -149,18 +147,20 @@ export default function App() {
     for (const cr of result.city_results) {
       const prov = cityProvinceMap[cr.city_id];
       if (!prov || !provinceCityPops[prov]) {
-        cr.seats = 0;
+        cr.seats = 1;
         continue;
       }
       const provTotal = provinceSeats[prov] || 0;
       const cityPops = provinceCityPops[prov];
+      const cityCount = Object.keys(cityPops).length;
       const totalPop = Object.values(cityPops).reduce((s, v) => s + v, 0);
-      if (totalPop === 0) {
-        cr.seats = 0;
+      if (totalPop === 0 || provTotal <= cityCount) {
+        cr.seats = 1;
         continue;
       }
+      const distributable = provTotal - cityCount;
       const quotas = Object.fromEntries(
-        Object.entries(cityPops).map(([id, pop]) => [id, (pop / totalPop) * provTotal])
+        Object.entries(cityPops).map(([id, pop]) => [id, 1 + (pop / totalPop) * distributable])
       );
       const seats = {};
       let assigned = 0;
@@ -176,7 +176,7 @@ export default function App() {
       for (let i = 0; i < remaining && i < sorted.length; i++) {
         seats[sorted[i]]++;
       }
-      cr.seats = seats[cr.city_id] || 0;
+      cr.seats = seats[cr.city_id] || 1;
     }
   }, [provinceSeats, result, cities]);
 
