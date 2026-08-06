@@ -6,6 +6,8 @@ const DEFAULT_COLOR = '#2d3748';
 
 const MUNICIPALITIES = new Set(['北京市', '天津市', '上海市', '重庆市']);
 
+const NO_DRILLDOWN = new Set(['台湾省']);
+
 const PROVINCE_ADCODES = {
   '北京市': '110000', '天津市': '120000', '河北省': '130000', '山西省': '140000',
   '内蒙古自治区': '150000', '辽宁省': '210000', '吉林省': '220000', '黑龙江省': '230000',
@@ -17,6 +19,7 @@ const PROVINCE_ADCODES = {
   '西藏自治区': '540000',
   '陕西省': '610000', '甘肃省': '620000', '青海省': '630000',
   '宁夏回族自治区': '640000', '新疆维吾尔自治区': '650000',
+  '台湾省': '710000',
 };
 
 export default function MapView({ result, cities, mapLabel, accentColor, onProvinceClick, manualMode, manualSeats, viewMode, onViewModeChange, onDrillDown }) {
@@ -131,7 +134,7 @@ export default function MapView({ result, cities, mapLabel, accentColor, onProvi
 
 
       if (viewMode === 'province' && params.name) {
-        if (MUNICIPALITIES.has(params.name)) {
+        if (MUNICIPALITIES.has(params.name) || NO_DRILLDOWN.has(params.name)) {
           if (clickHandlerRef.current) {
             clickHandlerRef.current(params.name);
           }
