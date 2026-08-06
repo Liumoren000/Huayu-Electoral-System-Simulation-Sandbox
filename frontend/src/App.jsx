@@ -123,6 +123,63 @@ export default function App() {
     setSelectedProvince(provinceName);
   };
 
+  useEffect(() => {
+    if (!result?.city_results || !Object.keys(provinceSeats).length) return;
+
+    const cityPopMap = {};
+    if (cities?.cities) {
+      cities.cities.forEach(c => { cityPopMap[c.id] = c.population; }
+      );
+    }
+
+    const cityProvinceMap = {};
+    if (cities?.cities) {
+      cities.cities.forEach(c => { cityProvinceMap[c.id] = c.province; }
+      );
+    }
+
+    const provinceCityPops = {};
+    for (const cr of result.city_results) {
+      const prov = cityProvinceMap[cr.city_id];
+      if (!prov) continue;
+      if (!provinceCityPops[prov]) provinceCityPops[prov] = {};
+      provinceCityPops[prov][cr.city_id] = cityPopMap[cr.city_id] || 0;
+    }
+
+    for (const cr of result.city_results) {
+      const prov = cityProvinceMap[cr.city_id];
+      if (!prov || !provinceCityPops[prov]) {
+        cr.seats = 0;
+        continue;
+      }
+      const provTotal = provinceSeats[prov] || 0;
+      const cityPops = provinceCityPops[prov];
+      const totalPop = Object.values(cityPops).reduce((s, v) => s + v, 0);
+      if (totalPop === 0) {
+        cr.seats = 0;
+        continue;
+      }
+      const quotas = Object.fromEntries(
+        Object.entries(cityPops).map(([id, pop]) => [id, (pop / totalPop) * provTotal])
+      );
+      const seats = {};
+      let assigned = 0;
+      for (const id of Object.keys(quotas)) {
+        seats[id] = Math.floor(quotas[id]);
+        assigned += seats[id];
+      }
+      let remaining = provTotal - assigned;
+      const remainders = Object.fromEntries(
+        Object.entries(quotas).map(([id, q]) => [id, q - Math.floor(q)])
+      );
+      const sorted = Object.keys(remainders).sort((a, b) => remainders[b] - remainders[a]);
+      for (let i = 0; i < remaining && i < sorted.length; i++) {
+        seats[sorted[i]]++;
+      }
+      cr.seats = seats[cr.city_id] || 0;
+    }
+  }, [provinceSeats, result, cities]);
+
   const displayResult = result ? {
     ...result,
     total_seats: totalSeats,
