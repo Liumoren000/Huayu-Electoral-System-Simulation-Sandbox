@@ -185,7 +185,12 @@ class ElectoralEngine:
 
         total_pop = sum(c.population for c in self.city_data.cities)
         total_seats = self.config.total_seats
-        pop_per_seat = total_pop / total_seats
+
+        prov_seats_map = self._largest_remainder_seats(
+            {prov: data["population"] for prov, data in province_data.items()},
+            total_seats,
+            min_seats=1
+        )
 
         results = []
         for prov, data in province_data.items():
@@ -193,7 +198,7 @@ class ElectoralEngine:
             avg_shares = {pid: s / total for pid, s in data["shares"].items()}
             winner_id = max(avg_shares, key=avg_shares.get)
             prov_pop = data["population"]
-            prov_seats = max(1, round(prov_pop / pop_per_seat))
+            prov_seats = prov_seats_map.get(prov, 1)
 
             self._allocate_city_seats(data["city_results"], city_pop_map, prov_seats)
 
@@ -208,19 +213,45 @@ class ElectoralEngine:
             ))
         return results
 
+    def _largest_remainder_seats(self, entity_pops: dict[str, int], total_seats: int, min_seats: int = 0) -> dict[str, int]:
+        total_pop = sum(entity_pops.values())
+        if total_pop == 0:
+            return {k: min_seats for k in entity_pops}
+
+        quotas = {k: (pop / total_pop) * total_seats for k, pop in entity_pops.items()}
+        seats = {k: max(min_seats, int(q)) for k, q in quotas.items()}
+        remainders = {k: q - int(q) for k, q in quotas.items()}
+
+        assigned = sum(seats.values())
+        remaining = total_seats - assigned
+
+        if remaining > 0:
+            sorted_entities = sorted(remainders.keys(), key=lambda k: -remainders[k])
+            for i in range(remaining):
+                seats[sorted_entities[i % len(sorted_entities)]] += 1
+        elif remaining < 0:
+            sorted_entities = sorted(remainders.keys(), key=lambda k: remainders[k])
+            to_remove = -remaining
+            for k in sorted_entities:
+                if to_remove <= 0:
+                    break
+                reducible = seats[k] - min_seats
+                if reducible > 0:
+                    remove = min(reducible, to_remove)
+                    seats[k] -= remove
+                    to_remove -= remove
+
+        return seats
+
     def _allocate_city_seats(self, city_results: list[CityResult], city_pop_map: dict, total_seats: int):
         if not city_results or total_seats <= 0:
             return
-        total_pop = sum(city_pop_map.get(cr.city_id, 0) for cr in city_results)
-        if total_pop == 0:
-            return
 
-        seats_assigned = 0
-        for cr in city_results[:-1]:
-            pop = city_pop_map.get(cr.city_id, 0)
-            cr.seats = max(0, round((pop / total_pop) * total_seats))
-            seats_assigned += cr.seats
-        city_results[-1].seats = total_seats - seats_assigned
+        city_pops = {cr.city_id: city_pop_map.get(cr.city_id, 0) for cr in city_results}
+        seats_map = self._largest_remainder_seats(city_pops, total_seats, min_seats=0)
+
+        for cr in city_results:
+            cr.seats = seats_map.get(cr.city_id, 0)
 
     def _d_hondt(self, party_votes: dict[str, float], total_seats: int) -> dict[str, int]:
         seats = {pid: 0 for pid in party_votes}
