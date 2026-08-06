@@ -128,7 +128,7 @@ export default function MapView({ result, cities, mapLabel, accentColor, onProvi
 
   useEffect(() => {
     if (!chartRef.current) return;
-    if (viewMode === 'city' && currentProvince && !cityGeoLoaded) return;
+    if (viewMode === 'city' && currentProvince && !cityGeoLoaded && currentProvince !== '台湾省') return;
     renderMap(chartRef.current, result, manualSeats, currentProvince, viewMode, cities);
   }, [result, manualSeats, viewMode, cityGeoLoaded, currentProvince]);
 
@@ -278,6 +278,8 @@ function renderMap(chart, result, manualSeatsData, currentProvince, viewMode, ci
       (result?.city_results || []).forEach(cr => {
         resultMap[cr.city_id] = cr;
       });
+
+      console.log('Taiwan render:', { hasResult: !!result, cityResults: result?.city_results?.length, twCities: TAIWAN_CITIES.length });
 
       const twData = TAIWAN_CITIES.map(tc => {
         const city = citiesData?.cities?.find(c => c.name === tc.name);
