@@ -194,6 +194,9 @@ class ElectoralEngine:
             winner_id = max(avg_shares, key=avg_shares.get)
             prov_pop = data["population"]
             prov_seats = max(1, round(prov_pop / pop_per_seat))
+
+            self._allocate_city_seats(data["city_results"], city_pop_map, prov_seats)
+
             results.append(ProvinceResult(
                 province_name=prov,
                 winner_party_id=winner_id,
@@ -204,6 +207,20 @@ class ElectoralEngine:
                 seats=prov_seats,
             ))
         return results
+
+    def _allocate_city_seats(self, city_results: list[CityResult], city_pop_map: dict, total_seats: int):
+        if not city_results or total_seats <= 0:
+            return
+        total_pop = sum(city_pop_map.get(cr.city_id, 0) for cr in city_results)
+        if total_pop == 0:
+            return
+
+        seats_assigned = 0
+        for cr in city_results[:-1]:
+            pop = city_pop_map.get(cr.city_id, 0)
+            cr.seats = max(0, round((pop / total_pop) * total_seats))
+            seats_assigned += cr.seats
+        city_results[-1].seats = total_seats - seats_assigned
 
     def _d_hondt(self, party_votes: dict[str, float], total_seats: int) -> dict[str, int]:
         seats = {pid: 0 for pid in party_votes}

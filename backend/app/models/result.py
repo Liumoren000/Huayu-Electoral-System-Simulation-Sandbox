@@ -9,6 +9,7 @@ class CityResult(BaseModel):
     winner_party_name: str
     vote_shares: dict[str, float]  # party_id -> vote share
     turnout: float
+    seats: int = 0
 
 
 class PartySeatResult(BaseModel):

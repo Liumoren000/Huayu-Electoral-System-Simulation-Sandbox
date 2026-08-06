@@ -117,10 +117,11 @@ export default function ProvinceDetail({ province, result, cities, onClose, manu
           <>
             <div className="province-seats-title" style={{ marginTop: 12 }}>{isCityView ? '推演结果' : '城市明细'}</div>
             <table className="province-city-table">
-              <thead>
+               <thead>
                 <tr>
                   <th>城市</th>
                   <th>获胜政党</th>
+                  <th style={{ textAlign: 'center' }}>席位</th>
                   <th style={{ textAlign: 'right' }}>得票分布</th>
                 </tr>
               </thead>
@@ -135,6 +136,7 @@ export default function ProvinceDetail({ province, result, cities, onClose, manu
                         <span className="city-winner-dot" style={{ background: topParty?.color || '#999' }} />
                         {cr.winner_party_name}
                       </td>
+                      <td style={{ textAlign: 'center', fontWeight: 700, color: 'var(--accent-blue)' }}>{cr.seats}</td>
                       <td>
                         <div className="city-shares">
                           {sortedShares.slice(0, 3).map(([pid, share]) => {

@@ -330,7 +330,8 @@ function renderMap(chart, result, manualSeatsData, currentProvince, viewMode, ci
           if (!cr) return `<b>${displayName}</b><br/><span style="color:#5a6378;font-size:10px">暂无推演数据</span>`;
           const sorted = Object.entries(cr.vote_shares).sort((a, b) => b[1] - a[1]);
           let h = `<div style="font-weight:700;margin-bottom:4px">${displayName}</div>`;
-          h += `<div style="color:#66bb6a;margin-bottom:4px">● ${cr.winner_party_name}</div>`;
+          h += `<div style="color:#66bb6a;margin-bottom:2px">● ${cr.winner_party_name}</div>`;
+          h += `<div style="color:#4fc3f7;margin-bottom:4px"><b>${cr.seats}席</b></div>`;
           sorted.forEach(([pid, s]) => {
             h += `<div style="display:flex;justify-content:space-between;gap:12px;font-size:11px">
               <span>${partyMap[pid]?.name || pid}</span><span>${(s * 100).toFixed(1)}%</span></div>`;
@@ -346,7 +347,12 @@ function renderMap(chart, result, manualSeatsData, currentProvince, viewMode, ci
           show: true,
           fontSize: 8,
           color: '#e8eaed',
-          formatter: (params) => params.data?._cityName || params.name,
+          formatter: (params) => {
+            const d = params.data;
+            const name = d?._cityName || params.name;
+            const seats = d?._cityResult?.seats;
+            return seats ? `${name} (${seats})` : name;
+          },
         },
         data,
         itemStyle: { areaColor: DEFAULT_COLOR, borderColor: '#2a3344', borderWidth: 0.6 },
