@@ -41,42 +41,64 @@ export default function App() {
   }, [year]);
 
   useEffect(() => {
-    if (!result?.province_results || !seatMethod) return;
+    if (!result?.province_results || !result?.city_results || !seatMethod) return;
+
     const provinces = result.province_results;
-    const provCount = provinces.length;
-    const reservedSeats = minSeats * provCount;
-    const distributable = Math.max(0, totalSeats - reservedSeats);
+    const cities = result.city_results;
+
+    const cityProvinceMap = {};
+    for (const cr of cities) {
+      for (const pr of provinces) {
+        const cityData = result.city_results.find(c => c.city_id === cr.city_id);
+        if (cityData) {
+          cityProvinceMap[cr.city_id] = pr.province_name;
+        }
+      }
+    }
+
+    const provCityIds = {};
+    for (const pr of provinces) {
+      provCityIds[pr.province_name] = [];
+    }
+    for (const cr of cities) {
+      const prov = cityProvinceMap[cr.city_id];
+      if (prov && provCityIds[prov]) {
+        provCityIds[prov].push(cr.city_id);
+      }
+    }
+
+    const cityCount = cities.length;
+    const minCitySeats = 1;
+    const reservedForCities = cityCount * minCitySeats;
+    const distributable = Math.max(0, totalSeats - reservedForCities);
+
+    const totalPop = provinces.reduce((s, p) => s + p.population, 0);
     const newSeats = {};
 
-    provinces.forEach(p => { newSeats[p.province_name] = minSeats; });
+    for (const pr of provinces) {
+      const provCityCount = provCityIds[pr.province_name]?.length || 0;
+      const provShare = totalPop > 0 ? (pr.population / totalPop) * distributable : 0;
+      newSeats[pr.province_name] = provCityCount * minCitySeats + Math.round(provShare);
+    }
 
-    if (seatMethod === 'equal') {
-      const base = Math.floor(distributable / provCount);
-      const remainder = distributable - base * provCount;
-      provinces.forEach((prov, i) => {
-        newSeats[prov.province_name] += base + (i < remainder ? 1 : 0);
+    let seatSum = Object.values(newSeats).reduce((s, v) => s + v, 0);
+    let diff = totalSeats - seatSum;
+    if (diff !== 0) {
+      const sorted = [...provinces].sort((a, b) => {
+        const aShare = (a.population / totalPop) * distributable;
+        const bShare = (b.population / totalPop) * distributable;
+        return (bShare - Math.round(bShare)) - (aShare - Math.round(aShare));
       });
-    } else if (seatMethod === 'd_hondt' || seatMethod === 'sainte_lague') {
-      const divisor = seatMethod === 'd_hondt' ? 1 : 2;
-      const seats = {};
-      provinces.forEach(p => { seats[p.province_name] = 0; });
-      for (let i = 0; i < distributable; i++) {
-        let maxQ = -1;
-        let winner = null;
-        provinces.forEach(p => {
-          const q = p.population / (divisor * seats[p.province_name] + 1);
-          if (q > maxQ) { maxQ = q; winner = p.province_name; }
-        });
-        seats[winner]++;
+      for (let i = 0; i < Math.abs(diff); i++) {
+        if (diff > 0) {
+          newSeats[sorted[i % sorted.length].province_name]++;
+        } else {
+          const pr = sorted[sorted.length - 1 - (i % sorted.length)].province_name;
+          if (newSeats[pr] > (provCityIds[pr]?.length || 0)) {
+            newSeats[pr]--;
+          }
+        }
       }
-      provinces.forEach(p => {
-        newSeats[p.province_name] += (seats[p.province_name] || 0);
-      });
-    } else {
-      const totalPop = provinces.reduce((s, p) => s + p.population, 0);
-      provinces.forEach(p => {
-        newSeats[p.province_name] += Math.round((p.population / totalPop) * distributable);
-      });
     }
 
     setProvinceSeats(newSeats);
