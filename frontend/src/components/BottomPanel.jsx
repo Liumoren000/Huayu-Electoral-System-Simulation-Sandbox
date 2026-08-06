@@ -1,0 +1,218 @@
+import React, { useEffect, useRef } from 'react';
+import * as echarts from 'echarts';
+
+export default function BottomPanel({ result }) {
+  if (!result) {
+    return (
+      <div className="bottom-panel">
+        <div className="bottom-cell">
+          <div className="bottom-cell-title">议会席位</div>
+          <div style={{ color: 'var(--text-muted)', fontSize: '12px', marginTop: 20, textAlign: 'center' }}>
+            点击"运行推演"查看结果
+          </div>
+        </div>
+        <div className="bottom-cell">
+          <div className="bottom-cell-title">政党得票率</div>
+          <div style={{ color: 'var(--text-muted)', fontSize: '12px', marginTop: 20, textAlign: 'center' }}>
+            等待数据...
+          </div>
+        </div>
+        <div className="bottom-cell">
+          <div className="bottom-cell-title">组阁推演</div>
+          <div style={{ color: 'var(--text-muted)', fontSize: '12px', marginTop: 20, textAlign: 'center' }}>
+            等待推演...
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bottom-panel">
+      <div className="bottom-cell">
+        <div className="bottom-cell-title">议会席位分布</div>
+        <Hemicycle result={result} label={result.system_type} color="var(--accent-blue)" />
+      </div>
+      <div className="bottom-cell">
+        <div className="bottom-cell-title">政党得票 & 席位</div>
+        <SeatTable result={result} />
+      </div>
+      <div className="bottom-cell">
+        <div className="bottom-cell-title">组阁推演</div>
+        <CoalitionBlock coalition={result.coalition} />
+      </div>
+    </div>
+  );
+}
+
+function Hemicycle({ result, label, color }) {
+  if (!result) return null;
+
+  const parties = result.party_results.filter(p => p.seats > 0).sort((a, b) => b.seats - a.seats);
+  const total = parties.reduce((sum, p) => sum + p.seats, 0);
+  if (total === 0) return null;
+
+  const cx = 130;
+  const cy = 95;
+  const rowCount = Math.max(3, Math.min(8, Math.ceil(total / 10)));
+  const baseRadius = 18;
+  const rowStep = 12;
+  const dotRadius = Math.min(3.5, Math.max(2, 60 / Math.sqrt(total)));
+
+  const rowWeights = [];
+  let weightSum = 0;
+  for (let row = 0; row < rowCount; row++) {
+    const w = baseRadius + row * rowStep;
+    rowWeights.push(w);
+    weightSum += w;
+  }
+
+  const rowSeats = [];
+  let assigned = 0;
+  for (let row = 0; row < rowCount; row++) {
+    const proportion = rowWeights[row] / weightSum;
+    const seatsForRow = Math.max(1, Math.round(proportion * total));
+    rowSeats.push(seatsForRow);
+    assigned += seatsForRow;
+  }
+
+  let diff = assigned - total;
+  while (diff > 0) {
+    const maxIdx = rowSeats.indexOf(Math.max(...rowSeats));
+    if (rowSeats[maxIdx] > 1) { rowSeats[maxIdx]--; diff--; }
+    else break;
+  }
+  while (diff < 0) {
+    const minIdx = rowSeats.indexOf(Math.min(...rowSeats));
+    rowSeats[minIdx]++; diff++;
+  }
+
+  const seats = [];
+  let seatIdx = 0;
+
+  for (let row = 0; row < rowCount && seatIdx < total; row++) {
+    const radius = baseRadius + row * rowStep;
+    const seatsInRow = rowSeats[row];
+    const angleStart = Math.PI * 0.92;
+    const angleEnd = Math.PI * 0.08;
+    const angleSpan = angleStart - angleEnd;
+
+    for (let col = 0; col < seatsInRow && seatIdx < total; col++) {
+      const fraction = seatsInRow > 1 ? col / (seatsInRow - 1) : 0.5;
+      const angle = angleStart - fraction * angleSpan;
+      const x = cx + Math.cos(angle) * radius;
+      const y = cy - Math.sin(angle) * radius * 0.55;
+
+      let currentParty = null;
+      let cumulative = 0;
+      for (const party of parties) {
+        cumulative += party.seats;
+        if (seatIdx < cumulative) {
+          currentParty = party;
+          break;
+        }
+      }
+      if (!currentParty) currentParty = parties[parties.length - 1];
+
+      seats.push({ x, y, color: currentParty.color, name: currentParty.party_name });
+      seatIdx++;
+    }
+  }
+
+  return (
+    <div>
+      <div style={{ fontSize: 11, color, fontWeight: 600, marginBottom: 2 }}>{label} ({result.total_seats}席)</div>
+      <svg viewBox="0 0 260 100" className="hemicycle-svg">
+        <path
+          d={`M ${cx - baseRadius - rowStep * rowCount + 5},${cy + 3} L ${cx + baseRadius + rowStep * rowCount - 5},${cy + 3}`}
+          fill="none"
+          stroke="#2a3344"
+          strokeWidth="0.8"
+        />
+        {seats.map((seat, i) => (
+          <circle
+            key={i}
+            cx={seat.x}
+            cy={seat.y}
+            r={dotRadius}
+            fill={seat.color}
+            stroke="#0a0e14"
+            strokeWidth={0.4}
+          >
+            <title>{seat.name}</title>
+          </circle>
+        ))}
+      </svg>
+      <div className="hemicycle-legend">
+        {parties.map(p => (
+          <div key={p.party_id} className="hemicycle-legend-item">
+            <span className="hemicycle-legend-dot" style={{ background: p.color }} />
+            <span className="hemicycle-legend-name">{p.party_name}</span>
+            <span className="hemicycle-legend-seats">{p.seats}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function SeatTable({ result }) {
+  if (!result) return null;
+
+  return (
+    <table className="result-table">
+      <thead>
+        <tr>
+          <th>政党</th>
+          <th>席位</th>
+          <th>得票率</th>
+          <th>席位占比</th>
+        </tr>
+      </thead>
+      <tbody>
+        {result.party_results
+          .sort((a, b) => b.seats - a.seats)
+          .map(p => (
+            <tr key={p.party_id}>
+              <td>
+                <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: p.color, marginRight: 4 }} />
+                {p.party_name}
+              </td>
+              <td style={{ fontWeight: 600 }}>{p.seats}</td>
+              <td style={{ color: 'var(--text-muted)' }}>{(p.vote_share * 100).toFixed(1)}%</td>
+              <td style={{ color: 'var(--text-muted)' }}>{((p.seats / result.total_seats) * 100).toFixed(1)}%</td>
+            </tr>
+          ))}
+      </tbody>
+    </table>
+  );
+}
+
+function CoalitionBlock({ coalition }) {
+  if (!coalition) return <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>无数据</div>;
+
+  return (
+    <div style={{ marginBottom: 8 }}>
+      {coalition.has_majority ? (
+        <div className="coalition-mini recommended">
+          <div className="coalition-mini-title">单一政党多数</div>
+          <div style={{ fontSize: 12 }}>{coalition.majority_party_name}</div>
+        </div>
+      ) : coalition.recommended_coalition ? (
+        <div className="coalition-mini recommended">
+          <div className="coalition-mini-title">推荐联盟</div>
+          <div className="coalition-parties-row">
+            {coalition.recommended_coalition.party_names.map((n, i) => (
+              <span key={i} className="coalition-party-pill">{n}</span>
+            ))}
+          </div>
+          <div className="coalition-meta">
+            {coalition.recommended_coalition.total_seats}席 | 意识形态距离 {coalition.recommended_coalition.ideological_distance.toFixed(2)}
+          </div>
+        </div>
+      ) : (
+        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>无法形成多数</div>
+      )}
+    </div>
+  );
+}
