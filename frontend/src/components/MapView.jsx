@@ -90,6 +90,14 @@ export default function MapView({ result, cities, mapLabel, accentColor, onProvi
 
   useEffect(() => {
     if (!chartRef.current || !currentProvince || !cities?.cities) return;
+
+    if (currentProvince === '台湾省') {
+      setCityGeoLoaded(true);
+      renderMap(chartRef.current, result, manualSeats, currentProvince, viewMode, cities);
+      setStatus('ready');
+      return;
+    }
+
     const adcode = PROVINCE_ADCODES[currentProvince];
     if (!adcode) return;
 
@@ -178,7 +186,6 @@ export default function MapView({ result, cities, mapLabel, accentColor, onProvi
         position: 'absolute', top: 0, left: 0, right: 0,
         padding: '10px 16px', zIndex: 10,
         background: 'linear-gradient(to bottom, rgba(10,14,20,0.95), transparent)',
-        pointerEvents: 'none',
       }}>
         <span style={{ fontSize: 13, fontWeight: 700, color: accentColor, letterSpacing: 1 }}>
           {currentProvince ? `市级视图: ${currentProvince}` : mapLabel}
@@ -194,7 +201,6 @@ export default function MapView({ result, cities, mapLabel, accentColor, onProvi
               marginLeft: 12, padding: '2px 10px', fontSize: 10,
               background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)',
               borderRadius: 4, color: 'var(--accent-blue)', cursor: 'pointer',
-              pointerEvents: 'auto',
             }}
             onClick={handleBack}
           >
