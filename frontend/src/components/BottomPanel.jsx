@@ -220,15 +220,10 @@ function SeatTable({ result }) {
           {result.party_results
             .sort((a, b) => b.seats - a.seats)
             .map(p => (
-              <tr key={p.party_id} className={p.isAllianceMember ? 'alliance-member' : ''}>
+              <tr key={p.party_id}>
                 <td>
                   <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: p.color, marginRight: 4 }} />
                   {p.party_name}
-                  {p.isAllianceMember && (
-                    <span className="alliance-badge" title={`联盟: ${p.allianceName}`}>
-                      {p.allianceName}
-                    </span>
-                  )}
                 </td>
                 <td style={{ fontWeight: 600 }}>{p.seats}</td>
                 <td style={{ color: 'var(--text-muted)' }}>{(p.vote_share * 100).toFixed(1)}%</td>
@@ -237,19 +232,6 @@ function SeatTable({ result }) {
             ))}
         </tbody>
       </table>
-      {result.allianceResults && result.allianceResults.length > 0 && (
-        <div className="alliance-totals">
-          <div className="alliance-totals-title">联盟总计</div>
-          {result.allianceResults.map(a => (
-            <div key={a.id} className="alliance-total-row">
-              <span className="alliance-total-dot" style={{ background: a.color }} />
-              <span className="alliance-total-name">{a.name}</span>
-              <span className="alliance-total-seats">{a.seats}席</span>
-              <span className="alliance-total-pct">{((a.seats / result.total_seats) * 100).toFixed(1)}%</span>
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   );
 }

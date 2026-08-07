@@ -31,7 +31,6 @@ export default function App() {
   const [totalSeats, setTotalSeats] = useState(450);
   const [minSeats, setMinSeats] = useState(1);
   const [viewMode, setViewMode] = useState('province');
-  const [alliances, setAlliances] = useState([]);
 
   useEffect(() => {
     fetchParties().then(data => {
@@ -110,21 +109,18 @@ export default function App() {
     }
     setLoading(true);
     try {
-      const enabledParties = parties.filter(p => p.enabled !== false);
-
-      const { simParties, allianceMap } = buildAllianceParties(enabledParties, alliances);
-
+      const enabledParties = parties
+        .filter(p => p.enabled !== false)
+        .map(({ enabled, ...rest }) => rest);
       const simConfig = { ...config, total_seats: totalSeats };
       const response = await runSimulation({
         year,
         config_a: simConfig,
         config_b: simConfig,
-        parties: simParties.map(({ enabled, ...rest }) => rest),
+        parties: enabledParties,
       });
 
-      const resultWithAlliances = splitAllianceResults(response.result_a, allianceMap, enabledParties);
-
-      setResult(resultWithAlliances);
+      setResult(response.result_a);
       setCoalition(response.coalition_a);
       setProvinceSeats({});
       setViewMode('province');
@@ -217,62 +213,6 @@ export default function App() {
     })),
   } : null;
 
-  function buildAllianceParties(parties, alliances) {
-    const allianceMap = {};
-    for (const alliance of alliances) {
-      if (alliance.parties.length < 2) continue;
-      for (const pid of alliance.parties) {
-        allianceMap[pid] = alliance.id;
-      }
-    }
-    return { simParties: parties, allianceMap };
-  }
-
-  function splitAllianceResults(result, allianceMap, originalParties) {
-    const partyAllianceMap = {};
-    for (const alliance of alliances) {
-      for (const pid of alliance.parties) {
-        partyAllianceMap[pid] = alliance;
-      }
-    }
-
-    const newPartyResults = result.party_results.map(pr => {
-      const alliance = partyAllianceMap[pr.party_id];
-      if (alliance) {
-        return {
-          ...pr,
-          isAllianceMember: true,
-          allianceName: alliance.name,
-          allianceColor: alliance.color,
-          allianceId: alliance.id,
-        };
-      }
-      return pr;
-    });
-
-    const allianceResults = alliances.map(alliance => {
-      const memberResults = newPartyResults.filter(p => alliance.parties.includes(p.party_id));
-      const totalSeats = memberResults.reduce((s, p) => s + p.seats, 0);
-      const totalVotes = memberResults.reduce((s, p) => s + (p.vote_share || 0), 0);
-      return {
-        id: alliance.id,
-        name: alliance.name,
-        color: alliance.color,
-        parties: alliance.parties,
-        seats: totalSeats,
-        vote_share: totalVotes,
-        memberResults,
-      };
-    });
-
-    return {
-      ...result,
-      party_results: newPartyResults,
-      allianceResults,
-      alliances,
-    };
-  }
-
   return (
     <div className="app">
       <header className="header">
@@ -312,8 +252,6 @@ export default function App() {
           onTotalSeatsChange={setTotalSeats}
           minSeats={minSeats}
           onMinSeatsChange={setMinSeats}
-          alliances={alliances}
-          setAlliances={setAlliances}
         />
 
         <div className="map-area">
@@ -328,7 +266,6 @@ export default function App() {
             viewMode={viewMode}
             onViewModeChange={setViewMode}
             onDrillDown={handleMapDrillDown}
-            alliances={alliances}
           />
 
           <BottomPanel result={displayResult} />
