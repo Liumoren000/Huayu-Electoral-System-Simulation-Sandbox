@@ -10,6 +10,8 @@ class CityResult(BaseModel):
     vote_shares: dict[str, float]  # party_id -> vote share
     turnout: float
     seats: int = 0
+    affinities: dict[str, float] = {}  # party_id -> raw affinity score
+    dimensions: dict[str, float] = {}  # economic, social, regional position
 
 
 class PartySeatResult(BaseModel):

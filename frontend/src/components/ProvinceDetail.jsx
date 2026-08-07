@@ -117,18 +117,22 @@ export default function ProvinceDetail({ province, result, cities, onClose, manu
           <>
             <div className="province-seats-title" style={{ marginTop: 12 }}>{isCityView ? '推演结果' : '城市明细'}</div>
             <table className="province-city-table">
-               <thead>
-                <tr>
-                  <th>城市</th>
-                  <th>获胜政党</th>
-                  <th style={{ textAlign: 'center' }}>席位</th>
-                  <th style={{ textAlign: 'right' }}>得票分布</th>
-                </tr>
+                <thead>
+                 <tr>
+                   <th>城市</th>
+                   <th>获胜政党</th>
+                   <th style={{ textAlign: 'center' }}>席位</th>
+                   <th style={{ textAlign: 'center' }}>政治倾向</th>
+                   <th style={{ textAlign: 'right' }}>得票分布</th>
+                 </tr>
               </thead>
               <tbody>
                 {provinceCities.map(cr => {
                   const sortedShares = Object.entries(cr.vote_shares).sort((a, b) => b[1] - a[1]);
                   const topParty = partyMap[sortedShares[0][0]];
+                  const dims = cr.dimensions || {};
+                  const affinities = cr.affinities || {};
+                  const sortedAff = Object.entries(affinities).sort((a, b) => b[1] - a[1]);
                   return (
                     <tr key={cr.city_id}>
                       <td>{cr.city_name}</td>
@@ -137,6 +141,40 @@ export default function ProvinceDetail({ province, result, cities, onClose, manu
                         {cr.winner_party_name}
                       </td>
                       <td style={{ textAlign: 'center', fontWeight: 700, color: 'var(--accent-blue)' }}>{cr.seats}</td>
+                      <td>
+                        <div className="city-leaning">
+                          <div className="leaning-dims">
+                            <span className="dim-label" title="经济">经</span>
+                            <div className="dim-bar-bg">
+                              <div className="dim-bar" style={{ width: `${Math.abs(dims.economic || 0) * 50}%`, background: dims.economic >= 0 ? '#4fc3d7' : '#ff8a65', marginLeft: dims.economic >= 0 ? '50%' : `${50 - Math.abs(dims.economic || 0) * 50}%` }} />
+                              <div className="dim-center" />
+                            </div>
+                            <span className="dim-label" title="社会">社</span>
+                            <div className="dim-bar-bg">
+                              <div className="dim-bar" style={{ width: `${Math.abs(dims.social || 0) * 50}%`, background: dims.social >= 0 ? '#4fc3d7' : '#ff8a65', marginLeft: dims.social >= 0 ? '50%' : `${50 - Math.abs(dims.social || 0) * 50}%` }} />
+                              <div className="dim-center" />
+                            </div>
+                            <span className="dim-label" title="区域">区</span>
+                            <div className="dim-bar-bg">
+                              <div className="dim-bar" style={{ width: `${Math.abs(dims.regional || 0) * 50}%`, background: dims.regional >= 0 ? '#81c784' : '#ff8a65', marginLeft: dims.regional >= 0 ? '50%' : `${50 - Math.abs(dims.regional || 0) * 50}%` }} />
+                              <div className="dim-center" />
+                            </div>
+                          </div>
+                          <div className="leaning-affinities">
+                            {sortedAff.slice(0, 3).map(([pid, aff]) => {
+                              const party = partyMap[pid];
+                              return (
+                                <div key={pid} className="aff-bar-row">
+                                  <span className="aff-party" style={{ color: party?.color || '#999' }}>●</span>
+                                  <div className="aff-bar-bg">
+                                    <div className="aff-bar" style={{ width: `${(aff || 0) * 100}%`, background: party?.color || '#999' }} />
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </td>
                       <td>
                         <div className="city-shares">
                           {sortedShares.slice(0, 3).map(([pid, share]) => {

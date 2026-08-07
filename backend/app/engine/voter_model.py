@@ -22,6 +22,19 @@ class VoterModel:
         noise = self.rng.gauss(0, 0.05)
         return max(0.01, raw_score + noise)
 
+    def get_city_dimensions(self, city: City) -> dict[str, float]:
+        return {
+            'economic': round(self._city_economic_position(city), 3),
+            'social': round(self._city_social_position(city), 3),
+            'regional': round(self._city_regional_position(city), 3),
+        }
+
+    def get_city_affinities(self, city: City, parties: list[Party]) -> dict[str, float]:
+        affinities = {}
+        for party in parties:
+            affinities[party.id] = round(self.compute_city_party_affinity(city, party), 4)
+        return affinities
+
     def _economic_match(self, city: City, party: Party) -> float:
         city_economic = self._city_economic_position(city)
         diff = abs(city_economic - party.economic_position)

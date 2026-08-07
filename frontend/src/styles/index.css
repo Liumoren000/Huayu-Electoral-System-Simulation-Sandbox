@@ -931,3 +931,81 @@ body {
   color: var(--text-primary);
   white-space: nowrap;
 }
+
+.city-leaning {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 120px;
+}
+
+.leaning-dims {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.dim-label {
+  font-size: 8px;
+  color: var(--text-muted);
+  width: 12px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.dim-bar-bg {
+  flex: 1;
+  height: 4px;
+  background: var(--bg-primary);
+  border-radius: 2px;
+  position: relative;
+  overflow: hidden;
+}
+
+.dim-bar {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.3s;
+}
+
+.dim-center {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--border-color);
+}
+
+.leaning-affinities {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.aff-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.aff-party {
+  font-size: 6px;
+  width: 8px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.aff-bar-bg {
+  flex: 1;
+  height: 3px;
+  background: var(--bg-primary);
+  border-radius: 1px;
+  overflow: hidden;
+}
+
+.aff-bar {
+  height: 100%;
+  border-radius: 1px;
+  transition: width 0.3s;
+}

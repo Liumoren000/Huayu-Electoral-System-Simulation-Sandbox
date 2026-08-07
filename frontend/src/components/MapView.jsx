@@ -258,7 +258,7 @@ const GEO_NAME_TO_CITY_NAME = {
 
 function renderMap(chart, result, manualSeatsData, currentProvince, viewMode, citiesData) {
   if (!chart) return;
-  if (viewMode === 'city' && currentProvince && !echarts.getMap('province')) return;
+  if (viewMode === 'city' && currentProvince && currentProvince !== '台湾省' && !echarts.getMap('province')) return;
 
   const cityProvinceMap = {};
   if (citiesData?.cities) {
@@ -329,13 +329,22 @@ function renderMap(chart, result, manualSeatsData, currentProvince, viewMode, ci
           const displayName = d?._cityName || params.name;
           if (!cr) return `<b>${displayName}</b><br/><span style="color:#5a6378;font-size:10px">暂无推演数据</span>`;
           const sorted = Object.entries(cr.vote_shares).sort((a, b) => b[1] - a[1]);
+          const dims = cr.dimensions || {};
+          const affinities = cr.affinities || {};
+          const sortedAff = Object.entries(affinities).sort((a, b) => b[1] - a[1]);
           let h = `<div style="font-weight:700;margin-bottom:4px">${displayName}</div>`;
-          h += `<div style="color:#66bb6a;margin-bottom:2px">● ${cr.winner_party_name}</div>`;
-          h += `<div style="color:#4fc3f7;margin-bottom:4px"><b>${cr.seats}席</b></div>`;
-          sorted.forEach(([pid, s]) => {
-            h += `<div style="display:flex;justify-content:space-between;gap:12px;font-size:11px">
-              <span>${partyMap[pid]?.name || pid}</span><span>${(s * 100).toFixed(1)}%</span></div>`;
-          });
+          h += `<div style="color:#66bb6a;margin-bottom:2px">● ${cr.winner_party_name} | ${cr.seats}席</div>`;
+          if (dims.economic !== undefined) {
+            h += `<div style="font-size:10px;color:#9aa0a6;margin-bottom:4px">倾向: 经${dims.economic >= 0 ? '+' : ''}${dims.economic.toFixed(2)} 社${dims.social >= 0 ? '+' : ''}${dims.social.toFixed(2)} 区${dims.regional >= 0 ? '+' : ''}${dims.regional.toFixed(2)}</div>`;
+          }
+          if (sortedAff.length > 0) {
+            h += `<div style="font-size:10px;color:#9aa0a6;margin-bottom:2px">亲和度:</div>`;
+            sortedAff.slice(0, 3).forEach(([pid, aff]) => {
+              const party = partyMap[pid];
+              h += `<div style="display:flex;justify-content:space-between;gap:8px;font-size:10px">
+                <span style="color:${party?.color || '#999'}">${party?.name || pid}</span><span>${(aff * 100).toFixed(0)}%</span></div>`;
+            });
+          }
           return h;
         },
       },

@@ -81,6 +81,8 @@ class ElectoralEngine:
                 winner_party_name=self.party_map[winner_id].name,
                 vote_shares={pid: round(s, 4) for pid, s in shares.items()},
                 turnout=0.6,
+                affinities=self.voter_model.get_city_affinities(city, self.parties),
+                dimensions=self.voter_model.get_city_dimensions(city),
             ))
             city_results_done.add(city.id)
 
@@ -127,6 +129,8 @@ class ElectoralEngine:
                 winner_party_name=self.party_map[winner_id].name,
                 vote_shares={pid: round(s, 4) for pid, s in shares.items()},
                 turnout=0.6,
+                affinities=self.voter_model.get_city_affinities(city, self.parties),
+                dimensions=self.voter_model.get_city_dimensions(city),
             ))
 
         eligible_parties = {
