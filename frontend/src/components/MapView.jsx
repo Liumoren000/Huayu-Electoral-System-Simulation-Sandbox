@@ -335,7 +335,16 @@ function renderMap(chart, result, manualSeatsData, currentProvince, viewMode, ci
           let h = `<div style="font-weight:700;margin-bottom:4px">${displayName}</div>`;
           h += `<div style="color:#66bb6a;margin-bottom:2px">● ${cr.winner_party_name} | ${cr.seats}席</div>`;
           if (dims.economic !== undefined) {
-            h += `<div style="font-size:10px;color:#9aa0a6;margin-bottom:4px">倾向: 经${dims.economic >= 0 ? '+' : ''}${dims.economic.toFixed(2)} 社${dims.social >= 0 ? '+' : ''}${dims.social.toFixed(2)} 区${dims.regional >= 0 ? '+' : ''}${dims.regional.toFixed(2)}</div>`;
+            const dNames = [
+              ['economic', '经'], ['social', '社'], ['regional', '区'],
+              ['welfare', '福'], ['environment', '环'], ['nationalism', '民'], ['urban_rural', '城']
+            ];
+            let dimStr = '';
+            for (const [key, label] of dNames) {
+              const v = dims[key] || 0;
+              dimStr += `${label}${v >= 0 ? '+' : ''}${v.toFixed(1)} `;
+            }
+            h += `<div style="font-size:9px;color:#9aa0a6;margin-bottom:4px;line-height:1.4">${dimStr}</div>`;
           }
           if (sortedAff.length > 0) {
             h += `<div style="font-size:10px;color:#9aa0a6;margin-bottom:2px">亲和度:</div>`;

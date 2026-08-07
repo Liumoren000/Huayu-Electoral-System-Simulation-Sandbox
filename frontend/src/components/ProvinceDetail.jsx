@@ -143,22 +143,31 @@ export default function ProvinceDetail({ province, result, cities, onClose, manu
                       <td style={{ textAlign: 'center', fontWeight: 700, color: 'var(--accent-blue)' }}>{cr.seats}</td>
                       <td>
                         <div className="city-leaning">
-                          <div className="leaning-dims">
-                            <span className="dim-label" title="经济">经</span>
-                            <div className="dim-bar-bg">
-                              <div className="dim-bar" style={{ width: `${Math.abs(dims.economic || 0) * 50}%`, background: dims.economic >= 0 ? '#4fc3d7' : '#ff8a65', marginLeft: dims.economic >= 0 ? '50%' : `${50 - Math.abs(dims.economic || 0) * 50}%` }} />
-                              <div className="dim-center" />
-                            </div>
-                            <span className="dim-label" title="社会">社</span>
-                            <div className="dim-bar-bg">
-                              <div className="dim-bar" style={{ width: `${Math.abs(dims.social || 0) * 50}%`, background: dims.social >= 0 ? '#4fc3d7' : '#ff8a65', marginLeft: dims.social >= 0 ? '50%' : `${50 - Math.abs(dims.social || 0) * 50}%` }} />
-                              <div className="dim-center" />
-                            </div>
-                            <span className="dim-label" title="区域">区</span>
-                            <div className="dim-bar-bg">
-                              <div className="dim-bar" style={{ width: `${Math.abs(dims.regional || 0) * 50}%`, background: dims.regional >= 0 ? '#81c784' : '#ff8a65', marginLeft: dims.regional >= 0 ? '50%' : `${50 - Math.abs(dims.regional || 0) * 50}%` }} />
-                              <div className="dim-center" />
-                            </div>
+                          <div className="leaning-dims-grid">
+                            {[
+                              { key: 'economic', label: '经', color: '#4fc3d7' },
+                              { key: 'social', label: '社', color: '#ff8a65' },
+                              { key: 'regional', label: '区', color: '#81c784' },
+                              { key: 'welfare', label: '福', color: '#ab47bc' },
+                              { key: 'environment', label: '环', color: '#0d904f' },
+                              { key: 'nationalism', label: '民', color: '#f57c00' },
+                              { key: 'urban_rural', label: '城', color: '#1a73e8' },
+                            ].map(({ key, label, color }) => (
+                              <div key={key} className="dim-mini">
+                                <span className="dim-mini-label">{label}</span>
+                                <div className="dim-mini-bg">
+                                  <div className="dim-mini-center" />
+                                  <div className="dim-mini-bar" style={{
+                                    width: `${Math.abs(dims[key] || 0) * 50}%`,
+                                    background: color,
+                                    left: dims[key] >= 0 ? '50%' : `${50 - Math.abs(dims[key] || 0) * 50}%`,
+                                  }} />
+                                </div>
+                                <span className="dim-mini-val" style={{ color: dims[key] >= 0 ? color : '#ff8a65' }}>
+                                  {(dims[key] || 0) >= 0 ? '+' : ''}{(dims[key] || 0).toFixed(1)}
+                                </span>
+                              </div>
+                            ))}
                           </div>
                           <div className="leaning-affinities">
                             {sortedAff.slice(0, 3).map(([pid, aff]) => {

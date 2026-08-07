@@ -359,43 +359,69 @@ CHINA_CITIES_RAW = [
 
 
 def generate_default_parties() -> list[Party]:
+    """
+    预设政党模型
+
+    维度说明：
+    - economic: -1(国家干预/再分配) ~ +1(市场自由)
+    - social: -1(传统/集体) ~ +1(现代/个人)
+    - regional: -1(本土化/内陆) ~ +1(国际化/沿海)
+    - welfare: -1(低福利) ~ +1(高福利/再分配)
+    - environment: -1(发展优先) ~ +1(环保优先)
+    - nationalism: -1(国际主义) ~ +1(民族主义/保护主义)
+    - urban_rural: -1(农业农村利益) ~ +1(城市居民利益)
+    """
     return [
         Party(
             id="P001", name="沿海商业联盟", color="#1a73e8",
-            economic_position=0.7, social_position=-0.2, regional_position=-0.7,
+            economic_position=0.7, social_position=-0.2, regional_position=0.7,
+            welfare_position=-0.3, environment_position=-0.2,
+            nationalism_position=0.6, urban_rural_position=0.5,
             description="代表沿海发达地区商业利益，主张自由贸易与经济开放"
         ),
         Party(
             id="P002", name="内陆发展党", color="#ea4335",
-            economic_position=-0.5, social_position=0.3, regional_position=0.7,
+            economic_position=-0.5, social_position=0.3, regional_position=-0.6,
+            welfare_position=0.6, environment_position=-0.3,
+            nationalism_position=-0.2, urban_rural_position=-0.6,
             description="代表内陆农业与欠发达地区，主张产业转移与区域平衡"
         ),
         Party(
             id="P003", name="工人联合阵线", color="#ea8600",
-            economic_position=-0.8, social_position=-0.3, regional_position=0.3,
+            economic_position=-0.8, social_position=-0.3, regional_position=-0.3,
+            welfare_position=0.9, environment_position=0.0,
+            nationalism_position=-0.3, urban_rural_position=0.2,
             description="代表传统工业城市工人阶级，主张劳动保护与社会福利"
         ),
         Party(
             id="P004", name="新市民进步党", color="#34a853",
-            economic_position=0.2, social_position=-0.7, regional_position=-0.3,
+            economic_position=0.2, social_position=-0.7, regional_position=0.4,
+            welfare_position=0.3, environment_position=0.6,
+            nationalism_position=0.5, urban_rural_position=0.6,
             description="代表城市化进程中涌现的知识分子与新中产，主张社会进步"
         ),
         Party(
             id="P005", name="民族区域自治党", color="#9334e7",
-            economic_position=-0.2, social_position=0.6, regional_position=0.5,
+            economic_position=-0.2, social_position=0.6, regional_position=-0.8,
+            welfare_position=0.5, environment_position=0.3,
+            nationalism_position=-0.7, urban_rural_position=-0.4,
             description="代表边疆少数民族地区，主张文化保护与区域自治"
         ),
         Party(
             id="P006", name="绿色未来党", color="#0d904f",
-            economic_position=-0.1, social_position=-0.8, regional_position=0.0,
+            economic_position=-0.1, social_position=-0.8, regional_position=0.2,
+            welfare_position=0.4, environment_position=0.9,
+            nationalism_position=0.3, urban_rural_position=0.3,
             description="关注环境保护与可持续发展，主张绿色经济转型"
         ),
         Party(
             id="P007", name="传统价值守护党", color="#f57c00",
-            economic_position=0.3, social_position=0.8, regional_position=0.2,
+            economic_position=0.3, social_position=0.8, regional_position=-0.4,
+            welfare_position=-0.4, environment_position=-0.5,
+            nationalism_position=-0.6, urban_rural_position=-0.3,
             description="代表保守社会群体，主张传统文化价值与社会稳定"
         ),
-]
+    ]
 
 
 PROVINCE_CODE_MAP = {

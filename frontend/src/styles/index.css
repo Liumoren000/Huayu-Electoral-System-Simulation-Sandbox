@@ -1021,42 +1021,57 @@ body {
   min-width: 120px;
 }
 
-.leaning-dims {
+.leaning-dims-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 2px 4px;
+  margin-bottom: 4px;
+}
+
+.dim-mini {
   display: flex;
   align-items: center;
   gap: 2px;
 }
 
-.dim-label {
-  font-size: 8px;
+.dim-mini-label {
+  font-size: 7px;
   color: var(--text-muted);
-  width: 12px;
+  width: 10px;
   text-align: center;
   flex-shrink: 0;
 }
 
-.dim-bar-bg {
+.dim-mini-bg {
   flex: 1;
-  height: 4px;
+  height: 3px;
   background: var(--bg-primary);
-  border-radius: 2px;
+  border-radius: 1px;
   position: relative;
   overflow: hidden;
 }
 
-.dim-bar {
-  height: 100%;
-  border-radius: 2px;
-  transition: width 0.3s;
-}
-
-.dim-center {
+.dim-mini-center {
   position: absolute;
   left: 50%;
   top: 0;
   bottom: 0;
   width: 1px;
   background: var(--border-color);
+}
+
+.dim-mini-bar {
+  position: absolute;
+  height: 100%;
+  border-radius: 1px;
+}
+
+.dim-mini-val {
+  font-size: 7px;
+  font-weight: 600;
+  width: 22px;
+  text-align: right;
+  flex-shrink: 0;
 }
 
 .leaning-affinities {
