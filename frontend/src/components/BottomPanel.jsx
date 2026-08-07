@@ -188,31 +188,51 @@ function SeatTable({ result }) {
   if (!result) return null;
 
   return (
-    <table className="result-table">
-      <thead>
-        <tr>
-          <th>政党</th>
-          <th>席位</th>
-          <th>得票率</th>
-          <th>席位占比</th>
-        </tr>
-      </thead>
-      <tbody>
+    <div>
+      <div className="seats-bar">
         {result.party_results
+          .filter(p => p.seats > 0)
           .sort((a, b) => b.seats - a.seats)
           .map(p => (
-            <tr key={p.party_id}>
-              <td>
-                <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: p.color, marginRight: 4 }} />
-                {p.party_name}
-              </td>
-              <td style={{ fontWeight: 600 }}>{p.seats}</td>
-              <td style={{ color: 'var(--text-muted)' }}>{(p.vote_share * 100).toFixed(1)}%</td>
-              <td style={{ color: 'var(--text-muted)' }}>{((p.seats / result.total_seats) * 100).toFixed(1)}%</td>
-            </tr>
+            <div
+              key={p.party_id}
+              className="seats-seg"
+              style={{
+                background: p.color,
+                width: `${(p.seats / result.total_seats) * 100}%`,
+              }}
+              title={`${p.party_name}: ${p.seats}席 (${((p.seats / result.total_seats) * 100).toFixed(1)}%)`}
+            >
+              {p.seats > 10 ? p.seats : ''}
+            </div>
           ))}
-      </tbody>
-    </table>
+      </div>
+      <table className="result-table">
+        <thead>
+          <tr>
+            <th>政党</th>
+            <th>席位</th>
+            <th>得票率</th>
+            <th>占比</th>
+          </tr>
+        </thead>
+        <tbody>
+          {result.party_results
+            .sort((a, b) => b.seats - a.seats)
+            .map(p => (
+              <tr key={p.party_id}>
+                <td>
+                  <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: p.color, marginRight: 4 }} />
+                  {p.party_name}
+                </td>
+                <td style={{ fontWeight: 600 }}>{p.seats}</td>
+                <td style={{ color: 'var(--text-muted)' }}>{(p.vote_share * 100).toFixed(1)}%</td>
+                <td style={{ color: 'var(--text-muted)' }}>{((p.seats / result.total_seats) * 100).toFixed(1)}%</td>
+              </tr>
+            ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
