@@ -359,16 +359,6 @@ body {
   letter-spacing: 1px;
 }
 
-.party-editor-item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 6px;
-  background: var(--bg-primary);
-  border-radius: 4px;
-  margin-bottom: 4px;
-}
-
 .party-card.mini-spectrum {
   display: flex;
   flex-direction: column;
@@ -812,7 +802,8 @@ body {
   padding: 4px 6px;
   background: var(--bg-primary);
   border-radius: 4px;
-  margin-bottom: 4px;
+  margin-bottom: 3px;
+  flex-shrink: 0;
 }
 
 .party-editor-item.disabled {
@@ -955,6 +946,8 @@ body {
 
 .alliance-section {
   flex-shrink: 0;
+  max-height: 150px;
+  overflow-y: auto;
 }
 
 .alliance-add-btn {
