@@ -116,7 +116,7 @@ class VoterModel:
 
     def _city_regional_position(self, city: City) -> float:
         """
-        区域认同: -1(本土化/内陆) ~ +1(国际化/沿海)
+        区域认同: -1(沿海/国际化) ~ +1(内陆/本土化)
 
         考虑因素：
         - 沿海 vs 内陆
