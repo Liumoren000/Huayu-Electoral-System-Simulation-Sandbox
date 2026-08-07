@@ -9,6 +9,7 @@ export default function Sidebar({
   seatMethod, onSeatMethodChange,
   totalSeats, onTotalSeatsChange,
   minSeats, onMinSeatsChange,
+  alliances, setAlliances,
 }) {
   const updateConfig = (key, value) => {
     setConfig(prev => ({ ...prev, [key]: value }));
@@ -178,6 +179,37 @@ export default function Sidebar({
         </div>
       </div>
 
+      <div className="sidebar-section alliance-section">
+        <div className="section-title">
+          <span className="dot" style={{ background: '#f57c00' }} />政治联盟
+          <button className="alliance-add-btn" onClick={() => {
+            const newAlliance = {
+              id: 'A' + Date.now(),
+              name: '联盟 ' + (alliances.length + 1),
+              parties: [],
+              color: '#888888',
+            };
+            setAlliances([...alliances, newAlliance]);
+          }}>+</button>
+        </div>
+        <div className="alliance-list">
+          {alliances.length === 0 && (
+            <div style={{ fontSize: 10, color: 'var(--text-muted)', padding: '4px 0' }}>
+              点击 + 创建政治联盟，将政党拖入联盟组合参选
+            </div>
+          )}
+          {alliances.map(alliance => (
+            <AllianceCard
+              key={alliance.id}
+              alliance={alliance}
+              parties={parties}
+              onUpdate={(updated) => setAlliances(alliances.map(a => a.id === updated.id ? updated : a))}
+              onDelete={() => setAlliances(alliances.filter(a => a.id !== alliance.id))}
+            />
+          ))}
+        </div>
+      </div>
+
       <div className="sidebar-section">
         <div className="section-title">
           <span className="dot" style={{ background: 'var(--accent-orange)' }} />省份席位分配
@@ -257,6 +289,81 @@ export default function Sidebar({
           {loading ? '推演中...' : '运行推演'}
         </button>
       </div>
+    </div>
+  );
+}
+
+function AllianceCard({ alliance, parties, onUpdate, onDelete }) {
+  const [expanded, setExpanded] = React.useState(false);
+  const availableParties = parties.filter(p => p.enabled && !alliance.parties.includes(p.id));
+
+  return (
+    <div className={`alliance-card ${expanded ? 'expanded' : ''}`}>
+      <div className="alliance-header">
+        <div className="alliance-info">
+          <input
+            type="color"
+            value={alliance.color}
+            onChange={e => onUpdate({ ...alliance, color: e.target.value })}
+            className="alliance-color"
+            title="联盟颜色"
+          />
+          <input
+            type="text"
+            className="alliance-name-input"
+            value={alliance.name}
+            onChange={e => onUpdate({ ...alliance, name: e.target.value })}
+            onClick={e => e.stopPropagation()}
+          />
+        </div>
+        <div className="alliance-actions">
+          <button className="alliance-toggle-btn" onClick={() => setExpanded(!expanded)}>
+            {expanded ? '▲' : '▼'}
+          </button>
+          <button className="alliance-delete-btn" onClick={onDelete}>×</button>
+        </div>
+      </div>
+
+      {expanded && (
+        <div className="alliance-body">
+          <div className="alliance-parties">
+            {alliance.parties.length === 0 && (
+              <div style={{ fontSize: 9, color: 'var(--text-muted)' }}>从下方选择政党加入联盟</div>
+            )}
+            {alliance.parties.map(pid => {
+              const party = parties.find(p => p.id === pid);
+              if (!party) return null;
+              return (
+                <div key={pid} className="alliance-party-chip" style={{ borderColor: party.color }}>
+                  <span className="alliance-party-dot" style={{ background: party.color }} />
+                  <span>{party.name}</span>
+                  <button
+                    className="alliance-party-remove"
+                    onClick={() => onUpdate({ ...alliance, parties: alliance.parties.filter(id => id !== pid) })}
+                  >×</button>
+                </div>
+              );
+            })}
+          </div>
+          {availableParties.length > 0 && (
+            <div className="alliance-add-party">
+              <select
+                value=""
+                onChange={e => {
+                  if (e.target.value) {
+                    onUpdate({ ...alliance, parties: [...alliance.parties, e.target.value] });
+                  }
+                }}
+              >
+                <option value="">+ 添加政党</option>
+                {availableParties.map(p => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

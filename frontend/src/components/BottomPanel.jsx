@@ -220,10 +220,15 @@ function SeatTable({ result }) {
           {result.party_results
             .sort((a, b) => b.seats - a.seats)
             .map(p => (
-              <tr key={p.party_id}>
+              <tr key={p.party_id} className={p.isAllianceMember ? 'alliance-member' : ''}>
                 <td>
                   <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: p.color, marginRight: 4 }} />
                   {p.party_name}
+                  {p.isAllianceMember && (
+                    <span className="alliance-badge" title={`联盟: ${p.allianceName}`}>
+                      {p.allianceName}
+                    </span>
+                  )}
                 </td>
                 <td style={{ fontWeight: 600 }}>{p.seats}</td>
                 <td style={{ color: 'var(--text-muted)' }}>{(p.vote_share * 100).toFixed(1)}%</td>

@@ -31,6 +31,7 @@ export default function App() {
   const [totalSeats, setTotalSeats] = useState(450);
   const [minSeats, setMinSeats] = useState(1);
   const [viewMode, setViewMode] = useState('province');
+  const [alliances, setAlliances] = useState([]);
 
   useEffect(() => {
     fetchParties().then(data => {
@@ -109,17 +110,21 @@ export default function App() {
     }
     setLoading(true);
     try {
-      const enabledParties = parties
-        .filter(p => p.enabled !== false)
-        .map(({ enabled, ...rest }) => rest);
+      const enabledParties = parties.filter(p => p.enabled !== false);
+
+      const { simParties, allianceMap } = buildAllianceParties(enabledParties, alliances);
+
       const simConfig = { ...config, total_seats: totalSeats };
       const response = await runSimulation({
         year,
         config_a: simConfig,
         config_b: simConfig,
-        parties: enabledParties,
+        parties: simParties.map(({ enabled, ...rest }) => rest),
       });
-      setResult(response.result_a);
+
+      const resultWithAlliances = splitAllianceResults(response.result_a, allianceMap, enabledParties);
+
+      setResult(resultWithAlliances);
       setCoalition(response.coalition_a);
       setProvinceSeats({});
       setViewMode('province');
@@ -212,6 +217,107 @@ export default function App() {
     })),
   } : null;
 
+  function buildAllianceParties(parties, alliances) {
+    const allianceMap = {};
+    const usedPartyIds = new Set();
+
+    for (const alliance of alliances) {
+      if (alliance.parties.length < 2) continue;
+      for (const pid of alliance.parties) {
+        allianceMap[pid] = alliance.id;
+        usedPartyIds.add(pid);
+      }
+    }
+
+    const simParties = [];
+    let allianceIdx = 0;
+
+    for (const alliance of alliances) {
+      if (alliance.parties.length < 2) continue;
+      const memberParties = parties.filter(p => alliance.parties.includes(p.id));
+      if (memberParties.length < 2) continue;
+
+      const avgPos = (key) => memberParties.reduce((s, p) => s + (p[key] || 0), 0) / memberParties.length;
+
+      simParties.push({
+        id: alliance.id,
+        name: alliance.name,
+        color: alliance.color,
+        economic_position: avgPos('economic_position'),
+        social_position: avgPos('social_position'),
+        regional_position: avgPos('regional_position'),
+        welfare_position: avgPos('welfare_position'),
+        environment_position: avgPos('environment_position'),
+        nationalism_position: avgPos('nationalism_position'),
+        urban_rural_position: avgPos('urban_rural_position'),
+        description: `联盟: ${memberParties.map(p => p.name).join(' + ')}`,
+        isAlliance: true,
+        allianceMembers: alliance.parties,
+        enabled: true,
+      });
+      allianceIdx++;
+    }
+
+    for (const party of parties) {
+      if (!usedPartyIds.has(party.id)) {
+        simParties.push(party);
+      }
+    }
+
+    return { simParties, allianceMap };
+  }
+
+  function splitAllianceResults(result, allianceMap, originalParties) {
+    const newPartyResults = [];
+    const newCityResults = [];
+
+    for (const pr of result.party_results) {
+      if (pr.description && pr.description.startsWith('联盟:')) {
+        const memberIds = pr.description.replace('联盟: ', '').split(' + ');
+        const memberPartyIds = [];
+        for (const name of memberIds) {
+          const found = originalParties.find(p => p.name === name);
+          if (found) memberPartyIds.push(found.id);
+        }
+
+        if (memberPartyIds.length > 0 && pr.seats > 0) {
+          const seatsPerMember = Math.floor(pr.seats / memberPartyIds.length);
+          const remainder = pr.seats - seatsPerMember * memberPartyIds.length;
+          for (let i = 0; i < memberPartyIds.length; i++) {
+            const pid = memberPartyIds[i];
+            const member = originalParties.find(p => p.id === pid);
+            if (member) {
+              newPartyResults.push({
+                ...pr,
+                party_id: pid,
+                party_name: member.name,
+                color: member.color,
+                seats: seatsPerMember + (i < remainder ? 1 : 0),
+                isAllianceMember: true,
+                allianceName: pr.party_name,
+              });
+            }
+          }
+        } else {
+          newPartyResults.push(pr);
+        }
+      } else {
+        newPartyResults.push(pr);
+      }
+    }
+
+    return {
+      ...result,
+      party_results: newPartyResults,
+      alliances: alliances.map(a => ({
+        ...a,
+        seats: newPartyResults
+          .filter(p => a.parties.includes(p.party_id))
+          .reduce((s, p) => s + p.seats, 0),
+      })),
+    };
+  }
+
   return (
     <div className="app">
       <header className="header">
@@ -251,6 +357,8 @@ export default function App() {
           onTotalSeatsChange={setTotalSeats}
           minSeats={minSeats}
           onMinSeatsChange={setMinSeats}
+          alliances={alliances}
+          setAlliances={setAlliances}
         />
 
         <div className="map-area">
