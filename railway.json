@@ -1,0 +1,13 @@
+# Backend deployment configuration for Railway
+# Deploy command: python -m app.main
+# Environment: Python 3.9+
+
+[build]
+builder = "nixpacks"
+
+[deploy]
+startCommand = "cd backend && python -m app.main"
+healthcheckPath = "/"
+healthcheckTimeout = 100
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 10
