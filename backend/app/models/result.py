@@ -51,6 +51,10 @@ class CoalitionOption(BaseModel):
     total_seats: int
     ideological_distance: float
     is_majority: bool
+    policy_compatibility: float = 0.0
+    stability_score: float = 0.0
+    excess: int = 0
+    majority_type: str = "narrow"
 
 
 class CoalitionResult(BaseModel):
@@ -59,6 +63,7 @@ class CoalitionResult(BaseModel):
     majority_party_name: Optional[str]
     coalition_options: list[CoalitionOption]
     recommended_coalition: Optional[CoalitionOption]
+    majority_type: Optional[str] = None
 
 
 class SimulationResponse(BaseModel):

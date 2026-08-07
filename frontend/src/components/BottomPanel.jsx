@@ -220,24 +220,58 @@ function CoalitionBlock({ coalition }) {
   if (!coalition) return <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>无数据</div>;
 
   return (
-    <div style={{ marginBottom: 8 }}>
+    <div>
       {coalition.has_majority ? (
         <div className="coalition-mini recommended">
-          <div className="coalition-mini-title">单一政党多数</div>
-          <div style={{ fontSize: 12 }}>{coalition.majority_party_name}</div>
+          <div className="coalition-mini-title">
+            单一政党多数 {coalition.majority_type === 'absolute' ? '(绝对多数)' : '(简单多数)'}
+          </div>
+          <div style={{ fontSize: 12, fontWeight: 600 }}>{coalition.majority_party_name}</div>
         </div>
       ) : coalition.recommended_coalition ? (
-        <div className="coalition-mini recommended">
-          <div className="coalition-mini-title">推荐联盟</div>
-          <div className="coalition-parties-row">
-            {coalition.recommended_coalition.party_names.map((n, i) => (
-              <span key={i} className="coalition-party-pill">{n}</span>
-            ))}
+        <>
+          <div className="coalition-mini recommended">
+            <div className="coalition-mini-title">★ 推荐联盟 ({coalition.recommended_coalition.majority_type === 'comfortable' ? '舒适多数' : '微弱多数'})</div>
+            <div className="coalition-parties-row">
+              {coalition.recommended_coalition.party_names.map((n, i) => (
+                <span key={i} className="coalition-party-pill">{n}</span>
+              ))}
+            </div>
+            <div className="coalition-scores">
+              <div className="coalition-score">
+                <span className="score-label">席位</span>
+                <span className="score-val">{coalition.recommended_coalition.total_seats}</span>
+              </div>
+              <div className="coalition-score">
+                <span className="score-label">稳定</span>
+                <span className="score-val" style={{ color: coalition.recommended_coalition.stability_score > 0.6 ? 'var(--accent-green)' : 'var(--accent-orange)' }}>
+                  {(coalition.recommended_coalition.stability_score * 100).toFixed(0)}%
+                </span>
+              </div>
+              <div className="coalition-score">
+                <span className="score-label">兼容</span>
+                <span className="score-val">{(coalition.recommended_coalition.policy_compatibility * 100).toFixed(0)}%</span>
+              </div>
+              <div className="coalition-score">
+                <span className="score-label">距离</span>
+                <span className="score-val">{coalition.recommended_coalition.ideological_distance.toFixed(1)}</span>
+              </div>
+            </div>
           </div>
-          <div className="coalition-meta">
-            {coalition.recommended_coalition.total_seats}席 | 意识形态距离 {coalition.recommended_coalition.ideological_distance.toFixed(2)}
-          </div>
-        </div>
+          {coalition.coalition_options.length > 1 && (
+            <div className="coalition-alternatives">
+              <div className="coalition-alt-title">其他可行方案</div>
+              {coalition.coalition_options.slice(1, 4).map((opt, i) => (
+                <div key={i} className="coalition-alt-row">
+                  <span className="coalition-alt-parties">{opt.party_names.join(' + ')}</span>
+                  <span className="coalition-alt-scores">
+                    {opt.total_seats}席 | 稳{(opt.stability_score * 100).toFixed(0)}% | 兼{(opt.policy_compatibility * 100).toFixed(0)}%
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
       ) : (
         <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>无法形成多数</div>
       )}
