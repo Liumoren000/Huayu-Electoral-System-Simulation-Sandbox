@@ -97,7 +97,7 @@ body {
 }
 
 .sidebar {
-  width: 300px;
+  width: 320px;
   background: var(--bg-secondary);
   border-right: 1px solid var(--border-color);
   overflow-y: auto;
@@ -298,11 +298,11 @@ body {
 }
 
 .bottom-panel {
-  height: 240px;
+  height: 220px;
   background: var(--bg-secondary);
   border-top: 1px solid var(--border-color);
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: 1.2fr 1fr 0.9fr;
   gap: 1px;
   flex-shrink: 0;
 }
