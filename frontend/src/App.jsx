@@ -328,6 +328,7 @@ export default function App() {
             viewMode={viewMode}
             onViewModeChange={setViewMode}
             onDrillDown={handleMapDrillDown}
+            alliances={alliances}
           />
 
           <BottomPanel result={displayResult} />

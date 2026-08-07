@@ -34,7 +34,7 @@ const PROVINCE_ADCODES = {
   '台湾省': '710000',
 };
 
-export default function MapView({ result, cities, mapLabel, accentColor, onProvinceClick, manualMode, manualSeats, viewMode, onViewModeChange, onDrillDown }) {
+export default function MapView({ result, cities, mapLabel, accentColor, onProvinceClick, manualMode, manualSeats, viewMode, onViewModeChange, onDrillDown, alliances }) {
   const containerRef = useRef(null);
   const chartRef = useRef(null);
   const clickHandlerRef = useRef(null);
@@ -66,7 +66,7 @@ export default function MapView({ result, cities, mapLabel, accentColor, onProvi
 
         setupClickHandler(chart);
 
-        renderMap(chart, result, manualSeats, currentProvince, viewMode, cities);
+        renderMap(chart, result, manualSeats, currentProvince, viewMode, cities, alliances);
         setStatus('ready');
 
         const onResize = () => chart.resize();
@@ -93,7 +93,7 @@ export default function MapView({ result, cities, mapLabel, accentColor, onProvi
 
     if (currentProvince === '台湾省') {
       setCityGeoLoaded(true);
-      renderMap(chartRef.current, result, manualSeats, currentProvince, viewMode, cities);
+      renderMap(chartRef.current, result, manualSeats, currentProvince, viewMode, cities, alliances);
       setStatus('ready');
       return;
     }
@@ -115,7 +115,7 @@ export default function MapView({ result, cities, mapLabel, accentColor, onProvi
         }
         echarts.registerMap('province', geo);
         setCityGeoLoaded(true);
-        renderMap(chartRef.current, result, manualSeats, currentProvince, viewMode, cities);
+        renderMap(chartRef.current, result, manualSeats, currentProvince, viewMode, cities, alliances);
         setStatus('ready');
       } catch (e) {
         console.error('City geo error:', e);
@@ -129,7 +129,7 @@ export default function MapView({ result, cities, mapLabel, accentColor, onProvi
   useEffect(() => {
     if (!chartRef.current) return;
     if (viewMode === 'city' && currentProvince && !cityGeoLoaded && currentProvince !== '台湾省') return;
-    renderMap(chartRef.current, result, manualSeats, currentProvince, viewMode, cities);
+    renderMap(chartRef.current, result, manualSeats, currentProvince, viewMode, cities, alliances);
   }, [result, manualSeats, viewMode, cityGeoLoaded, currentProvince]);
 
   useEffect(() => {
@@ -256,7 +256,7 @@ const GEO_NAME_TO_CITY_NAME = {
   '克孜勒苏柯尔克孜自治州': '克孜勒苏州',
 };
 
-function renderMap(chart, result, manualSeatsData, currentProvince, viewMode, citiesData) {
+function renderMap(chart, result, manualSeatsData, currentProvince, viewMode, citiesData, alliances = []) {
   if (!chart) return;
   if (viewMode === 'city' && currentProvince && currentProvince !== '台湾省' && !echarts.getMap('province')) return;
 
@@ -308,12 +308,24 @@ function renderMap(chart, result, manualSeatsData, currentProvince, viewMode, ci
       const cr = resultMap[city.id];
       const party = cr ? partyMap[cr.winner_party_id] : null;
       const geoName = Object.entries(GEO_NAME_TO_CITY_NAME).find(([k, v]) => v === city.name)?.[0] || city.name;
+      let cityColor = DEFAULT_COLOR;
+      let allianceInfo = null;
+      if (party) {
+        const alliance = partyAllianceMap[cr.winner_party_id];
+        if (alliance) {
+          cityColor = alliance.color;
+          allianceInfo = alliance;
+        } else {
+          cityColor = party.color;
+        }
+      }
       return {
         name: geoName,
         value: 1,
-        itemStyle: { areaColor: party?.color || DEFAULT_COLOR, borderColor: '#0a0e14', borderWidth: 0.5 },
+        itemStyle: { areaColor: cityColor, borderColor: '#0a0e14', borderWidth: 0.5 },
         _cityResult: cr || null,
         _cityName: city.name,
+        _alliance: allianceInfo,
       };
     });
 
@@ -393,12 +405,28 @@ function renderMap(chart, result, manualSeatsData, currentProvince, viewMode, ci
 
     const PROVINCES = Object.keys(PROVINCE_ADCODES);
 
+    const partyAllianceMap = {};
+    for (const a of alliances) {
+      for (const pid of a.parties) {
+        partyAllianceMap[pid] = a;
+      }
+    }
+
     const data = PROVINCES.map(name => {
       const pr = provMap[name];
       let color = DEFAULT_COLOR;
+      let allianceInfo = null;
       if (pr) {
         const party = result?.party_results.find(p => p.party_id === pr.winner_party_id);
-        color = party?.color || DEFAULT_COLOR;
+        if (party) {
+          const alliance = partyAllianceMap[pr.winner_party_id];
+          if (alliance) {
+            color = alliance.color;
+            allianceInfo = alliance;
+          } else {
+            color = party.color;
+          }
+        }
       }
       const ms = manualSeatsData?.[name];
       const hasManual = ms && Object.values(ms).some(v => v > 0);
@@ -408,6 +436,7 @@ function renderMap(chart, result, manualSeatsData, currentProvince, viewMode, ci
         itemStyle: { areaColor: color, borderColor: '#0a0e14', borderWidth: 0.5 },
         _provinceResult: pr || null,
         _manualSeats: hasManual ? ms : null,
+        _alliance: allianceInfo,
       };
     });
 
