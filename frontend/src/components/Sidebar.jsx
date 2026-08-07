@@ -74,25 +74,22 @@ export default function Sidebar({
         </div>
       </div>
 
-      <div className="sidebar-section">
+      <div className="sidebar-section uh-section">
         <div className="section-title">
           <span className="dot" style={{ background: 'var(--accent-purple)' }} />上议院
-        </div>
-        <div className="form-row">
-          <label>
+          <label className="uh-toggle">
             <input
               type="checkbox"
               checked={config.upper_house_enabled || false}
               onChange={e => updateConfig('upper_house_enabled', e.target.checked)}
-              style={{ marginRight: 6 }}
             />
-            启用上议院
+            启用
           </label>
         </div>
         {config.upper_house_enabled && (
-          <>
-            <div className="form-row">
-              <label>总席位数</label>
+          <div className="uh-controls">
+            <div className="uh-row">
+              <label>席位</label>
               <input
                 type="number"
                 min="32"
@@ -102,23 +99,20 @@ export default function Sidebar({
                 onChange={e => updateConfig('upper_house_seats', parseInt(e.target.value) || 96)}
               />
             </div>
-            <div className="form-row">
-              <label>分配方式</label>
+            <div className="uh-row">
+              <label>方式</label>
               <select
                 value={config.upper_house_method || 'equal'}
                 onChange={e => updateConfig('upper_house_method', e.target.value)}
               >
-                <option value="equal">均等代表</option>
-                <option value="proportional">比例代表</option>
-                <option value="mixed">混合制</option>
+                <option value="equal">均等</option>
+                <option value="proportional">比例</option>
+                <option value="mixed">混合</option>
               </select>
             </div>
             {config.upper_house_method === 'mixed' && (
-              <div className="slider-row">
-                <label>
-                  <span>比例权重</span>
-                  <span>{((config.upper_house_mixed_ratio || 0.5) * 100).toFixed(0)}%</span>
-                </label>
+              <div className="uh-row">
+                <label>比例权重</label>
                 <input
                   type="range"
                   min="0"
@@ -127,9 +121,10 @@ export default function Sidebar({
                   value={config.upper_house_mixed_ratio || 0.5}
                   onChange={e => updateConfig('upper_house_mixed_ratio', parseFloat(e.target.value))}
                 />
+                <span className="uh-ratio">{((config.upper_house_mixed_ratio || 0.5) * 100).toFixed(0)}%</span>
               </div>
             )}
-          </>
+          </div>
         )}
       </div>
 

@@ -107,7 +107,7 @@ body {
 }
 
 .sidebar-section {
-  padding: 14px;
+  padding: 10px 14px;
   border-bottom: 1px solid var(--border-color);
 }
 
@@ -926,6 +926,60 @@ body {
   font-size: 9px;
   color: var(--accent-orange);
   margin-top: 4px;
+}
+
+.uh-section {
+  flex-shrink: 0;
+}
+
+.uh-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  margin-left: auto;
+  cursor: pointer;
+}
+
+.uh-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.uh-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.uh-row label {
+  font-size: 10px;
+  color: var(--text-muted);
+  min-width: 50px;
+  margin: 0;
+}
+
+.uh-row input[type="number"],
+.uh-row select {
+  flex: 1;
+  padding: 3px 6px;
+  font-size: 11px;
+}
+
+.uh-row input[type="range"] {
+  flex: 1;
+}
+
+.uh-ratio {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--accent-orange);
+  min-width: 28px;
+  text-align: right;
 }
 
 
