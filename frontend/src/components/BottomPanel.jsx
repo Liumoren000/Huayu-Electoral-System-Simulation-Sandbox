@@ -237,6 +237,19 @@ function SeatTable({ result }) {
             ))}
         </tbody>
       </table>
+      {result.allianceResults && result.allianceResults.length > 0 && (
+        <div className="alliance-totals">
+          <div className="alliance-totals-title">联盟总计</div>
+          {result.allianceResults.map(a => (
+            <div key={a.id} className="alliance-total-row">
+              <span className="alliance-total-dot" style={{ background: a.color }} />
+              <span className="alliance-total-name">{a.name}</span>
+              <span className="alliance-total-seats">{a.seats}席</span>
+              <span className="alliance-total-pct">{((a.seats / result.total_seats) * 100).toFixed(1)}%</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

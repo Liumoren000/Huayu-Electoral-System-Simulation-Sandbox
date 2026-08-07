@@ -219,102 +219,57 @@ export default function App() {
 
   function buildAllianceParties(parties, alliances) {
     const allianceMap = {};
-    const usedPartyIds = new Set();
-
     for (const alliance of alliances) {
       if (alliance.parties.length < 2) continue;
       for (const pid of alliance.parties) {
         allianceMap[pid] = alliance.id;
-        usedPartyIds.add(pid);
       }
     }
-
-    const simParties = [];
-    let allianceIdx = 0;
-
-    for (const alliance of alliances) {
-      if (alliance.parties.length < 2) continue;
-      const memberParties = parties.filter(p => alliance.parties.includes(p.id));
-      if (memberParties.length < 2) continue;
-
-      const avgPos = (key) => memberParties.reduce((s, p) => s + (p[key] || 0), 0) / memberParties.length;
-
-      simParties.push({
-        id: alliance.id,
-        name: alliance.name,
-        color: alliance.color,
-        economic_position: avgPos('economic_position'),
-        social_position: avgPos('social_position'),
-        regional_position: avgPos('regional_position'),
-        welfare_position: avgPos('welfare_position'),
-        environment_position: avgPos('environment_position'),
-        nationalism_position: avgPos('nationalism_position'),
-        urban_rural_position: avgPos('urban_rural_position'),
-        description: `联盟: ${memberParties.map(p => p.name).join(' + ')}`,
-        isAlliance: true,
-        allianceMembers: alliance.parties,
-        enabled: true,
-      });
-      allianceIdx++;
-    }
-
-    for (const party of parties) {
-      if (!usedPartyIds.has(party.id)) {
-        simParties.push(party);
-      }
-    }
-
-    return { simParties, allianceMap };
+    return { simParties: parties, allianceMap };
   }
 
   function splitAllianceResults(result, allianceMap, originalParties) {
-    const newPartyResults = [];
-    const newCityResults = [];
-
-    for (const pr of result.party_results) {
-      if (pr.description && pr.description.startsWith('联盟:')) {
-        const memberIds = pr.description.replace('联盟: ', '').split(' + ');
-        const memberPartyIds = [];
-        for (const name of memberIds) {
-          const found = originalParties.find(p => p.name === name);
-          if (found) memberPartyIds.push(found.id);
-        }
-
-        if (memberPartyIds.length > 0 && pr.seats > 0) {
-          const seatsPerMember = Math.floor(pr.seats / memberPartyIds.length);
-          const remainder = pr.seats - seatsPerMember * memberPartyIds.length;
-          for (let i = 0; i < memberPartyIds.length; i++) {
-            const pid = memberPartyIds[i];
-            const member = originalParties.find(p => p.id === pid);
-            if (member) {
-              newPartyResults.push({
-                ...pr,
-                party_id: pid,
-                party_name: member.name,
-                color: member.color,
-                seats: seatsPerMember + (i < remainder ? 1 : 0),
-                isAllianceMember: true,
-                allianceName: pr.party_name,
-              });
-            }
-          }
-        } else {
-          newPartyResults.push(pr);
-        }
-      } else {
-        newPartyResults.push(pr);
+    const partyAllianceMap = {};
+    for (const alliance of alliances) {
+      for (const pid of alliance.parties) {
+        partyAllianceMap[pid] = alliance;
       }
     }
+
+    const newPartyResults = result.party_results.map(pr => {
+      const alliance = partyAllianceMap[pr.party_id];
+      if (alliance) {
+        return {
+          ...pr,
+          isAllianceMember: true,
+          allianceName: alliance.name,
+          allianceColor: alliance.color,
+          allianceId: alliance.id,
+        };
+      }
+      return pr;
+    });
+
+    const allianceResults = alliances.map(alliance => {
+      const memberResults = newPartyResults.filter(p => alliance.parties.includes(p.party_id));
+      const totalSeats = memberResults.reduce((s, p) => s + p.seats, 0);
+      const totalVotes = memberResults.reduce((s, p) => s + (p.vote_share || 0), 0);
+      return {
+        id: alliance.id,
+        name: alliance.name,
+        color: alliance.color,
+        parties: alliance.parties,
+        seats: totalSeats,
+        vote_share: totalVotes,
+        memberResults,
+      };
+    });
 
     return {
       ...result,
       party_results: newPartyResults,
-      alliances: alliances.map(a => ({
-        ...a,
-        seats: newPartyResults
-          .filter(p => a.parties.includes(p.party_id))
-          .reduce((s, p) => s + p.seats, 0),
-      })),
+      allianceResults,
+      alliances,
     };
   }
 

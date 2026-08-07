@@ -1151,6 +1151,53 @@ body {
   color: #f57c00;
 }
 
+.alliance-totals {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-color);
+}
+
+.alliance-totals-title {
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.alliance-total-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
+}
+
+.alliance-total-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.alliance-total-name {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-primary);
+  flex: 1;
+}
+
+.alliance-total-seats {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--accent-blue);
+}
+
+.alliance-total-pct {
+  font-size: 9px;
+  color: var(--text-muted);
+  min-width: 35px;
+  text-align: right;
+}
+
 .mode-btn {
   width: 100%;
   padding: 8px;
