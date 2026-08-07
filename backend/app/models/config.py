@@ -10,6 +10,10 @@ class ElectoralConfig(BaseModel):
     allocation_method: str = Field(default="d_hondt", description="d_hondt or sainte_lague")
     district_magnitude: int = Field(default=1, ge=1, le=20, description="Seats per district for FPTP")
     name: str = "方案 A"
+    upper_house_enabled: bool = False
+    upper_house_seats: int = Field(default=96, ge=32, le=500)
+    upper_house_method: str = Field(default="equal", description="equal, proportional, or mixed")
+    upper_house_mixed_ratio: float = Field(default=0.5, ge=0.0, le=1.0)
 
 
 class SimulationRequest(BaseModel):

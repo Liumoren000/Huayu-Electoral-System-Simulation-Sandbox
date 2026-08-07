@@ -40,6 +40,9 @@ class ElectionResult(BaseModel):
     province_results: list[ProvinceResult]
     party_results: list[PartySeatResult]
     total_votes: int
+    upper_house_party_results: list[PartySeatResult] = []
+    upper_house_province_results: list[ProvinceResult] = []
+    upper_house_total_seats: int = 0
 
 
 class CoalitionOption(BaseModel):

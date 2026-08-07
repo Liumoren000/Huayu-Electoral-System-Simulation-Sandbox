@@ -99,6 +99,8 @@ class ElectoralEngine:
 
         province_results = self._aggregate_provinces(city_results)
 
+        uh_party_results, uh_province_results, uh_total = self._compute_upper_house(province_results)
+
         return ElectionResult(
             config_name=self.config.name,
             system_type=self.config.system_type,
@@ -107,6 +109,9 @@ class ElectoralEngine:
             province_results=province_results,
             party_results=party_results,
             total_votes=int(total_votes),
+            upper_house_party_results=uh_party_results,
+            upper_house_province_results=uh_province_results,
+            upper_house_total_seats=uh_total,
         )
 
     def _run_pr(self) -> ElectionResult:
@@ -162,6 +167,8 @@ class ElectoralEngine:
 
         province_results = self._aggregate_provinces(city_results)
 
+        uh_party_results, uh_province_results, uh_total = self._compute_upper_house(province_results)
+
         return ElectionResult(
             config_name=self.config.name,
             system_type=self.config.system_type,
@@ -170,6 +177,9 @@ class ElectoralEngine:
             province_results=province_results,
             party_results=party_results,
             total_votes=int(total_votes),
+            upper_house_party_results=uh_party_results,
+            upper_house_province_results=uh_province_results,
+            upper_house_total_seats=uh_total,
         )
 
     def _aggregate_provinces(self, city_results: list[CityResult]) -> list[ProvinceResult]:
@@ -255,6 +265,88 @@ class ElectoralEngine:
 
         for cr in city_results:
             cr.seats = seats_map.get(cr.city_id, 1)
+
+    def _compute_upper_house(self, province_results: list[ProvinceResult]) -> tuple[list[PartySeatResult], list[ProvinceResult], int]:
+        if not self.config.upper_house_enabled:
+            return [], [], 0
+
+        uh_seats = self.config.upper_house_seats
+        uh_method = self.config.upper_house_method
+        prov_count = len(province_results)
+
+        prov_pops = {pr.province_name: pr.population for pr in province_results}
+        total_pop = sum(prov_pops.values())
+
+        if uh_method == "equal":
+            base = uh_seats // prov_count
+            prov_seats_map = {pr.province_name: base for pr in province_results}
+            remainder = uh_seats - base * prov_count
+            for i, pr in enumerate(province_results):
+                if i < remainder:
+                    prov_seats_map[pr.province_name] += 1
+        elif uh_method == "proportional":
+            prov_seats_map = self._largest_remainder_seats(prov_pops, uh_seats, min_seats=1)
+        else:
+            equal_share = int(uh_seats * (1 - self.config.upper_house_mixed_ratio))
+            prop_share = uh_seats - equal_share
+            base = equal_share // prov_count
+            prov_seats_map = {pr.province_name: base for pr in province_results}
+            remainder = equal_share - base * prov_count
+            for i, pr in enumerate(province_results):
+                if i < remainder:
+                    prov_seats_map[pr.province_name] += 1
+            if prop_share > 0:
+                prop_map = self._largest_remainder_seats(prov_pops, prop_share, min_seats=0)
+                for prov in prov_seats_map:
+                    prov_seats_map[prov] += prop_map.get(prov, 0)
+
+        uh_party_seats = {p.id: 0 for p in self.parties}
+        uh_province_results = []
+
+        for pr in province_results:
+            prov_seat_count = prov_seats_map.get(pr.province_name, 1)
+            total = sum(pr.vote_shares.values())
+            if total > 0:
+                prov_shares = {pid: s / total for pid, s in pr.vote_shares.items()}
+            else:
+                prov_shares = {pid: 1.0 / len(self.parties) for pid in self.party_map}
+
+            if self.config.allocation_method == "sainte_lague":
+                party_seats = self._sainte_lague(
+                    {pid: s * pr.population for pid, s in prov_shares.items()},
+                    prov_seat_count
+                )
+            else:
+                party_seats = self._d_hondt(
+                    {pid: s * pr.population for pid, s in prov_shares.items()},
+                    prov_seat_count
+                )
+
+            for pid, seats in party_seats.items():
+                uh_party_seats[pid] = uh_party_seats.get(pid, 0) + seats
+
+            winner_id = max(prov_shares, key=prov_shares.get)
+            uh_province_results.append(ProvinceResult(
+                province_name=pr.province_name,
+                winner_party_id=winner_id,
+                winner_party_name=self.party_map[winner_id].name,
+                vote_shares={pid: round(s, 4) for pid, s in prov_shares.items()},
+                num_cities=pr.num_cities,
+                population=pr.population,
+                seats=prov_seat_count,
+            ))
+
+        uh_party_results = []
+        for p in self.parties:
+            uh_party_results.append(PartySeatResult(
+                party_id=p.id,
+                party_name=p.name,
+                seats=uh_party_seats.get(p.id, 0),
+                vote_share=round(uh_party_seats.get(p.id, 0) / max(1, uh_seats), 4),
+                color=p.color,
+            ))
+
+        return uh_party_results, uh_province_results, uh_seats
 
     def _d_hondt(self, party_votes: dict[str, float], total_seats: int) -> dict[str, int]:
         seats = {pid: 0 for pid in party_votes}

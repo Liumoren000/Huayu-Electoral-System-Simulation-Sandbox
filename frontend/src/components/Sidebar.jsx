@@ -74,6 +74,65 @@ export default function Sidebar({
         </div>
       </div>
 
+      <div className="sidebar-section">
+        <div className="section-title">
+          <span className="dot" style={{ background: 'var(--accent-purple)' }} />上议院
+        </div>
+        <div className="form-row">
+          <label>
+            <input
+              type="checkbox"
+              checked={config.upper_house_enabled || false}
+              onChange={e => updateConfig('upper_house_enabled', e.target.checked)}
+              style={{ marginRight: 6 }}
+            />
+            启用上议院
+          </label>
+        </div>
+        {config.upper_house_enabled && (
+          <>
+            <div className="form-row">
+              <label>总席位数</label>
+              <input
+                type="number"
+                min="32"
+                max="500"
+                step="32"
+                value={config.upper_house_seats || 96}
+                onChange={e => updateConfig('upper_house_seats', parseInt(e.target.value) || 96)}
+              />
+            </div>
+            <div className="form-row">
+              <label>分配方式</label>
+              <select
+                value={config.upper_house_method || 'equal'}
+                onChange={e => updateConfig('upper_house_method', e.target.value)}
+              >
+                <option value="equal">均等代表</option>
+                <option value="proportional">比例代表</option>
+                <option value="mixed">混合制</option>
+              </select>
+            </div>
+            {config.upper_house_method === 'mixed' && (
+              <div className="slider-row">
+                <label>
+                  <span>比例权重</span>
+                  <span>{((config.upper_house_mixed_ratio || 0.5) * 100).toFixed(0)}%</span>
+                </label>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.1"
+                  value={config.upper_house_mixed_ratio || 0.5}
+                  onChange={e => updateConfig('upper_house_mixed_ratio', parseFloat(e.target.value))}
+                />
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
       <div className="sidebar-section" style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         <div className="section-title">
           <span className="dot" style={{ background: 'var(--accent-purple)' }} />政党光谱

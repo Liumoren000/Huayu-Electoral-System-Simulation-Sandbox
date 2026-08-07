@@ -1,7 +1,9 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import * as echarts from 'echarts';
 
 export default function BottomPanel({ result }) {
+  const [showUpper, setShowUpper] = useState(false);
+
   if (!result) {
     return (
       <div className="bottom-panel">
@@ -27,15 +29,41 @@ export default function BottomPanel({ result }) {
     );
   }
 
+  const hasUpper = result.upper_house_total_seats > 0;
+  const activeResult = showUpper && hasUpper ? {
+    ...result,
+    party_results: result.upper_house_party_results,
+    total_seats: result.upper_house_total_seats,
+    system_type: '上议院',
+  } : result;
+
   return (
     <div className="bottom-panel">
       <div className="bottom-cell">
-        <div className="bottom-cell-title">议会席位分布</div>
-        <Hemicycle result={result} label={result.system_type} color="var(--accent-blue)" />
+        <div className="bottom-cell-title">
+          议会席位分布
+          {hasUpper && (
+            <div className="house-toggle">
+              <button
+                className={`house-btn ${!showUpper ? 'active' : ''}`}
+                onClick={() => setShowUpper(false)}
+              >
+                下议院
+              </button>
+              <button
+                className={`house-btn ${showUpper ? 'active' : ''}`}
+                onClick={() => setShowUpper(true)}
+              >
+                上议院
+              </button>
+            </div>
+          )}
+        </div>
+        <Hemicycle result={activeResult} label={activeResult.system_type} color={showUpper && hasUpper ? 'var(--accent-purple)' : 'var(--accent-blue)'} />
       </div>
       <div className="bottom-cell">
         <div className="bottom-cell-title">政党得票 & 席位</div>
-        <SeatTable result={result} />
+        <SeatTable result={activeResult} />
       </div>
       <div className="bottom-cell">
         <div className="bottom-cell-title">组阁推演</div>
