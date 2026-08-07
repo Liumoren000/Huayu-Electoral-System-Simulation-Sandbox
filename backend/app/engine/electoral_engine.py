@@ -183,14 +183,19 @@ class ElectoralEngine:
             for pid, share in cr.vote_shares.items():
                 province_data[prov]["shares"][pid] = province_data[prov]["shares"].get(pid, 0) + share
 
-        total_pop = sum(c.population for c in self.city_data.cities)
         total_seats = self.config.total_seats
 
-        prov_seats_map = self._largest_remainder_seats(
-            {prov: data["population"] for prov, data in province_data.items()},
-            total_seats,
-            min_seats=1
-        )
+        all_city_pops = {}
+        city_prov_lookup = {}
+        for prov, data in province_data.items():
+            for cr in data["city_results"]:
+                all_city_pops[cr.city_id] = city_pop_map.get(cr.city_id, 0)
+                city_prov_lookup[cr.city_id] = prov
+
+        city_seats_map = self._largest_remainder_seats(all_city_pops, total_seats, min_seats=1)
+
+        for cr in city_results:
+            cr.seats = city_seats_map.get(cr.city_id, 1)
 
         results = []
         for prov, data in province_data.items():
@@ -198,9 +203,7 @@ class ElectoralEngine:
             avg_shares = {pid: s / total for pid, s in data["shares"].items()}
             winner_id = max(avg_shares, key=avg_shares.get)
             prov_pop = data["population"]
-            prov_seats = prov_seats_map.get(prov, 1)
-
-            self._allocate_city_seats(data["city_results"], city_pop_map, prov_seats)
+            prov_seats = sum(city_seats_map.get(cr.city_id, 1) for cr in data["city_results"])
 
             results.append(ProvinceResult(
                 province_name=prov,
@@ -218,8 +221,15 @@ class ElectoralEngine:
         if total_pop == 0:
             return {k: min_seats for k in entity_pops}
 
-        quotas = {k: (pop / total_pop) * total_seats for k, pop in entity_pops.items()}
-        seats = {k: max(min_seats, int(q)) for k, q in quotas.items()}
+        entity_count = len(entity_pops)
+        reserved = entity_count * min_seats
+        if total_seats <= reserved:
+            return {k: min_seats for k in entity_pops}
+
+        distributable = total_seats - reserved
+        quotas = {k: (pop / total_pop) * distributable for k, pop in entity_pops.items()}
+
+        seats = {k: min_seats + int(q) for k, q in quotas.items()}
         remainders = {k: q - int(q) for k, q in quotas.items()}
 
         assigned = sum(seats.values())
@@ -228,18 +238,7 @@ class ElectoralEngine:
         if remaining > 0:
             sorted_entities = sorted(remainders.keys(), key=lambda k: -remainders[k])
             for i in range(remaining):
-                seats[sorted_entities[i % len(sorted_entities)]] += 1
-        elif remaining < 0:
-            sorted_entities = sorted(remainders.keys(), key=lambda k: remainders[k])
-            to_remove = -remaining
-            for k in sorted_entities:
-                if to_remove <= 0:
-                    break
-                reducible = seats[k] - min_seats
-                if reducible > 0:
-                    remove = min(reducible, to_remove)
-                    seats[k] -= remove
-                    to_remove -= remove
+                seats[sorted_entities[i]] += 1
 
         return seats
 
@@ -248,10 +247,10 @@ class ElectoralEngine:
             return
 
         city_pops = {cr.city_id: city_pop_map.get(cr.city_id, 0) for cr in city_results}
-        seats_map = self._largest_remainder_seats(city_pops, total_seats, min_seats=0)
+        seats_map = self._largest_remainder_seats(city_pops, total_seats, min_seats=1)
 
         for cr in city_results:
-            cr.seats = seats_map.get(cr.city_id, 0)
+            cr.seats = seats_map.get(cr.city_id, 1)
 
     def _d_hondt(self, party_votes: dict[str, float], total_seats: int) -> dict[str, int]:
         seats = {pid: 0 for pid in party_votes}

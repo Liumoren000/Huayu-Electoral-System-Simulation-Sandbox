@@ -44,65 +44,63 @@ export default function App() {
     if (!result?.province_results || !result?.city_results || !seatMethod) return;
 
     const provinces = result.province_results;
-    const cities = result.city_results;
+    const cityMinSeats = Math.max(1, minSeats);
 
     const cityProvinceMap = {};
-    for (const cr of cities) {
-      for (const pr of provinces) {
-        const cityData = result.city_results.find(c => c.city_id === cr.city_id);
-        if (cityData) {
-          cityProvinceMap[cr.city_id] = pr.province_name;
-        }
+    const cityPopMap = {};
+    if (cities?.cities) {
+      for (const c of cities.cities) {
+        cityPopMap[c.id] = c.population;
+        cityProvinceMap[c.id] = c.province;
       }
     }
 
-    const provCityIds = {};
-    for (const pr of provinces) {
-      provCityIds[pr.province_name] = [];
+    const allCityPops = {};
+    for (const cr of result.city_results) {
+      allCityPops[cr.city_id] = cityPopMap[cr.city_id] || 1;
     }
-    for (const cr of cities) {
-      const prov = cityProvinceMap[cr.city_id];
-      if (prov && provCityIds[prov]) {
-        provCityIds[prov].push(cr.city_id);
+
+    const cityCount = Object.keys(allCityPops).length;
+    const reserved = cityCount * cityMinSeats;
+    const distributable = Math.max(0, totalSeats - reserved);
+    const totalPop = Object.values(allCityPops).reduce((s, v) => s + v, 0);
+
+    const quotas = {};
+    for (const cid of Object.keys(allCityPops)) {
+      quotas[cid] = cityMinSeats + (totalPop > 0 ? (allCityPops[cid] / totalPop) * distributable : 0);
+    }
+
+    const citySeatsMap = {};
+    let assigned = 0;
+    for (const cid of Object.keys(quotas)) {
+      citySeatsMap[cid] = Math.floor(quotas[cid]);
+      assigned += citySeatsMap[cid];
+    }
+
+    let remaining = totalSeats - assigned;
+    if (remaining > 0) {
+      const remainders = Object.fromEntries(
+        Object.entries(quotas).map(([id, q]) => [id, q - Math.floor(q)])
+      );
+      const sorted = Object.keys(remainders).sort((a, b) => remainders[b] - remainders[a]);
+      for (let i = 0; i < remaining && i < sorted.length; i++) {
+        citySeatsMap[sorted[i]]++;
       }
     }
 
-    const cityCount = cities.length;
-    const minCitySeats = 1;
-    const reservedForCities = cityCount * minCitySeats;
-    const distributable = Math.max(0, totalSeats - reservedForCities);
-
-    const totalPop = provinces.reduce((s, p) => s + p.population, 0);
     const newSeats = {};
-
     for (const pr of provinces) {
-      const provCityCount = provCityIds[pr.province_name]?.length || 0;
-      const provShare = totalPop > 0 ? (pr.population / totalPop) * distributable : 0;
-      newSeats[pr.province_name] = provCityCount * minCitySeats + Math.round(provShare);
+      newSeats[pr.province_name] = 0;
     }
-
-    let seatSum = Object.values(newSeats).reduce((s, v) => s + v, 0);
-    let diff = totalSeats - seatSum;
-    if (diff !== 0) {
-      const sorted = [...provinces].sort((a, b) => {
-        const aShare = (a.population / totalPop) * distributable;
-        const bShare = (b.population / totalPop) * distributable;
-        return (bShare - Math.round(bShare)) - (aShare - Math.round(aShare));
-      });
-      for (let i = 0; i < Math.abs(diff); i++) {
-        if (diff > 0) {
-          newSeats[sorted[i % sorted.length].province_name]++;
-        } else {
-          const pr = sorted[sorted.length - 1 - (i % sorted.length)].province_name;
-          if (newSeats[pr] > (provCityIds[pr]?.length || 0)) {
-            newSeats[pr]--;
-          }
-        }
+    for (const cid of Object.keys(citySeatsMap)) {
+      const prov = cityProvinceMap[cid];
+      if (prov && newSeats[prov] !== undefined) {
+        newSeats[prov] += citySeatsMap[cid];
       }
     }
 
     setProvinceSeats(newSeats);
-  }, [totalSeats, result, seatMethod, minSeats]);
+  }, [totalSeats, result, seatMethod, minSeats, cities]);
 
   const handleRun = async () => {
     if (!parties.length) {
@@ -149,13 +147,12 @@ export default function App() {
     if (!result?.city_results || !Object.keys(provinceSeats).length) return;
 
     const cityPopMap = {};
-    if (cities?.cities) {
-      cities.cities.forEach(c => { cityPopMap[c.id] = c.population; });
-    }
-
     const cityProvinceMap = {};
     if (cities?.cities) {
-      cities.cities.forEach(c => { cityProvinceMap[c.id] = c.province; });
+      cities.cities.forEach(c => {
+        cityPopMap[c.id] = c.population;
+        cityProvinceMap[c.id] = c.province;
+      });
     }
 
     const provinceCityPops = {};
@@ -163,7 +160,7 @@ export default function App() {
       const prov = cityProvinceMap[cr.city_id];
       if (!prov) continue;
       if (!provinceCityPops[prov]) provinceCityPops[prov] = {};
-      provinceCityPops[prov][cr.city_id] = cityPopMap[cr.city_id] || 0;
+      provinceCityPops[prov][cr.city_id] = cityPopMap[cr.city_id] || 1;
     }
 
     const cityMinSeats = Math.max(1, minSeats);
@@ -203,7 +200,7 @@ export default function App() {
       }
       cr.seats = seats[cr.city_id] || cityMinSeats;
     }
-  }, [provinceSeats, result, cities]);
+  }, [provinceSeats, result, cities, minSeats]);
 
   const displayResult = result ? {
     ...result,
