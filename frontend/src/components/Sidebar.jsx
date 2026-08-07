@@ -128,52 +128,18 @@ export default function Sidebar({
         )}
       </div>
 
-      <div className="sidebar-section" style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+      <div className="sidebar-section party-spectrum-section">
         <div className="section-title">
           <span className="dot" style={{ background: 'var(--accent-purple)' }} />政党光谱
         </div>
-        <div style={{ display: 'flex', gap: 4, marginBottom: 8, fontSize: '9px', color: 'var(--text-muted)' }}>
-          <span>名称</span>
-          <span style={{ marginLeft: 'auto' }}>经济</span>
-          <span>社会</span>
-          <span style={{ marginLeft: 'auto' }}>启用</span>
-        </div>
-        <div style={{ flex: 1, overflowY: 'auto' }}>
+        <div className="party-spectrum-list">
         {parties.map(party => (
-          <div key={party.id} className={`party-editor-item ${!party.enabled ? 'disabled' : ''}`}>
-            <div className="party-swatch" style={{ background: party.color, opacity: party.enabled ? 1 : 0.3 }} />
-            <input
-              type="text"
-              className="party-name-input"
-              value={party.name}
-              onChange={e => updateParty(party.id, 'name', e.target.value)}
-            />
-            <input
-              type="range"
-              min="-1"
-              max="1"
-              step="0.1"
-              value={party.economic_position}
-              onChange={e => updateParty(party.id, 'economic_position', e.target.value)}
-              title="经济: 左(-1) ↔ 右(+1)"
-            />
-            <input
-              type="range"
-              min="-1"
-              max="1"
-              step="0.1"
-              value={party.social_position}
-              onChange={e => updateParty(party.id, 'social_position', e.target.value)}
-              title="社会: 自由(-1) ↔ 保守(+1)"
-            />
-            <button
-              className={`party-toggle ${party.enabled ? 'active' : ''}`}
-              onClick={() => toggleParty(party.id)}
-              title={party.enabled ? '点击禁用' : '点击启用'}
-            >
-              {party.enabled ? '●' : '○'}
-            </button>
-          </div>
+          <PartyCard
+            key={party.id}
+            party={party}
+            onUpdate={updateParty}
+            onToggle={toggleParty}
+          />
         ))}
         </div>
       </div>
@@ -257,6 +223,86 @@ export default function Sidebar({
           {loading ? '推演中...' : '运行推演'}
         </button>
       </div>
+    </div>
+  );
+}
+
+const DIMENSIONS = [
+  { key: 'economic', label: '经济', color: '#4fc3d7' },
+  { key: 'social', label: '社会', color: '#ff8a65' },
+  { key: 'regional', label: '区域', color: '#81c784' },
+  { key: 'welfare', label: '福利', color: '#ab47bc' },
+  { key: 'environment', label: '环保', color: '#0d904f' },
+  { key: 'nationalism', label: '民族', color: '#f57c00' },
+  { key: 'urban_rural', label: '城乡', color: '#1a73e8' },
+];
+
+function PartyCard({ party, onUpdate, onToggle }) {
+  const [expanded, setExpanded] = React.useState(false);
+
+  return (
+    <div className={`party-card ${!party.enabled ? 'disabled' : ''} ${expanded ? 'expanded' : ''}`}>
+      <div className="party-card-header" onClick={() => setExpanded(!expanded)}>
+        <div className="party-card-info">
+          <div className="party-card-swatch" style={{ background: party.color, opacity: party.enabled ? 1 : 0.3 }} />
+          <span className="party-card-name">{party.name}</span>
+        </div>
+        <div className="party-card-mini-spectrum">
+          {DIMENSIONS.map(dim => (
+            <div key={dim.key} className="mini-spectrum-bar">
+              <div
+                className="mini-spectrum-fill"
+                style={{
+                  width: `${Math.abs(party[dim.key] || 0) * 50}%`,
+                  background: dim.color,
+                  marginLeft: (party[dim.key] || 0) >= 0 ? '50%' : `${50 - Math.abs(party[dim.key] || 0) * 50}%`,
+                }}
+              />
+            </div>
+          ))}
+        </div>
+        <button
+          className={`party-toggle ${party.enabled ? 'active' : ''}`}
+          onClick={e => { e.stopPropagation(); onToggle(party.id); }}
+          title={party.enabled ? '点击禁用' : '点击启用'}
+        >
+          {party.enabled ? '●' : '○'}
+        </button>
+      </div>
+
+      {expanded && (
+        <div className="party-card-body">
+          <div className="party-card-name-row">
+            <input
+              type="text"
+              className="party-card-name-input"
+              value={party.name}
+              onChange={e => onUpdate(party.id, 'name', e.target.value)}
+              placeholder="政党名称"
+            />
+          </div>
+          <div className="party-card-dims">
+            {DIMENSIONS.map(dim => (
+              <div key={dim.key} className="party-dim-row">
+                <span className="party-dim-label" style={{ color: dim.color }}>{dim.label}</span>
+                <div className="party-dim-slider">
+                  <input
+                    type="range"
+                    min="-1"
+                    max="1"
+                    step="0.1"
+                    value={party[dim.key] || 0}
+                    onChange={e => onUpdate(party.id, dim.key, parseFloat(e.target.value))}
+                  />
+                </div>
+                <span className="party-dim-val" style={{ color: (party[dim.key] || 0) >= 0 ? dim.color : '#ff8a65' }}>
+                  {(party[dim.key] || 0) >= 0 ? '+' : ''}{(party[dim.key] || 0).toFixed(1)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
