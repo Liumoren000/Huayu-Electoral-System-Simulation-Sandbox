@@ -10,7 +10,7 @@ import random
 
 from app.engine import ElectoralEngine
 from app.models.result import (
-    RollingCountResponse, RollingCountStep,
+    RollingCountResponse, RollingCountStep, RollingCityReport,
     CalibrationResponse, CalibrationPartyRow, CalibrationCityRow,
 )
 
@@ -30,14 +30,17 @@ class RollingCountEngine:
         result = engine.run()
         total = self.config.total_seats
         quota = int(total / 2) + 1
+        pname = {p.id: p.name for p in self.parties}
 
         # 各选区结果（席位 + 首名党）
+        province_map = {c.id: c.province for c in self.city_data.cities}
         city_outcomes = []
         for cr in result.city_results:
             sorted_shares = sorted(cr.vote_shares.items(), key=lambda x: x[1], reverse=True)
             city_outcomes.append({
                 'city_id': cr.city_id,
                 'city_name': cr.city_name,
+                'province': province_map.get(cr.city_id, ""),
                 'winner': cr.winner_party_id,
                 'party_seats': dict(cr.party_seats) if cr.party_seats else {cr.winner_party_id: 1},
                 'votes': dict(cr.vote_shares),
@@ -60,6 +63,7 @@ class RollingCountEngine:
         counted = 0
 
         for step_i, inc in enumerate(increments):
+            new_cities = []
             for k in range(inc):
                 if counted >= n:
                     break
@@ -69,6 +73,13 @@ class RollingCountEngine:
                     seats[pid] = seats.get(pid, 0) + s
                 for pid, share in oc['votes'].items():
                     votes[pid] = votes.get(pid, 0.0) + share
+                new_cities.append(RollingCityReport(
+                    city_id=oc['city_id'],
+                    city_name=oc['city_name'],
+                    province=oc['province'],
+                    winner_party_id=oc['winner'],
+                    winner_party_name=pname.get(oc['winner'], ""),
+                ))
             if counted == 0:
                 continue
 
@@ -95,11 +106,11 @@ class RollingCountEngine:
                 leader_seats=leader_seats,
                 majority_reachable=majority_reachable,
                 leading_margin=round(leader_seats - second, 2),
+                new_cities=new_cities,
             ))
 
         final = steps_out[-1] if steps_out else None
         final_leader = final.leader_party_id if final else ""
-        pname = {p.id: p.name for p in self.parties}
 
         return RollingCountResponse(
             total_seats=total,
@@ -109,6 +120,7 @@ class RollingCountEngine:
             final_leader_name=pname.get(final_leader, ""),
             party_names=pname,
             party_colors={p.id: p.color for p in self.parties},
+            city_provinces=province_map,
         )
 
 

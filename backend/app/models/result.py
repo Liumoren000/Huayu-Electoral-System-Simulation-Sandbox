@@ -309,6 +309,14 @@ class SwingAnalysisResponse(BaseModel):
     districts: list[SwingDistrict] = []
 
 
+class RollingCityReport(BaseModel):
+    city_id: str = ""
+    city_name: str = ""
+    province: str = ""
+    winner_party_id: str = ""
+    winner_party_name: str = ""
+
+
 class RollingCountStep(BaseModel):
     step: int = 0
     counted: int = 0              # 已开票选区数
@@ -319,6 +327,7 @@ class RollingCountStep(BaseModel):
     leader_seats: int = 0
     majority_reachable: bool = False   # 领先党是否仍可能过半
     leading_margin: float = 0.0        # 领先党相对第二名的席位差
+    new_cities: list[RollingCityReport] = []  # 本步新开票的选区结果
 
 
 class RollingCountResponse(BaseModel):
@@ -329,6 +338,7 @@ class RollingCountResponse(BaseModel):
     final_leader_name: str = ""
     party_names: dict[str, str] = {}
     party_colors: dict[str, str] = {}
+    city_provinces: dict[str, str] = {}  # city_id -> province name
 
 
 class CalibrationPartyRow(BaseModel):

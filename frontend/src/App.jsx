@@ -154,6 +154,9 @@ export default function App() {
   const [showSwing, setShowSwing] = useState(false);
   const [showNegotiation, setShowNegotiation] = useState(false);
   const [showRolling, setShowRolling] = useState(false);
+  const [rollingData, setRollingData] = useState(null);
+  const [rollingStep, setRollingStep] = useState(0);
+  const [rollingPlaying, setRollingPlaying] = useState(false);
   const [showCalibration, setShowCalibration] = useState(false);
   const [snapshots, setSnapshots] = useState([]);  // { id, label, result }
 
@@ -666,6 +669,51 @@ body: JSON.stringify({
   }, [displayResult]);
   const tippingCityIds = new Set(tippingSeats.filter(t => t.margin < 0.05).slice(0, 10).map(t => t.city_id));
 
+  // 选举日直播：累计已开票城市 → 胜者，驱动地图变色
+  const liveCounts = useMemo(() => {
+    if (!rollingData) return null;
+    const acc = {};
+    for (let i = 0; i <= rollingStep && i < rollingData.steps.length; i++) {
+      (rollingData.steps[i].new_cities || []).forEach(nc => {
+        acc[nc.city_id] = nc.winner_party_id;
+      });
+    }
+    return acc;
+  }, [rollingData, rollingStep]);
+
+  // 开票动画定时推进
+  useEffect(() => {
+    if (!rollingPlaying || !rollingData) return;
+    if (rollingStep >= rollingData.steps.length - 1) {
+      setRollingPlaying(false);
+      return;
+    }
+    const t = setTimeout(() => setRollingStep(s => s + 1), 150);
+    return () => clearTimeout(t);
+  }, [rollingPlaying, rollingData, rollingStep]);
+
+  const startRolling = async () => {
+    setShowRolling(true);
+    setRollingPlaying(false);
+    setRollingData(null);
+    setRollingStep(0);
+    try {
+      const simConfig = { ...(activeScheme === 'B' ? configB : config), total_seats: totalSeats, min_seats_per_city: minSeats };
+      const enabled = parties.filter(p => p.enabled !== false).map(({ enabled, ...rest }) => rest);
+      const d = await runRollingCount({ config: simConfig, parties: enabled, steps: 40 });
+      setRollingData(d);
+      setRollingStep(0);
+      setRollingPlaying(true);
+    } catch (e) {
+      console.error('rolling failed', e);
+    }
+  };
+
+  const closeRolling = () => {
+    setShowRolling(false);
+    setRollingPlaying(false);
+  };
+
   return (
     <div className="app">
       <header className="header">
@@ -763,7 +811,7 @@ body: JSON.stringify({
                   </div>
                 )}
               </div>
-              <button className="header-btn" onClick={() => { setShowRolling(true); }} title="模拟选举日各选区逐步开票，实时追踪席位与领先党">
+              <button className="header-btn" onClick={startRolling} title="模拟选举日各选区逐步开票，地图实时变色追踪席位与领先党">
                 选举日直播
               </button>
               <button className="header-btn" onClick={saveSnapshot} title="把当前结果存入快照，用于跨制度/剧本/年份对比">
@@ -837,6 +885,7 @@ body: JSON.stringify({
             onDrillDown={handleMapDrillDown}
             uncertainty={robustnessData ? buildUncertaintyMaps(robustnessData) : null}
             showUncertainty={showUncertainty}
+            liveCounts={liveCounts}
             onToggleUncertainty={() => {
               if (!robustnessData) runRobustnessAnalysis();
               else setShowUncertainty(v => !v);
@@ -1050,12 +1099,14 @@ body: JSON.stringify({
 
       {showRolling && (
         <RollingCountModal
-          config={activeScheme === 'B' ? configB : config}
-          totalSeats={totalSeats}
-          minSeats={minSeats}
-          parties={parties}
-          year={year}
-          onClose={() => setShowRolling(false)}
+          data={rollingData}
+          step={rollingStep}
+          playing={rollingPlaying}
+          onPlay={() => {
+            if (rollingData && rollingStep >= rollingData.steps.length - 1) setRollingStep(0);
+            setRollingPlaying(v => !v);
+          }}
+          onClose={closeRolling}
         />
       )}
 

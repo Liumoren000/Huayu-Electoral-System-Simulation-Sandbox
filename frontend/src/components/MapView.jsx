@@ -35,7 +35,7 @@ const PROVINCE_ADCODES = {
   '台湾省': '710000',
 };
 
-export default function MapView({ result, cities, mapLabel, accentColor, onProvinceClick, manualMode, manualSeats, viewMode, onViewModeChange, onDrillDown, compareResult, tippingCityIds, uncertainty, showUncertainty, onToggleUncertainty }) {
+export default function MapView({ result, cities, mapLabel, accentColor, onProvinceClick, manualMode, manualSeats, viewMode, onViewModeChange, onDrillDown, compareResult, tippingCityIds, uncertainty, showUncertainty, onToggleUncertainty, liveCounts }) {
   const containerRef = useRef(null);
   const chartRef = useRef(null);
   const clickHandlerRef = useRef(null);
@@ -73,7 +73,7 @@ export default function MapView({ result, cities, mapLabel, accentColor, onProvi
 
         setupClickHandler(chart);
 
-        renderMap(chart, result, manualSeats, currentProvince, viewMode, cities, showTurnout, compareResult, tippingCityIds, uncertainty, showUncertainty);
+        renderMap(chart, result, manualSeats, currentProvince, viewMode, cities, showTurnout, compareResult, tippingCityIds, uncertainty, showUncertainty, liveCounts);
         setStatus('ready');
 
         const onResize = () => chart.resize();
@@ -100,7 +100,7 @@ export default function MapView({ result, cities, mapLabel, accentColor, onProvi
 
     if (currentProvince === '台湾省') {
       setCityGeoLoaded(true);
-      renderMap(chartRef.current, result, manualSeats, currentProvince, viewMode, cities, showTurnout, compareResult, tippingCityIds, uncertainty, showUncertainty);
+      renderMap(chartRef.current, result, manualSeats, currentProvince, viewMode, cities, showTurnout, compareResult, tippingCityIds, uncertainty, showUncertainty, liveCounts);
       setStatus('ready');
       return;
     }
@@ -122,7 +122,7 @@ export default function MapView({ result, cities, mapLabel, accentColor, onProvi
         }
         echarts.registerMap('province', geo);
         setCityGeoLoaded(true);
-        renderMap(chartRef.current, result, manualSeats, currentProvince, viewMode, cities, showTurnout, compareResult, tippingCityIds, uncertainty, showUncertainty);
+        renderMap(chartRef.current, result, manualSeats, currentProvince, viewMode, cities, showTurnout, compareResult, tippingCityIds, uncertainty, showUncertainty, liveCounts);
         setStatus('ready');
       } catch (e) {
         console.error('City geo error:', e);
@@ -136,8 +136,8 @@ export default function MapView({ result, cities, mapLabel, accentColor, onProvi
   useEffect(() => {
     if (!chartRef.current) return;
     if (viewMode === 'city' && currentProvince && !cityGeoLoaded && currentProvince !== '台湾省') return;
-    renderMap(chartRef.current, result, manualSeats, currentProvince, viewMode, cities, showTurnout, compareResult, tippingCityIds, uncertainty, showUncertainty);
-  }, [result, manualSeats, viewMode, cityGeoLoaded, currentProvince, showTurnout, compareResult, uncertainty, showUncertainty]);
+    renderMap(chartRef.current, result, manualSeats, currentProvince, viewMode, cities, showTurnout, compareResult, tippingCityIds, uncertainty, showUncertainty, liveCounts);
+  }, [result, manualSeats, viewMode, cityGeoLoaded, currentProvince, showTurnout, compareResult, uncertainty, showUncertainty, liveCounts]);
 
   useEffect(() => {
     const handler = () => chartRef.current?.resize();
@@ -367,7 +367,7 @@ function getUncertaintyColor(winRate) {
   return '#e53935';
 }
 
-function renderMap(chart, result, manualSeatsData, currentProvince, viewMode, citiesData, showTurnout = false, compareResult = null, tippingCityIds = null, uncertainty = null, showUncertainty = false) {
+function renderMap(chart, result, manualSeatsData, currentProvince, viewMode, citiesData, showTurnout = false, compareResult = null, tippingCityIds = null, uncertainty = null, showUncertainty = false, liveCounts = null) {
   if (!chart) return;
   if (viewMode === 'city' && currentProvince && currentProvince !== '台湾省' && !echarts.getMap('province')) return;
 
@@ -432,7 +432,15 @@ function renderMap(chart, result, manualSeatsData, currentProvince, viewMode, ci
       const isTipping = !showTurnout && !compareResult && !!tippingCityIds?.has(city.id);
       let color;
       let unc = null;
-      if (showUncertainty && uncertainty?.city) {
+      if (liveCounts) {
+        // 选举日直播：已开票选区按胜者着色，未开票保持灰色
+        const lw = liveCounts[city.id];
+        if (lw) {
+          color = partyMap[lw]?.color || DEFAULT_COLOR;
+        } else {
+          color = '#232b38';
+        }
+      } else if (showUncertainty && uncertainty?.city) {
         unc = uncertainty.city[city.id];
         if (unc && unc.winner_party_id) {
           color = getUncertaintyColor(unc.win_rate);
@@ -476,6 +484,23 @@ function renderMap(chart, result, manualSeatsData, currentProvince, viewMode, ci
           const d = params.data;
           const cr = d?._cityResult;
           const displayName = d?._cityName || params.name;
+          if (liveCounts) {
+            const lw = liveCounts[cr?.city_id];
+            if (lw) {
+              const lwName = partyMap[lw]?.name || lw;
+              let h = `<div style="font-weight:700;margin-bottom:4px">${displayName} <span style="color:#4fc3f7">· 已开票</span></div>`;
+              h += `<div style="color:#66bb6a;margin-bottom:2px">● ${lwName}</div>`;
+              if (cr) {
+                const sorted = Object.entries(cr.vote_shares).sort((a, b) => b[1] - a[1]);
+                sorted.slice(0, 3).forEach(([pid, s]) => {
+                  h += `<div style="display:flex;justify-content:space-between;gap:12px;font-size:10px">
+                    <span style="color:${partyMap[pid]?.color || '#999'}">${partyMap[pid]?.name || pid}</span><span>${(s * 100).toFixed(1)}%</span></div>`;
+                });
+              }
+              return h;
+            }
+            return `<b>${displayName}</b><br/><span style="color:#5a6378;font-size:10px">尚未开票</span>`;
+          }
           if (!cr) return `<b>${displayName}</b><br/><span style="color:#5a6378;font-size:10px">暂无推演数据</span>`;
           if (compareResult && d._flipped !== undefined) {
             const ccr = d._compareCityResult;
@@ -586,13 +611,33 @@ function renderMap(chart, result, manualSeatsData, currentProvince, viewMode, ci
 
     const PROVINCES = Object.keys(PROVINCE_ADCODES);
 
+    // 直播模式：按已开票选区聚合出各省当前领先党
+    const provLive = {};
+    if (liveCounts && citiesData?.cities) {
+      const cityProvSeatTally = {};
+      citiesData.cities.forEach(c => {
+        const pid = liveCounts[c.id];
+        if (!pid) return;
+        if (!provLive[c.province]) provLive[c.province] = {};
+        provLive[c.province][pid] = (provLive[c.province][pid] || 0) + 1;
+      });
+    }
+
     const data = PROVINCES.map(name => {
       const pr = provMap[name];
       const cpr = compareProvMap[name];
       const flipped = compareResult ? (pr && cpr && pr.winner_party_id !== cpr.winner_party_id) : false;
       let color = DEFAULT_COLOR;
       let unc = null;
-      if (showUncertainty && uncertainty?.province) {
+      if (liveCounts) {
+        const tally = provLive[name];
+        if (tally && Object.keys(tally).length > 0) {
+          const leader = Object.entries(tally).sort((a, b) => b[1] - a[1])[0][0];
+          color = partyMap[leader]?.color || DEFAULT_COLOR;
+        } else {
+          color = '#232b38';
+        }
+      } else if (showUncertainty && uncertainty?.province) {
         unc = uncertainty.province[name];
         if (unc && unc.winner_party_id) {
           color = getUncertaintyColor(unc.win_rate);
@@ -633,6 +678,19 @@ function renderMap(chart, result, manualSeatsData, currentProvince, viewMode, ci
         textStyle: { color: '#e8eaed', fontSize: 12 },
         formatter: (params) => {
           const d = params.data;
+          if (liveCounts && !d._provinceResult && !d._manualSeats) {
+            const tally = provLive[params.name];
+            if (tally && Object.keys(tally).length > 0) {
+              const sorted = Object.entries(tally).sort((a, b) => b[1] - a[1]);
+              let h = `<div style="font-weight:700;margin-bottom:4px">${params.name} <span style="color:#4fc3f7">· 直播中</span></div>`;
+              sorted.slice(0, 4).forEach(([pid, cnt]) => {
+                h += `<div style="display:flex;justify-content:space-between;gap:12px;font-size:11px">
+                  <span>● ${partyMap[pid]?.name || pid}</span><span><b>${cnt}城</b></span></div>`;
+              });
+              return h;
+            }
+            return `<b>${params.name}</b><br/><span style="color:#5a6378;font-size:10px">尚未开票</span>`;
+          }
           if (!d?._provinceResult && !d?._manualSeats) return `<b>${params.name}</b>`;
           if (compareResult && d._provinceResult && !d._manualSeats) {
             const pr = d._provinceResult;
