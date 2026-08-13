@@ -262,6 +262,24 @@ export default function MapView({ result, cities, mapLabel, accentColor, onProvi
         )}
       </div>
       <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
+      {showUncertainty && uncertainty && (
+        <div style={{
+          position: 'absolute', bottom: 10, right: 16, zIndex: 20,
+          background: 'rgba(10,14,20,0.85)', border: '1px solid var(--border-color)',
+          borderRadius: 6, padding: '8px 12px', backdropFilter: 'blur(6px)',
+        }}>
+          <div style={{ fontSize: 11, color: 'var(--accent-green)', fontWeight: 700, marginBottom: 6 }}>
+            胜者稳定度（跨 {uncertainty.iterations} 次蒙特卡洛迭代）
+          </div>
+          <div style={{ fontSize: 10, color: 'var(--text-secondary)', lineHeight: 1.8 }}>
+            <div><span style={{ display: 'inline-block', width: 10, height: 10, background: '#66bb6a', marginRight: 6, borderRadius: 2 }} />稳定 ≥ 90%</div>
+            <div><span style={{ display: 'inline-block', width: 10, height: 10, background: '#aed581', marginRight: 6, borderRadius: 2 }} />较稳 75–90%</div>
+            <div><span style={{ display: 'inline-block', width: 10, height: 10, background: '#ffd54f', marginRight: 6, borderRadius: 2 }} />摇摆 60–75%</div>
+            <div><span style={{ display: 'inline-block', width: 10, height: 10, background: '#ffa726', marginRight: 6, borderRadius: 2 }} />不稳 45–60%</div>
+            <div><span style={{ display: 'inline-block', width: 10, height: 10, background: '#e53935', marginRight: 6, borderRadius: 2 }} />胶着 &lt; 45%</div>
+          </div>
+        </div>
+      )}
       {compareResult && (
         <div style={{
           position: 'absolute', bottom: 10, left: 16, zIndex: 20,
@@ -352,10 +370,11 @@ function hexToRgba(hex, alpha) {
 }
 
 function getUncertaintyColor(baseColor, winRate, DEFAULT_COLOR = '#2d3748') {
-  if (winRate >= 0.9) return baseColor;
-  if (winRate >= 0.7) return hexToRgba(baseColor, 0.55);
-  if (winRate >= 0.5) return hexToRgba(baseColor, 0.3);
-  return DEFAULT_COLOR;
+  if (winRate >= 0.9) return '#66bb6a';
+  if (winRate >= 0.75) return '#aed581';
+  if (winRate >= 0.6) return '#ffd54f';
+  if (winRate >= 0.45) return '#ffa726';
+  return '#e53935';
 }
 
 function renderMap(chart, result, manualSeatsData, currentProvince, viewMode, citiesData, showTurnout = false, compareResult = null, tippingCityIds = null, uncertainty = null, showUncertainty = false) {
@@ -664,7 +683,7 @@ function renderMap(chart, result, manualSeatsData, currentProvince, viewMode, ci
               const u = d._uncertainty;
               const uncColor = u.win_rate >= 0.7 ? '#81c784' : '#ffd54f';
               h += `<div style="color:${uncColor};font-weight:700;margin-bottom:3px">稳健性: ${u.winner_party_name}胜率 ${(u.win_rate * 100).toFixed(0)}%</div>`;
-              h += `<div style="font-size:10px;color:#9aa0a6;margin-bottom:4px">席位区间 ${u.seat_low}-${u.seat_high}（${u.iter_count}/${result?.party_results?.reduce?.((s,p)=>s+p.seats,0) || totalSeats}席口径 × ${uncertainty.iterations || '?'} 次迭代）</div>`;
+              h += `<div style="font-size:10px;color:#9aa0a6;margin-bottom:4px">席位区间 ${u.seat_low}-${u.seat_high}席 · ${u.iter_count}/${uncertainty.iterations} 次迭代</div>`;
             }
             sorted.slice(0, 4).forEach(([pid, s]) => {
               h += `<div style="display:flex;justify-content:space-between;gap:12px;font-size:11px">
