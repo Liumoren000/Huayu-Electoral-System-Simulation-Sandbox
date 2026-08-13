@@ -23,6 +23,7 @@ export default function Sidebar({
 }) {
   const [expandedParty, setExpandedParty] = useState(null);
   const [openSchemes, setOpenSchemes] = useState({ A: true, B: false });
+  const [realismOpen, setRealismOpen] = useState(true);
 
   const updateConfig = (key, value) => {
     setConfig(prev => ({ ...prev, [key]: value }));
@@ -97,10 +98,17 @@ export default function Sidebar({
       </div>
 
       {/* 真实感增强（全局模块，作用于方案 A/B） */}
-      <div className="sidebar-section realism-section">
-        <div className="section-title">
+      <div className={`sidebar-section realism-section ${realismOpen ? '' : 'collapsed'}`}>
+        <div
+          className="section-title section-title-collapsible"
+          onClick={() => setRealismOpen(prev => !prev)}
+          title={realismOpen ? '收起' : '展开'}
+        >
           <span className="dot" style={{ background: '#ce93d8' }} />真实感增强
+          <span className="scheme-chevron">{realismOpen ? '▾' : '▸'}</span>
         </div>
+        {realismOpen && (
+        <div className="realism-body">
         <div className="realism-check">
           <label className="check-label">
             <input
@@ -175,6 +183,8 @@ export default function Sidebar({
             onChange={e => setBothConfigs('malapportionment', parseFloat(e.target.value))}
           />
         </div>
+        </div>
+        )}
       </div>
 
       {/* 席位分配 */}

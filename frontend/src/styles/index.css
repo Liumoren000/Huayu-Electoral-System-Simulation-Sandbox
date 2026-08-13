@@ -455,6 +455,24 @@ body {
   background: var(--accent-blue);
 }
 
+.section-title-collapsible {
+  cursor: pointer;
+  user-select: none;
+  margin-bottom: 0;
+}
+
+.section-title-collapsible:hover {
+  color: var(--text-primary);
+}
+
+.realism-section.collapsed {
+  padding-bottom: 4px;
+}
+
+.realism-body {
+  margin-top: 10px;
+}
+
 .config-panel {
   background: var(--bg-card);
   border-radius: 6px;
