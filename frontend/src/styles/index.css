@@ -145,6 +145,75 @@ body {
   color: var(--text-primary);
 }
 
+.negotiation-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.negotiation-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 5px;
+  background: var(--bg-tertiary);
+  font-size: 11px;
+}
+
+.negotiation-idx {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--accent-blue);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.negotiation-text {
+  flex: 1;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.negotiation-text b {
+  color: var(--text-primary);
+}
+
+.negotiation-badge {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.negotiation-badge.init { background: rgba(66, 165, 245, 0.15); color: #42a5f5; }
+.negotiation-badge.accept { background: rgba(76, 175, 80, 0.15); color: #81c784; }
+.negotiation-badge.decline { background: rgba(255, 82, 82, 0.15); color: #ff8a80; }
+
+.negotiation-seats {
+  font-size: 10px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.poll-event-chip {
+  font-size: 10px;
+  padding: 3px 8px;
+  border: 1px solid;
+  border-radius: 4px;
+  background: var(--bg-tertiary);
+}
+
+.analysis-modal-wide .robust-summary-row { margin-top: 4px; }
+
 .attack-narrative {
   margin-top: 14px;
   padding: 10px 12px;

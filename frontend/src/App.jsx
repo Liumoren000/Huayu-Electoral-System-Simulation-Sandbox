@@ -17,6 +17,9 @@ import RadarModal from './components/RadarModal.jsx';
 import ReportModal from './components/ReportModal.jsx';
 import SnapshotModal from './components/SnapshotModal.jsx';
 import VoterModelModal from './components/VoterModelModal.jsx';
+import PollModal from './components/PollModal.jsx';
+import SwingAnalysisModal from './components/SwingAnalysisModal.jsx';
+import CoalitionNegotiationModal from './components/CoalitionNegotiationModal.jsx';
 import { fetchParties, fetchCities, runSimulation, runRobustness } from './services/api.js';
 import { API_BASE } from './services/api.js';
 import { findCoalitions } from './utils/coalition.js';
@@ -145,6 +148,9 @@ export default function App() {
   const [showReport, setShowReport] = useState(false);
   const [showSnap, setShowSnap] = useState(false);
   const [showVoterModel, setShowVoterModel] = useState(false);
+  const [showPoll, setShowPoll] = useState(false);
+  const [showSwing, setShowSwing] = useState(false);
+  const [showNegotiation, setShowNegotiation] = useState(false);
   const [snapshots, setSnapshots] = useState([]);  // { id, label, result }
 
   useEffect(() => {
@@ -737,6 +743,9 @@ body: JSON.stringify({
                   <div className="tools-menu">
                     <button onClick={() => { if (robustnessData) setShowRobustnessModal(true); else runRobustnessAnalysis(); setShowTools(false); }}>稳健性</button>
                     <button onClick={() => { setShowSensitivity(true); setShowTools(false); }}>敏感性</button>
+                    <button onClick={() => { setShowPoll(true); setShowTools(false); }}>竞选民调</button>
+                    <button onClick={() => { setShowSwing(true); setShowTools(false); }}>摇摆/风向标选区</button>
+                    <button onClick={() => { setShowNegotiation(true); setShowTools(false); }}>组阁谈判模拟</button>
                     <button onClick={() => { setShowBubble(true); setShowTools(false); }}>席位—选票偏差气泡</button>
                     <button onClick={() => { setShowTipping(true); setShowTools(false); }}>翻转临界席</button>
                     <button onClick={() => { setAttackInitialMode('coalition'); setShowAttack(true); setShowTools(false); }}>组阁攻防推演</button>
@@ -1000,6 +1009,34 @@ body: JSON.stringify({
           parties={parties}
           cities={cities}
           onClose={() => setShowVoterModel(false)}
+        />
+      )}
+
+      {showPoll && (
+        <PollModal
+          config={activeScheme === 'B' ? configB : config}
+          totalSeats={totalSeats}
+          minSeats={minSeats}
+          parties={parties}
+          onClose={() => setShowPoll(false)}
+        />
+      )}
+
+      {showSwing && (
+        <SwingAnalysisModal
+          config={activeScheme === 'B' ? configB : config}
+          totalSeats={totalSeats}
+          minSeats={minSeats}
+          parties={parties}
+          onClose={() => setShowSwing(false)}
+        />
+      )}
+
+      {showNegotiation && (
+        <CoalitionNegotiationModal
+          result={displayResult}
+          parties={parties}
+          onClose={() => setShowNegotiation(false)}
         />
       )}
     </div>

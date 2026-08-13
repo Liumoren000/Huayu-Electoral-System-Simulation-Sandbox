@@ -89,6 +89,18 @@ npm run dev
 - 点击省份下钻到市级，展示各城市获胜政党、**胜差**（>10% 绿色 / <3% 橙色）、投票率与政治倾向
 - 地图 tooltip 同步显示城市胜差
 
+### 竞选民调与舆论推演
+- **竞选期民调**：模拟 8-20 周竞选期各党支持率演化曲线（向确定性基准收敛 + 随机波动），叠加首场辩论、经济数据、地方选举、候选人丑闻等**舆论事件冲击**
+- **选前预测**：基于最终一周民调输出席位投影，并给出各党「最大党概率」与「过半概率」（当前制度下 200 次蒙特卡洛）
+
+### 选区级摇摆与风向标
+- 按各市胜差分位数将选区分为 **胶着（tossup）/ 偏倾（lean）/ 稳固（safe）**
+- 识别**风向标选区（bellwether）**：与全国最大党一致、胜差处于中等竞争带的城市，历史上常预示全国走向
+
+### 组阁谈判模拟
+- 以第一大党为组阁者，按意识形态接近度依次发出组阁邀请，被邀党依「兼容度 × 席位回报」决定接受或拒绝
+- 逐步回放谈判过程（接受/拒绝/达成多数），组阁成功后按最大余数法分配 **20 个部委** 内阁席位
+
 ### 配置持久化与分享
 - 所有配置（政党、席位、制度、年度）自动保存至 localStorage，刷新自动还原
 - 「分享」按钮生成 `?s=` 链接（base64url 编码，无 padding），对方打开即可还原同一配置
@@ -129,4 +141,6 @@ npm run dev
 | `/api/simulate` | POST | 运行选举推演（支持 `voter_stratification` / `party_loyalty` / `swing_voter_pct` / `abstention_sensitivity` / `malapportionment` / `party_effects` / `calibration` 真实感参数） |
 | `/api/simulate/robustness` | POST | 蒙特卡洛稳健性分析（含省级/城市级不确定性） |
 | `/api/simulate/sensitivity` | POST | 关键参数敏感性分析 |
+| `/api/simulate/poll` | POST | 竞选期民调与舆论推演（支持率曲线 + 席位投影 + 胜率预测） |
+| `/api/simulate/swing` | POST | 选区级摇摆/风向标分析（tossup/lean/safe + bellwether） |
 | `/api/voter-model/explain` | POST | 选民行为模型透明分解（城市偏好→政党亲和度） |

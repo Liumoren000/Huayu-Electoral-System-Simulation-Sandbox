@@ -62,3 +62,17 @@ class VoterExplainRequest(BaseModel):
     city_id: str
     config: ElectoralConfig
     parties: list[Party]
+
+
+class PollRequest(BaseModel):
+    year: int = Field(default=2023, ge=2010, le=2024)
+    config: ElectoralConfig
+    parties: list[Party]
+    weeks: int = Field(default=12, ge=4, le=30)
+    volatility: float = Field(default=0.04, ge=0.0, le=0.2, description="民调随机波动幅度")
+
+
+class SwingAnalysisRequest(BaseModel):
+    year: int = Field(default=2023, ge=2010, le=2024)
+    config: ElectoralConfig
+    parties: list[Party]

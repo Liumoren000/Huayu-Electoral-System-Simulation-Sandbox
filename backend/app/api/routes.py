@@ -3,7 +3,7 @@ import statistics
 import urllib.request
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
-from app.models.config import SimulationRequest, RobustnessRequest, SensitivityRequest, VoterExplainRequest
+from app.models.config import SimulationRequest, RobustnessRequest, SensitivityRequest, VoterExplainRequest, PollRequest, SwingAnalysisRequest
 from app.models.result import (
     SimulationResponse,
     RobustnessResponse,
@@ -18,9 +18,12 @@ from app.models.result import (
     DimensionExplain,
     PartyAffinityExplain,
     VoterExplainResponse,
+    PollResponse,
+    SwingAnalysisResponse,
 )
 from app.engine import DataLoader, generate_default_parties, ElectoralEngine, CoalitionEngine
 from app.engine.voter_model import VoterModel
+from app.engine.poll_engine import PollEngine, swing_analysis
 
 router = APIRouter()
 data_loader = DataLoader()
@@ -310,6 +313,32 @@ DIMENSION_META = [
     ("urban_rural", "城乡", "农业农村利益 vs 城市居民利益",
      "由城镇化率（高→城市利益）、第一产业比重（高→农业利益）与人口规模（大城市→城市利益）合成"),
 ]
+
+
+@router.post("/simulate/poll")
+def simulate_poll(request: PollRequest):
+    """
+    竞选期民调与舆论模拟：生成各周民调支持率曲线、舆论事件冲击，
+    并基于当前制度给出选前席位预测与蒙特卡洛胜率/过半率。
+    """
+    if not request.parties:
+        return JSONResponse(status_code=400, content={"error": "至少需要一个参选政党"})
+    city_data = data_loader.get_city_data(request.year)
+    engine = PollEngine(city_data, request.parties, request.config,
+                        weeks=request.weeks, volatility=request.volatility)
+    return engine.run()
+
+
+@router.post("/simulate/swing")
+def simulate_swing(request: SwingAnalysisRequest):
+    """
+    选区级摇摆/风向标分析：按胜差划分 tossup/lean/safe 选区，
+    并识别与全国最大党一致、胜差接近全国均值的方向标选区（bellwether）。
+    """
+    if not request.parties:
+        return JSONResponse(status_code=400, content={"error": "至少需要一个参选政党"})
+    city_data = data_loader.get_city_data(request.year)
+    return swing_analysis(city_data, request.parties, request.config)
 
 
 @router.post("/voter-model/explain")

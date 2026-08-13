@@ -248,3 +248,62 @@ class VoterExplainResponse(BaseModel):
     weights: dict[str, float] = {}  # {'economic': 0.3, ...}
     city_position: list[DimensionExplain] = []
     parties: list[PartyAffinityExplain] = []
+
+
+class PollPoint(BaseModel):
+    week: int
+    party_id: str
+    share: float = 0.0  # 该周民调支持率 0-1
+
+
+class PollEvent(BaseModel):
+    week: int
+    label: str
+    description: str = ""
+    party_id: str = ""
+    direction: float = 0.0  # 支持率冲击方向（正/负）
+
+
+class PollForecast(BaseModel):
+    party_id: str
+    party_name: str
+    color: str = "#888"
+    poll_share: float = 0.0       # 最终一周民调
+    seat_projection: int = 0      # 按最终民调换算的席位预测
+    win_prob: float = 0.0         # 蒙特卡洛预测胜率（最大党）
+    majority_prob: float = 0.0    # 过半概率
+
+
+class PollResponse(BaseModel):
+    weeks: int = 12
+    final_share: dict[str, float] = {}     # 实际选举得票率（基准）
+    series: list[PollPoint] = []           # 各周民调曲线
+    events: list[PollEvent] = []           # 舆论事件
+    forecasts: list[PollForecast] = []     # 选前预测
+    note: str = ""
+
+
+class SwingDistrict(BaseModel):
+    city_id: str
+    city_name: str
+    province: str = ""
+    winner_party_id: str = ""
+    winner_party_name: str = ""
+    runnerup_party_id: str = ""
+    runnerup_party_name: str = ""
+    margin: float = 0.0          # 前两名胜差
+    seats: int = 0
+    swing_level: str = "safe"    # safe / lean / tossup
+    bellwether: bool = False     # 风向标：与全国最大党一致且接近全国均值
+    bellwether_score: float = 0.0
+
+
+class SwingAnalysisResponse(BaseModel):
+    total_seats: int = 0
+    tossup_count: int = 0
+    lean_count: int = 0
+    safe_count: int = 0
+    bellwether_count: int = 0
+    national_leader: str = ""       # 全国最大党 id
+    national_leader_name: str = ""
+    districts: list[SwingDistrict] = []
