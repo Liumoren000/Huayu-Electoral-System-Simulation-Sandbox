@@ -3,7 +3,10 @@ import statistics
 import urllib.request
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
-from app.models.config import SimulationRequest, RobustnessRequest, SensitivityRequest, VoterExplainRequest, PollRequest, SwingAnalysisRequest
+from app.models.config import (
+    SimulationRequest, RobustnessRequest, SensitivityRequest, VoterExplainRequest,
+    PollRequest, SwingAnalysisRequest, RollingCountRequest, CalibrationRequest,
+)
 from app.models.result import (
     SimulationResponse,
     RobustnessResponse,
@@ -20,10 +23,13 @@ from app.models.result import (
     VoterExplainResponse,
     PollResponse,
     SwingAnalysisResponse,
+    RollingCountResponse,
+    CalibrationResponse,
 )
 from app.engine import DataLoader, generate_default_parties, ElectoralEngine, CoalitionEngine
 from app.engine.voter_model import VoterModel
 from app.engine.poll_engine import PollEngine, swing_analysis
+from app.engine.rolling_engine import RollingCountEngine, historical_calibration
 
 router = APIRouter()
 data_loader = DataLoader()
@@ -339,6 +345,33 @@ def simulate_swing(request: SwingAnalysisRequest):
         return JSONResponse(status_code=400, content={"error": "至少需要一个参选政党"})
     city_data = data_loader.get_city_data(request.year)
     return swing_analysis(city_data, request.parties, request.config)
+
+
+@router.post("/simulate/rolling-count")
+def simulate_rolling_count(request: RollingCountRequest):
+    """
+    选举日实时开票：模拟各选区逐步开票，累计席位、实时领先党与过半可达性。
+    """
+    if not request.parties:
+        return JSONResponse(status_code=400, content={"error": "至少需要一个参选政党"})
+    city_data = data_loader.get_city_data(request.year)
+    engine = RollingCountEngine(city_data, request.parties, request.config,
+                                steps=request.steps, order_seed=request.order_seed)
+    return engine.run()
+
+
+@router.post("/simulate/calibrate")
+def simulate_calibrate(request: CalibrationRequest):
+    """
+    历史选举校准：对比本届与上一届（默认 year-4）的席位变化、城市翻盘
+    与第一大党易主，衡量模型的稳定性与波动性。
+    """
+    if not request.parties:
+        return JSONResponse(status_code=400, content={"error": "至少需要一个参选政党"})
+    city_data = data_loader.get_city_data(request.year)
+    return historical_calibration(city_data, request.parties, request.config,
+                                  current_year=request.year,
+                                  baseline_year=request.baseline_year)
 
 
 @router.post("/voter-model/explain")

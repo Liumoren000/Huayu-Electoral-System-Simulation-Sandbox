@@ -20,6 +20,8 @@ import VoterModelModal from './components/VoterModelModal.jsx';
 import PollModal from './components/PollModal.jsx';
 import SwingAnalysisModal from './components/SwingAnalysisModal.jsx';
 import CoalitionNegotiationModal from './components/CoalitionNegotiationModal.jsx';
+import RollingCountModal from './components/RollingCountModal.jsx';
+import CalibrationModal from './components/CalibrationModal.jsx';
 import { fetchParties, fetchCities, runSimulation, runRobustness } from './services/api.js';
 import { API_BASE } from './services/api.js';
 import { findCoalitions } from './utils/coalition.js';
@@ -151,6 +153,8 @@ export default function App() {
   const [showPoll, setShowPoll] = useState(false);
   const [showSwing, setShowSwing] = useState(false);
   const [showNegotiation, setShowNegotiation] = useState(false);
+  const [showRolling, setShowRolling] = useState(false);
+  const [showCalibration, setShowCalibration] = useState(false);
   const [snapshots, setSnapshots] = useState([]);  // { id, label, result }
 
   useEffect(() => {
@@ -754,10 +758,14 @@ body: JSON.stringify({
                     <button onClick={() => { setShowRadar(true); setShowTools(false); }}>综合代表指数</button>
                     <button onClick={() => { setShowReport(true); setShowTools(false); }}>自动解读报告</button>
                     <button onClick={() => { setShowVoterModel(true); setShowTools(false); }}>选民模型透明面板</button>
+                    <button onClick={() => { setShowCalibration(true); setShowTools(false); }}>历史选举校准</button>
                     <button onClick={() => { setShowSnap(true); setShowTools(false); }}>多快照对比</button>
                   </div>
                 )}
               </div>
+              <button className="header-btn" onClick={() => { setShowRolling(true); }} title="模拟选举日各选区逐步开票，实时追踪席位与领先党">
+                选举日直播
+              </button>
               <button className="header-btn" onClick={saveSnapshot} title="把当前结果存入快照，用于跨制度/剧本/年份对比">
                 存入快照
               </button>
@@ -1037,6 +1045,28 @@ body: JSON.stringify({
           result={displayResult}
           parties={parties}
           onClose={() => setShowNegotiation(false)}
+        />
+      )}
+
+      {showRolling && (
+        <RollingCountModal
+          config={activeScheme === 'B' ? configB : config}
+          totalSeats={totalSeats}
+          minSeats={minSeats}
+          parties={parties}
+          year={year}
+          onClose={() => setShowRolling(false)}
+        />
+      )}
+
+      {showCalibration && (
+        <CalibrationModal
+          config={activeScheme === 'B' ? configB : config}
+          totalSeats={totalSeats}
+          minSeats={minSeats}
+          parties={parties}
+          year={year}
+          onClose={() => setShowCalibration(false)}
         />
       )}
     </div>

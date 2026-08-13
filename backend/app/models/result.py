@@ -307,3 +307,63 @@ class SwingAnalysisResponse(BaseModel):
     national_leader: str = ""       # 全国最大党 id
     national_leader_name: str = ""
     districts: list[SwingDistrict] = []
+
+
+class RollingCountStep(BaseModel):
+    step: int = 0
+    counted: int = 0              # 已开票选区数
+    total: int = 0                # 总选区数
+    party_seats: dict[str, int] = {}   # 已开票累计席位
+    party_votes: dict[str, float] = {} # 已开票累计得票率（加总归一）
+    leader_party_id: str = ""
+    leader_seats: int = 0
+    majority_reachable: bool = False   # 领先党是否仍可能过半
+    leading_margin: float = 0.0        # 领先党相对第二名的席位差
+
+
+class RollingCountResponse(BaseModel):
+    total_seats: int = 0
+    quota: int = 0                # 过半门槛
+    steps: list[RollingCountStep] = []
+    final_leader: str = ""
+    final_leader_name: str = ""
+    party_names: dict[str, str] = {}
+    party_colors: dict[str, str] = {}
+
+
+class CalibrationPartyRow(BaseModel):
+    party_id: str
+    party_name: str
+    color: str = "#888"
+    prev_seats: int = 0
+    cur_seats: int = 0
+    delta: int = 0
+    prev_vote: float = 0.0
+    cur_vote: float = 0.0
+    vote_delta: float = 0.0
+
+
+class CalibrationCityRow(BaseModel):
+    city_id: str
+    city_name: str
+    province: str = ""
+    prev_winner: str = ""
+    cur_winner: str = ""
+    flipped: bool = False
+    margin: float = 0.0           # 本届胜差
+
+
+class CalibrationResponse(BaseModel):
+    baseline_year: int = 0
+    current_year: int = 0
+    flipped_cities: int = 0
+    total_cities: int = 0
+    stability_index: float = 0.0  # 连任城市占比（0-1）
+    seat_volatility: float = 0.0  # 席位变动总量（Σ|Δ|/总席位数）
+    national_leader_prev: str = ""
+    national_leader_prev_name: str = ""
+    national_leader_cur: str = ""
+    national_leader_cur_name: str = ""
+    gov_changed: bool = False     # 第一大党是否易主
+    parties: list[CalibrationPartyRow] = []
+    cities: list[CalibrationCityRow] = []
