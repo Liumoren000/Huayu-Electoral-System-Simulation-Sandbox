@@ -22,7 +22,7 @@ import SwingAnalysisModal from './components/SwingAnalysisModal.jsx';
 import CoalitionNegotiationModal from './components/CoalitionNegotiationModal.jsx';
 import RollingCountModal from './components/RollingCountModal.jsx';
 import CalibrationModal from './components/CalibrationModal.jsx';
-import { fetchParties, fetchCities, runSimulation, runRobustness } from './services/api.js';
+import { fetchParties, fetchCities, runSimulation, runRobustness, runRollingCount } from './services/api.js';
 import { API_BASE } from './services/api.js';
 import { findCoalitions } from './utils/coalition.js';
 import { loadSavedState, saveState, buildShareUrl } from './utils/state.js';
