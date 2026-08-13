@@ -1851,3 +1851,36 @@ body {
   text-overflow: ellipsis;
   max-width: 150px;
 }
+
+.voter-dim-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.voter-dim-card {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+
+.voter-table td {
+  font-size: 11px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.voter-table th {
+  font-size: 10px;
+  text-align: center;
+}
+
+.voter-table td:first-child {
+  text-align: left;
+}
+
+.voter-table td:last-child {
+  white-space: normal;
+}

@@ -16,6 +16,7 @@ import CoalitionMatrixModal from './components/CoalitionMatrixModal.jsx';
 import RadarModal from './components/RadarModal.jsx';
 import ReportModal from './components/ReportModal.jsx';
 import SnapshotModal from './components/SnapshotModal.jsx';
+import VoterModelModal from './components/VoterModelModal.jsx';
 import { fetchParties, fetchCities, runSimulation, runRobustness } from './services/api.js';
 import { API_BASE } from './services/api.js';
 import { findCoalitions } from './utils/coalition.js';
@@ -119,6 +120,8 @@ export default function App() {
   const [trendAnalysis, setTrendAnalysis] = useState(null);
   const [showAnalysis, setShowAnalysis] = useState(false);
   const [robustnessData, setRobustnessData] = useState(null);
+  const [showRobustnessModal, setShowRobustnessModal] = useState(false);
+  const [showUncertainty, setShowUncertainty] = useState(false);
   const [attackInitialMode, setAttackInitialMode] = useState('coalition');
   const [showCompare, setShowCompare] = useState(false);
   const [showSensitivity, setShowSensitivity] = useState(false);
@@ -135,6 +138,7 @@ export default function App() {
   const [showRadar, setShowRadar] = useState(false);
   const [showReport, setShowReport] = useState(false);
   const [showSnap, setShowSnap] = useState(false);
+  const [showVoterModel, setShowVoterModel] = useState(false);
   const [snapshots, setSnapshots] = useState([]);  // { id, label, result }
 
   useEffect(() => {
@@ -196,6 +200,8 @@ export default function App() {
       const simConfig = { ...config, total_seats: totalSeats, min_seats_per_city: minSeats };
       const data = await runRobustness({ year, config: simConfig, parties: enabledParties, iterations: 30 });
       setRobustnessData(data);
+      setShowRobustnessModal(true);
+      setShowUncertainty(true);
     } catch (e) {
       console.error('Robustness error:', e);
       alert('稳健性分析失败：' + e.message);
@@ -614,6 +620,12 @@ body: JSON.stringify({
   const displayResult = scriptDisplay
     || (displayResultB && activeScheme === 'B' ? displayResultB : displayResultA);
 
+  const buildUncertaintyMaps = (rob) => ({
+    iterations: rob?.summary?.iterations || 0,
+    province: Object.fromEntries((rob?.province_uncertainty || []).map(u => [u.province_name, u])),
+    city: Object.fromEntries((rob?.city_uncertainty || []).map(u => [u.city_id, u])),
+  });
+
   const saveSnapshot = () => {
     if (!displayResult) return;
     const partyMap = {};
@@ -711,7 +723,7 @@ body: JSON.stringify({
                 </button>
                 {showTools && (
                   <div className="tools-menu">
-                    <button onClick={() => { runRobustnessAnalysis(); setShowTools(false); }}>稳健性</button>
+                    <button onClick={() => { if (robustnessData) setShowRobustnessModal(true); else runRobustnessAnalysis(); setShowTools(false); }}>稳健性</button>
                     <button onClick={() => { setShowSensitivity(true); setShowTools(false); }}>敏感性</button>
                     <button onClick={() => { setShowBubble(true); setShowTools(false); }}>席位—选票偏差气泡</button>
                     <button onClick={() => { setShowTipping(true); setShowTools(false); }}>翻转临界席</button>
@@ -720,6 +732,7 @@ body: JSON.stringify({
                     <button onClick={() => { setShowMatrix(true); setShowTools(false); }}>联盟可能性矩阵</button>
                     <button onClick={() => { setShowRadar(true); setShowTools(false); }}>综合代表指数</button>
                     <button onClick={() => { setShowReport(true); setShowTools(false); }}>自动解读报告</button>
+                    <button onClick={() => { setShowVoterModel(true); setShowTools(false); }}>选民模型透明面板</button>
                     <button onClick={() => { setShowSnap(true); setShowTools(false); }}>多快照对比</button>
                   </div>
                 )}
@@ -793,6 +806,9 @@ body: JSON.stringify({
             viewMode={viewMode}
             onViewModeChange={setViewMode}
             onDrillDown={handleMapDrillDown}
+            uncertainty={robustnessData ? buildUncertaintyMaps(robustnessData) : null}
+            showUncertainty={showUncertainty}
+            onToggleUncertainty={() => setShowUncertainty(v => !v)}
           />
 
           <BottomPanel result={displayResult} />
@@ -864,10 +880,10 @@ body: JSON.stringify({
         )
       )}
 
-      {robustnessData && (
+      {robustnessData && showRobustnessModal && (
         <RobustnessModal
           data={robustnessData}
-          onClose={() => setRobustnessData(null)}
+          onClose={() => setShowRobustnessModal(false)}
         />
       )}
 
@@ -957,6 +973,18 @@ body: JSON.stringify({
           onRemove={id => setSnapshots(prev => prev.filter(s => s.id !== id))}
           onClear={() => setSnapshots([])}
           onClose={() => setShowSnap(false)}
+        />
+      )}
+
+      {showVoterModel && (
+        <VoterModelModal
+          year={year}
+          config={activeScheme === 'B' ? configB : config}
+          totalSeats={totalSeats}
+          minSeats={minSeats}
+          parties={parties}
+          cities={cities}
+          onClose={() => setShowVoterModel(false)}
         />
       )}
     </div>

@@ -158,6 +158,29 @@ class RobustnessChangePoint(BaseModel):
     seats: int
 
 
+class CityUncertainty(BaseModel):
+    """城市级稳健性：模态胜者及其胜率（蒙特卡洛跨迭代）"""
+    city_id: str
+    city_name: str
+    winner_party_id: str = ""
+    winner_party_name: str = ""
+    win_rate: float = 0.0  # 模态胜者获胜频率 0-1
+    seat_low: float = 0.0
+    seat_high: float = 0.0
+    iter_count: int = 0
+
+
+class ProvinceUncertainty(BaseModel):
+    """省级稳健性：模态胜者及其胜率（蒙特卡洛跨迭代）"""
+    province_name: str
+    winner_party_id: str = ""
+    winner_party_name: str = ""
+    win_rate: float = 0.0
+    seat_low: float = 0.0
+    seat_high: float = 0.0
+    iter_count: int = 0
+
+
 class RobustnessSummary(BaseModel):
     iterations: int
     majority_rate: float = 0.0  # 任一政党过半的概率
@@ -170,6 +193,8 @@ class RobustnessResponse(BaseModel):
     summary: RobustnessSummary
     party_rows: list[RobustnessPartyRow]
     series: list[RobustnessChangePoint]
+    province_uncertainty: list[ProvinceUncertainty] = []
+    city_uncertainty: list[CityUncertainty] = []
 
 
 class MetricSnapshot(BaseModel):
@@ -189,3 +214,37 @@ class SensitivityPoint(BaseModel):
 
 class SensitivityResponse(BaseModel):
     points: list[SensitivityPoint]
+
+
+class DimensionExplain(BaseModel):
+    """选民模型：单一政策维度解释"""
+    key: str
+    label: str
+    description: str
+    value: float = 0.0  # 城市在此维度的位置
+
+
+class PartyAffinityExplain(BaseModel):
+    """选民模型：某政党在该城市的亲和度分解"""
+    party_id: str
+    party_name: str
+    color: str
+    economic: float = 0.0   # 经济匹配 (权重30%)
+    social: float = 0.0     # 社会匹配 (权重20%)
+    regional: float = 0.0   # 区域匹配 (权重20%)
+    policy: float = 0.0     # 政策匹配 (权重30%)
+    weighted_affinity: float = 0.0  # 加权原始亲和度
+    noise: float = 0.0      # 随机扰动
+    affinity: float = 0.0   # 最终亲和度（含噪声）
+    vote_share: float = 0.0  # 归一化得票率
+    distance: float = 0.0   # 7维欧氏距离
+
+
+class VoterExplainResponse(BaseModel):
+    city_id: str
+    city_name: str
+    province: str
+    turnout: float = 0.0
+    weights: dict[str, float] = {}  # {'economic': 0.3, ...}
+    city_position: list[DimensionExplain] = []
+    parties: list[PartyAffinityExplain] = []

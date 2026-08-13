@@ -35,7 +35,7 @@ const PROVINCE_ADCODES = {
   '台湾省': '710000',
 };
 
-export default function MapView({ result, cities, mapLabel, accentColor, onProvinceClick, manualMode, manualSeats, viewMode, onViewModeChange, onDrillDown, compareResult, tippingCityIds }) {
+export default function MapView({ result, cities, mapLabel, accentColor, onProvinceClick, manualMode, manualSeats, viewMode, onViewModeChange, onDrillDown, compareResult, tippingCityIds, uncertainty, showUncertainty, onToggleUncertainty }) {
   const containerRef = useRef(null);
   const chartRef = useRef(null);
   const clickHandlerRef = useRef(null);
@@ -73,7 +73,7 @@ export default function MapView({ result, cities, mapLabel, accentColor, onProvi
 
         setupClickHandler(chart);
 
-        renderMap(chart, result, manualSeats, currentProvince, viewMode, cities, showTurnout, compareResult, tippingCityIds, currentProvince);
+        renderMap(chart, result, manualSeats, currentProvince, viewMode, cities, showTurnout, compareResult, tippingCityIds, currentProvince, uncertainty, showUncertainty);
         setStatus('ready');
 
         const onResize = () => chart.resize();
@@ -100,7 +100,7 @@ export default function MapView({ result, cities, mapLabel, accentColor, onProvi
 
     if (currentProvince === '台湾省') {
       setCityGeoLoaded(true);
-      renderMap(chartRef.current, result, manualSeats, currentProvince, viewMode, cities, showTurnout, compareResult, tippingCityIds, currentProvince);
+      renderMap(chartRef.current, result, manualSeats, currentProvince, viewMode, cities, showTurnout, compareResult, tippingCityIds, currentProvince, uncertainty, showUncertainty);
       setStatus('ready');
       return;
     }
@@ -122,7 +122,7 @@ export default function MapView({ result, cities, mapLabel, accentColor, onProvi
         }
         echarts.registerMap('province', geo);
         setCityGeoLoaded(true);
-        renderMap(chartRef.current, result, manualSeats, currentProvince, viewMode, cities, showTurnout, compareResult, tippingCityIds, currentProvince);
+        renderMap(chartRef.current, result, manualSeats, currentProvince, viewMode, cities, showTurnout, compareResult, tippingCityIds, currentProvince, uncertainty, showUncertainty);
         setStatus('ready');
       } catch (e) {
         console.error('City geo error:', e);
@@ -136,8 +136,8 @@ export default function MapView({ result, cities, mapLabel, accentColor, onProvi
   useEffect(() => {
     if (!chartRef.current) return;
     if (viewMode === 'city' && currentProvince && !cityGeoLoaded && currentProvince !== '台湾省') return;
-    renderMap(chartRef.current, result, manualSeats, currentProvince, viewMode, cities, showTurnout, compareResult, tippingCityIds, currentProvince);
-  }, [result, manualSeats, viewMode, cityGeoLoaded, currentProvince, showTurnout, compareResult]);
+    renderMap(chartRef.current, result, manualSeats, currentProvince, viewMode, cities, showTurnout, compareResult, tippingCityIds, currentProvince, uncertainty, showUncertainty);
+  }, [result, manualSeats, viewMode, cityGeoLoaded, currentProvince, showTurnout, compareResult, uncertainty, showUncertainty]);
 
   useEffect(() => {
     const handler = () => chartRef.current?.resize();
@@ -246,6 +246,20 @@ export default function MapView({ result, cities, mapLabel, accentColor, onProvi
             {showTurnout ? '政党视图' : '投票率'}
           </button>
         )}
+        {uncertainty && (
+          <button
+            style={{
+              marginLeft: 12, padding: '2px 10px', fontSize: 10,
+              background: showUncertainty ? 'var(--accent-green)' : 'var(--bg-tertiary)',
+              border: '1px solid var(--border-color)',
+              borderRadius: 4, color: showUncertainty ? '#fff' : 'var(--accent-blue)', cursor: 'pointer',
+            }}
+            onClick={onToggleUncertainty}
+            title="以蒙特卡洛稳健性结果着色：颜色越饱和 = 胜者越稳定"
+          >
+            {showUncertainty ? '确定性视图' : '不确定度'}
+          </button>
+        )}
       </div>
       <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
       {compareResult && (
@@ -329,7 +343,22 @@ function getTurnoutColor(turnout) {
   return '#e57373';
 }
 
-function renderMap(chart, result, manualSeatsData, currentProvince, viewMode, citiesData, showTurnout = false, compareResult = null, tippingCityIds = null) {
+function hexToRgba(hex, alpha) {
+  const m = /^#([0-9a-f]{6})$/i.exec(hex || '');
+  if (!m) return `rgba(45,55,72,${alpha})`;
+  const n = parseInt(m[1], 16);
+  const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+function getUncertaintyColor(baseColor, winRate, DEFAULT_COLOR = '#2d3748') {
+  if (winRate >= 0.9) return baseColor;
+  if (winRate >= 0.7) return hexToRgba(baseColor, 0.55);
+  if (winRate >= 0.5) return hexToRgba(baseColor, 0.3);
+  return DEFAULT_COLOR;
+}
+
+function renderMap(chart, result, manualSeatsData, currentProvince, viewMode, citiesData, showTurnout = false, compareResult = null, tippingCityIds = null, uncertainty = null, showUncertainty = false) {
   if (!chart) return;
   if (viewMode === 'city' && currentProvince && currentProvince !== '台湾省' && !echarts.getMap('province')) return;
 
@@ -393,7 +422,16 @@ function renderMap(chart, result, manualSeatsData, currentProvince, viewMode, ci
       const flipped = showTurnout || !compareResult ? false : (cr && ccr && cr.winner_party_id !== ccr.winner_party_id);
       const isTipping = !showTurnout && !compareResult && !!tippingCityIds?.has(city.id);
       let color;
-      if (showTurnout) {
+      let unc = null;
+      if (showUncertainty && uncertainty?.city) {
+        unc = uncertainty.city[city.id];
+        if (unc && unc.winner_party_id) {
+          const uparty = partyMap[unc.winner_party_id];
+          color = getUncertaintyColor(uparty?.color || DEFAULT_COLOR, unc.win_rate);
+        } else {
+          color = DEFAULT_COLOR;
+        }
+      } else if (showTurnout) {
         color = getTurnoutColor(turnout);
       } else if (compareResult) {
         color = flipped
@@ -402,19 +440,21 @@ function renderMap(chart, result, manualSeatsData, currentProvince, viewMode, ci
       } else {
         color = party?.color || DEFAULT_COLOR;
       }
+      const uncWarn = showUncertainty && unc && unc.win_rate < 0.9;
       return {
         name: geoName,
         value: 1,
         itemStyle: {
           areaColor: color,
-          borderColor: isTipping ? '#ffd54f' : (flipped ? '#ffffff' : '#0a0e14'),
-          borderWidth: isTipping ? 1.8 : (flipped ? 1.3 : 0.5),
+          borderColor: showUncertainty ? (uncWarn ? '#ffd54f' : '#0a0e14') : (isTipping ? '#ffd54f' : (flipped ? '#ffffff' : '#0a0e14')),
+          borderWidth: showUncertainty ? (uncWarn ? 1.5 : 0.5) : (isTipping ? 1.8 : (flipped ? 1.3 : 0.5)),
         },
         _cityResult: cr || null,
         _compareCityResult: ccr || null,
         _flipped: flipped,
         _tipping: isTipping,
         _cityName: city.name,
+        _uncertainty: showUncertainty ? unc : null,
       };
     });
 
@@ -449,6 +489,12 @@ function renderMap(chart, result, manualSeatsData, currentProvince, viewMode, ci
           let h = `<div style="font-weight:700;margin-bottom:4px">${displayName}</div>`;
           h += `<div style="color:#66bb6a;margin-bottom:2px">● ${cr.winner_party_name} | ${cr.seats}席 | 投票率${(cr.turnout * 100).toFixed(0)}%</div>`;
           h += `<div style="color:${margin > 0.10 ? '#81c784' : '#ffb74d'};margin-bottom:4px">胜差 ${(margin * 100).toFixed(1)}%</div>`;
+          if (d._uncertainty) {
+            const u = d._uncertainty;
+            const uncColor = u.win_rate >= 0.7 ? '#81c784' : '#ffd54f';
+            h += `<div style="color:${uncColor};font-weight:700;margin-bottom:2px">稳健性: ${u.winner_party_name}胜率 ${(u.win_rate * 100).toFixed(0)}%</div>`;
+            h += `<div style="font-size:10px;color:#9aa0a6;margin-bottom:4px">席位区间 ${u.seat_low}-${u.seat_high}</div>`;
+          }
           if (d._tipping) {
             const runnerName = sorted[1] ? (partyMap[sorted[1][0]]?.name || sorted[1][0]) : '-';
             h += `<div style="color:#ffd54f;font-weight:700;margin-bottom:4px">⚑ 翻转临界席 · 追赶者: ${runnerName}</div>`;
@@ -537,7 +583,14 @@ function renderMap(chart, result, manualSeatsData, currentProvince, viewMode, ci
       const cpr = compareProvMap[name];
       const flipped = compareResult ? (pr && cpr && pr.winner_party_id !== cpr.winner_party_id) : false;
       let color = DEFAULT_COLOR;
-      if (pr) {
+      let unc = null;
+      if (showUncertainty && uncertainty?.province) {
+        unc = uncertainty.province[name];
+        if (unc && unc.winner_party_id) {
+          const party = result?.party_results.find(p => p.party_id === unc.winner_party_id);
+          color = getUncertaintyColor(party?.color || DEFAULT_COLOR, unc.win_rate);
+        }
+      } else if (pr) {
         if (compareResult) {
           color = flipped
             ? (partyMap[cpr.winner_party_id]?.color || '#ff7043')
@@ -554,13 +607,14 @@ function renderMap(chart, result, manualSeatsData, currentProvince, viewMode, ci
         value: 1,
         itemStyle: {
           areaColor: color,
-          borderColor: flipped ? '#ffffff' : '#0a0e14',
-          borderWidth: flipped ? 1.5 : 0.5,
+          borderColor: showUncertainty && unc ? (unc.win_rate >= 0.9 ? '#0a0e14' : '#ffd54f') : (flipped ? '#ffffff' : '#0a0e14'),
+          borderWidth: showUncertainty && unc ? (unc.win_rate >= 0.9 ? 0.5 : 1.5) : (flipped ? 1.5 : 0.5),
         },
         _provinceResult: pr || null,
         _compareProvinceResult: cpr || null,
         _flipped: flipped,
         _manualSeats: hasManual ? ms : null,
+        _uncertainty: showUncertainty ? unc : null,
       };
     });
 
@@ -606,6 +660,12 @@ function renderMap(chart, result, manualSeatsData, currentProvince, viewMode, ci
             h += `<div style="font-weight:700;margin-bottom:4px">${pr.province_name}</div>`;
             h += `<div style="color:#66bb6a;margin-bottom:2px">● ${pr.winner_party_name} | ${pr.num_cities}城市 | 投票率${avgTurnout}%</div>`;
             h += `<div style="color:#4fc3f7;margin-bottom:4px"><b>${pr.seats}席</b> (${seatPct}% of ${totalSeats})</div>`;
+            if (d._uncertainty) {
+              const u = d._uncertainty;
+              const uncColor = u.win_rate >= 0.7 ? '#81c784' : '#ffd54f';
+              h += `<div style="color:${uncColor};font-weight:700;margin-bottom:3px">稳健性: ${u.winner_party_name}胜率 ${(u.win_rate * 100).toFixed(0)}%</div>`;
+              h += `<div style="font-size:10px;color:#9aa0a6;margin-bottom:4px">席位区间 ${u.seat_low}-${u.seat_high}（${u.iter_count}/${result?.party_results?.reduce?.((s,p)=>s+p.seats,0) || totalSeats}席口径 × ${uncertainty.iterations || '?'} 次迭代）</div>`;
+            }
             sorted.slice(0, 4).forEach(([pid, s]) => {
               h += `<div style="display:flex;justify-content:space-between;gap:12px;font-size:11px">
                 <span>${partyMap[pid]?.name || pid}</span><span>${(s * 100).toFixed(1)}%</span></div>`;

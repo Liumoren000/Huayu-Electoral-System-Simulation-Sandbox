@@ -118,5 +118,6 @@ npm run dev
 | `/api/geojson` | GET | 获取中国省级 GeoJSON |
 | `/api/geojson/{adcode}` | GET | 获取省级以下 GeoJSON |
 | `/api/simulate` | POST | 运行选举推演 |
-| `/api/simulate/robustness` | POST | 蒙特卡洛稳健性分析 |
+| `/api/simulate/robustness` | POST | 蒙特卡洛稳健性分析（含省级/城市级不确定性） |
 | `/api/simulate/sensitivity` | POST | 关键参数敏感性分析 |
+| `/api/voter-model/explain` | POST | 选民行为模型透明分解（城市偏好→政党亲和度） |

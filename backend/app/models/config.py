@@ -46,3 +46,10 @@ class SensitivityRequest(BaseModel):
     delta: float = Field(default=0.2, ge=0.05, le=1.0, description="单因素扰动幅度（相对±delta）")
     iterations: int = Field(default=5, ge=1, le=30, description="每情形模拟次数（用于过半率）")
     params: list[str] = Field(default=["threshold", "mixed_ratio", "noise_amplitude"])
+
+
+class VoterExplainRequest(BaseModel):
+    year: int = Field(default=2023, ge=2010, le=2024)
+    city_id: str
+    config: ElectoralConfig
+    parties: list[Party]

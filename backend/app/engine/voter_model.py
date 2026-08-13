@@ -151,6 +151,59 @@ class VoterModel:
             affinities[party.id] = round(self.compute_city_party_affinity(city, party, noise_amplitude), 4)
         return affinities
 
+    # ========== 透明度：分解每城每党的亲和度计算 ==========
+
+    def explain_city(self, city: City, parties: list[Party], noise_amplitude: float = 0.03) -> dict:
+        """
+        返回该城市选民行为模型的完整分解，用于前端解释面板。
+
+        - city_position: 城市在 7 个政策维度上的位置（含 dim_tilt）
+        - weights: 四个亲和度分项的权重
+        - parties: 每党的 经济/社会/区域/政策 匹配分、加权原始亲和度、
+          噪声、最终亲和度、归一化得票率，以及与城市位置的 7 维欧氏距离
+        """
+        city_pos = self.get_city_dimensions(city)
+        weights = {'economic': 0.30, 'social': 0.20, 'regional': 0.20, 'policy': 0.30}
+
+        rows = []
+        raw = {}
+        for p in parties:
+            econ = self._economic_match(city, p)
+            social = self._social_match(city, p)
+            regional = self._regional_match(city, p)
+            policy = self._policy_match(city, p)
+            weighted = econ * weights['economic'] + social * weights['social'] \
+                + regional * weights['regional'] + policy * weights['policy']
+            noise = self.rng.gauss(0, noise_amplitude)
+            affinity = max(0.01, weighted + noise)
+            raw[p.id] = affinity
+            rows.append({
+                'party_id': p.id,
+                'party_name': p.name,
+                'color': p.color,
+                'economic': round(econ, 4),
+                'social': round(social, 4),
+                'regional': round(regional, 4),
+                'policy': round(policy, 4),
+                'weighted_affinity': round(weighted, 4),
+                'noise': round(noise, 4),
+                'affinity': round(affinity, 4),
+                'distance': round(self._policy_distance(city_pos, {
+                    d: getattr(p, d + '_position', 0.0) for d in self.POLICY_DIMS
+                }), 4),
+            })
+
+        total = sum(raw.values())
+        for r in rows:
+            r['vote_share'] = round(raw[r['party_id']] / total, 4) if total > 0 else 0.0
+
+        return {
+            'city_position': city_pos,
+            'weights': weights,
+            'turnout': round(self.get_city_turnout(city), 4),
+            'parties': rows,
+        }
+
     # ========== 城市维度计算 ==========
 
     def _city_economic_position(self, city: City) -> float:
