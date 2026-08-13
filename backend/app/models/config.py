@@ -24,6 +24,15 @@ class ElectoralConfig(BaseModel):
     upper_house_method: str = Field(default="equal", description="equal, proportional, or mixed")
     upper_house_mixed_ratio: float = Field(default=0.5, ge=0.0, le=1.0)
 
+    # ===== 真实感增强参数（默认关闭，保持向后兼容）=====
+    voter_stratification: bool = Field(default=False, description="城市内选民多中心分层（年龄/收入/教育）")
+    party_loyalty: float = Field(default=0.0, ge=0.0, le=0.5, description="政党认同/惯性投票比例（铁票党）")
+    swing_voter_pct: float = Field(default=0.0, ge=0.0, le=0.6, description="摇摆选民比例（对短期因素更敏感）")
+    abstention_sensitivity: float = Field(default=0.0, ge=0.0, le=1.0, description="竞争程度对投票率的调节强度（激烈选区投票率更高）")
+    malapportionment: float = Field(default=0.0, ge=0.0, le=1.0, description="选区人口不均衡度（小城市/农村超代表）")
+    party_effects: dict[str, float] = Field(default_factory=dict, description="政党特定亲和度扰动（丑闻/领袖魅力等事件，party_id->delta）")
+    calibration: bool = Field(default=False, description="启用历史倾向锚点校准（每城基准政党）")
+
 
 class SimulationRequest(BaseModel):
     year: int = Field(default=2023, ge=2010, le=2024)

@@ -16,11 +16,19 @@ class VoterModel:
     5. 人口结构：年龄、教育、城镇化
     """
 
-    def __init__(self, seed: int = 42, turnout_shift: float = 0.0, dim_tilt: dict = None):
+    def __init__(self, seed: int = 42, turnout_shift: float = 0.0, dim_tilt: dict = None,
+                 party_effects: dict = None, party_loyalty: float = 0.0,
+                 swing_voter_pct: float = 0.0, voter_stratification: bool = False,
+                 calibration: bool = False):
         self.rng = random.Random(seed)
         self.seed = seed
         self.turnout_shift = turnout_shift
         self.dim_tilt = dim_tilt or {}
+        self.party_effects = party_effects or {}
+        self.party_loyalty = party_loyalty
+        self.swing_voter_pct = swing_voter_pct
+        self.voter_stratification = voter_stratification
+        self.calibration = calibration
 
     def _tilt(self, dim: str, base: float) -> float:
         """全国选民在某一政策维度上的偏好偏移（选举剧本机制）"""
@@ -32,6 +40,77 @@ class VoterModel:
         """选民与政党的政策空间距离（7 维欧氏距离）"""
         return math.sqrt(sum((vpos.get(d, 0) - ppos.get(d, 0)) ** 2 for d in self.POLICY_DIMS))
 
+    def _city_segments(self, city: City) -> list[dict]:
+        """
+        城市内选民分层中心（多中心混合分布）。
+
+        依据城市人口结构生成多个偏好亚群体：
+        - 老年保守派（aging_rate 高 → 传统/福利）
+        - 年轻进步派（城镇化/教育高 → 现代/环保）
+        - 高学历国际派（education_index 高 → 市场自由/国际主义）
+        - 产业工人派（secondary_industry_pct 高 → 干预/福利）
+        - 农村农业派（primary_industry_pct 高 → 农业利益/本土化）
+        各亚群占比由城市人口结构决定，分布更接近真实选民异质性。
+        """
+        aging = city.aging_rate
+        edu = city.education_index
+        secondary = city.secondary_industry_pct
+        primary = city.primary_industry_pct
+        urban = city.urbanization_rate
+
+        segments = []
+        # 老年保守派：老龄化越高占比越大
+        elder_w = aging
+        segments.append({
+            'weight': elder_w,
+            'offset': {'social': -0.35, 'welfare': 0.35, 'environment': -0.15,
+                       'nationalism': 0.2, 'economic': -0.1, 'urban_rural': -0.2},
+        })
+        # 年轻进步派：城镇化高/教育高占比大
+        youth_w = 0.15 + (urban - 0.4) * 0.5
+        segments.append({
+            'weight': max(0.02, youth_w),
+            'offset': {'social': 0.4, 'environment': 0.3, 'economic': 0.1,
+                       'nationalism': -0.2, 'urban_rural': 0.2},
+        })
+        # 高学历国际派
+        edu_w = max(0.0, (edu - 0.55) * 1.5)
+        segments.append({
+            'weight': edu_w,
+            'offset': {'economic': 0.3, 'social': 0.25, 'regional': -0.3,
+                       'environment': 0.15, 'nationalism': -0.3},
+        })
+        # 产业工人派
+        sec_w = secondary * 1.2
+        segments.append({
+            'weight': max(0.0, sec_w),
+            'offset': {'economic': -0.5, 'welfare': 0.5, 'social': -0.15,
+                       'environment': -0.2, 'urban_rural': -0.1},
+        })
+        # 农村农业派
+        agr_w = primary * 2.0
+        segments.append({
+            'weight': max(0.0, agr_w),
+            'offset': {'economic': -0.3, 'regional': 0.4, 'nationalism': 0.3,
+                       'welfare': 0.2, 'urban_rural': -0.5},
+        })
+        # 补足基础人群（接近城市中心）
+        total_w = sum(s['weight'] for s in segments) + 0.35
+        base_w = max(0.0, 1.0 - total_w + 0.35)
+        segments.append({'weight': base_w, 'offset': {}})
+        return segments
+
+    def _pick_segment(self, segments: list[dict], rng: random.Random) -> dict:
+        """按权重随机选择一个选民亚群"""
+        r = rng.random()
+        total = sum(s['weight'] for s in segments)
+        acc = 0.0
+        for s in segments:
+            acc += s['weight'] / total
+            if r <= acc:
+                return s
+        return segments[-1]
+
     def sample_voter_rankings(self, city: City, parties: list[Party], n: int = 80,
                               noise_amplitude: float = 0.12) -> list[list[str]]:
         """
@@ -40,16 +119,37 @@ class VoterModel:
         每位虚拟选民位置 = 城市政策维度 + 高斯噪声（幅度可调），
         按到各政党政策位置的距离升序排名。使用独立种子，不影响
         compute_vote_shares 等既有随机序列，保证 FPTP/PR 结果与之前逐位一致。
+
+        当 voter_stratification 开启时，选民位置从多个亚群中心混合采样，
+        反映城市内年龄/收入/教育分层。
         """
         rng = random.Random(self.seed * 1000000 + int(city.id))
         city_pos = self.get_city_dimensions(city)
+        segments = self._city_segments(city) if self.voter_stratification else [{'weight': 1, 'offset': {}}]
         party_pos = {p.id: {d: getattr(p, d + '_position', 0.0) for d in self.POLICY_DIMS} for p in parties}
         rankings = []
         for _ in range(n):
-            vpos = {d: city_pos.get(d, 0) + rng.gauss(0, noise_amplitude) for d in self.POLICY_DIMS}
+            seg = self._pick_segment(segments, rng)
+            noise = noise_amplitude * (rng.uniform(1.5, 3.0) if self._is_swing(rng) else 1.0)
+            vpos = {d: city_pos.get(d, 0) + seg['offset'].get(d, 0) + rng.gauss(0, noise)
+                    for d in self.POLICY_DIMS}
             ordered = sorted(parties, key=lambda p: self._policy_distance(vpos, party_pos[p.id]))
             rankings.append([p.id for p in ordered])
         return rankings
+
+    def _is_swing(self, rng: random.Random) -> bool:
+        """按摇摆选民比例判定该虚拟选民是否为摇摆选民"""
+        return self.swing_voter_pct > 0 and rng.random() < self.swing_voter_pct
+
+    def _apply_party_effects(self, scores: dict, parties: list[Party]) -> dict:
+        """叠加政党特定事件效应（丑闻减分、领袖魅力加分等）"""
+        if not self.party_effects:
+            return scores
+        out = dict(scores)
+        for pid, delta in self.party_effects.items():
+            if pid in out:
+                out[pid] = max(0.001, out[pid] + delta)
+        return out
 
     def sample_first_preferences(self, city: City, parties: list[Party], n: int = 80) -> dict[str, int]:
         """各政党在该市的（排名票）首偏好票数"""
@@ -59,7 +159,8 @@ class VoterModel:
                 counts[ranking[0]] += 1
         return counts
 
-    def compute_city_party_affinity(self, city: City, party: Party, noise_amplitude: float = 0.03) -> float:
+    def compute_city_party_affinity(self, city: City, party: Party, noise_amplitude: float = 0.03,
+                                    segment_offset: dict = None) -> float:
         """计算城市对政党的综合亲和度"""
         scores = []
 
@@ -81,6 +182,12 @@ class VoterModel:
 
         raw_score = sum(s * w for _, s, w in scores)
 
+        # 选民分层：亚群偏好偏移影响政策匹配
+        if segment_offset:
+            seg_penalty = sum(abs(segment_offset.get(d, 0)) for d in
+                              ('social', 'welfare', 'environment', 'nationalism', 'urban_rural'))
+            raw_score += seg_penalty * 0.05
+
         # 添加随机扰动模拟现实不确定性（幅度可调）
         noise = self.rng.gauss(0, noise_amplitude)
         return max(0.01, raw_score + noise)
@@ -97,7 +204,8 @@ class VoterModel:
             'urban_rural': round(self._tilt('urban_rural', self._city_urban_rural(city)), 3),
         }
 
-    def get_city_turnout(self, city: City, urban_rural_weight: float = 1.0) -> float:
+    def get_city_turnout(self, city: City, urban_rural_weight: float = 1.0,
+                         competitiveness: float = None, abstention_sensitivity: float = 0.0) -> float:
         """
         计算城市投票率 (0.35 - 0.80)
 
@@ -106,6 +214,7 @@ class VoterModel:
         - 教育水平（高→投票率高）
         - 老龄化（中等→投票率高，过高→投票率下降）
         - 区域差异（沿海→高，偏远农村→低）
+        - 竞争激烈程度（可选，竞争越激烈投票率越高）
 
         Args:
             city: 城市数据
@@ -113,6 +222,8 @@ class VoterModel:
                 0.0 = 城乡无差异
                 1.0 = 默认差异
                 2.0 = 差异加倍
+            competitiveness: 竞争度 0~1（1-胜差），越接近 1 越胶着
+            abstention_sensitivity: 竞争度对投票率的调节强度
         """
         base = 0.45
 
@@ -141,6 +252,12 @@ class VoterModel:
             region_factor = -0.03
 
         turnout = base + urban_factor + edu_factor + aging_factor + region_factor
+
+        # 竞争激烈调节：胜差越小（越胶着）投票率越高
+        if abstention_sensitivity > 0 and competitiveness is not None:
+            # competitiveness = 1 - 胜差，胶着 → 投票率提高；碾压 → 略降
+            turnout += (competitiveness - 0.6) * abstention_sensitivity * 0.20
+
         turnout += self.turnout_shift
         return round(max(0.20, min(0.95, turnout)), 4)
 
@@ -405,11 +522,72 @@ class VoterModel:
         return (welfare_match + env_match + nat_match + ur_match) / 4
 
     def compute_vote_shares(self, city: City, parties: list[Party], noise_amplitude: float = 0.03) -> dict[str, float]:
-        """计算各政党得票率"""
+        """计算各政党得票率（含真实感机制：分层/忠诚/摇摆/事件/校准）"""
+        # 校准：以城市基准政党作为历史锚点，回拉得票率
+        if self.calibration:
+            return self._compute_calibrated_shares(city, parties, noise_amplitude)
+
+        # 分层：按亚群中心分别计算再按权重混合
+        if self.voter_stratification:
+            segments = self._city_segments(city)
+            agg = {p.id: 0.0 for p in parties}
+            total_w = sum(s['weight'] for s in segments)
+            for seg in segments:
+                seg_share = self._shares_with_loyalty(city, parties, noise_amplitude, seg['offset'], seg['weight'])
+                for pid, v in seg_share.items():
+                    agg[pid] += v * seg['weight'] / total_w
+            return self._normalize(agg)
+
+        return self._normalize(self._shares_with_loyalty(city, parties, noise_amplitude, None, 1.0))
+
+    def _normalize(self, raw: dict) -> dict[str, float]:
+        total = sum(raw.values())
+        if total <= 0:
+            return {pid: 1.0 / max(1, len(raw)) for pid in raw}
+        return {pid: v / total for pid, v in raw.items()}
+
+    def _shares_with_loyalty(self, city: City, parties: list[Party], noise_amplitude: float,
+                             segment_offset: dict, segment_weight: float) -> dict[str, float]:
+        """计算单亚群得票率，并应用政党忠诚与摇摆噪声"""
         raw_scores = {}
         for party in parties:
-            raw_scores[party.id] = self.compute_city_party_affinity(city, party, noise_amplitude)
+            # 摇摆选民噪声更大
+            amp = noise_amplitude
+            base = self.compute_city_party_affinity(city, party, amp, segment_offset)
+            # 摇摆选民：高频随机波动
+            if self.swing_voter_pct > 0 and segment_offset is None:
+                swing_amp = noise_amplitude * 3.0
+                base = base * (1 - self.swing_voter_pct) + \
+                    max(0.001, self.compute_city_party_affinity(city, party, swing_amp, segment_offset)) * self.swing_voter_pct
+            raw_scores[party.id] = base
 
-        total = sum(raw_scores.values())
-        shares = {pid: score / total for pid, score in raw_scores.items()}
-        return shares
+        raw_scores = self._apply_party_effects(raw_scores, parties)
+
+        # 政党忠诚：铁票党选民始终投给其基准政党（占 party_loyalty 比例）
+        if self.party_loyalty > 0:
+            anchor = self._city_anchor_party(city, parties)
+            loyal = {pid: (1.0 if pid == anchor else 0.0) * self.party_loyalty
+                     for pid in raw_scores}
+            issue = {pid: v * (1 - self.party_loyalty) for pid, v in raw_scores.items()}
+            raw_scores = {pid: loyal[pid] + issue[pid] for pid in raw_scores}
+
+        return raw_scores
+
+    def _city_anchor_party(self, city: City, parties: list[Party]) -> str:
+        """城市基准政党：与城市7维位置距离最近的政党（历史倾向锚点）"""
+        city_pos = self.get_city_dimensions(city)
+        best = min(parties, key=lambda p: self._policy_distance(city_pos, {
+            d: getattr(p, d + '_position', 0.0) for d in self.POLICY_DIMS}))
+        return best.id
+
+    def _compute_calibrated_shares(self, city: City, parties: list[Party],
+                                   noise_amplitude: float) -> dict[str, float]:
+        """校准模式：以城市基准政党为核心，结合亲和度分配"""
+        anchor = self._city_anchor_party(city, parties)
+        anchor_share = 0.30  # 基准政党历史份额锚点
+        shares = self._shares_with_loyalty(city, parties, noise_amplitude, None, 1.0)
+        total = sum(shares.values())
+        base = {pid: v / total if total > 0 else 0 for pid, v in shares.items()}
+        out = {pid: base[pid] * (1 - anchor_share) for pid in base}
+        out[anchor] = out.get(anchor, 0.0) + anchor_share
+        return self._normalize(out)

@@ -58,6 +58,20 @@ export const SCRIPT_LIBRARY = [
     effects: ['投票率 +5%', '市场自由偏好上升', '环保与新市民议题受益', '不确定性下降'],
     config: { turnout_shift: 0.05, noise_amplitude: 0.02, dim_tilt: { economic: 0.3, environment: 0.2, social: 0.1 } },
   },
+  {
+    id: 'scandal',
+    name: '候选人丑闻风暴',
+    description: '执政联盟核心成员卷入贪腐与丑闻，选民对该党信任崩塌，选票转向反对派。',
+    effects: ['执政党亲和度 -0.25', '沿海商业联盟受损', '反对派（内陆/工人/进步）获益', '不确定性上升'],
+    config: { turnout_shift: 0.03, noise_amplitude: 0.08, party_effects: { P001: -0.25, P002: 0.12, P003: 0.12, P004: 0.15 } },
+  },
+  {
+    id: 'charisma',
+    name: '领袖魅力效应',
+    description: '某党领袖以个人魅力和强领导力出圈，吸引大量中间与摇摆选民。',
+    effects: ['目标党亲和度 +0.2', '摇摆选民转向', '执政党份额上升', '小党受挤压'],
+    config: { turnout_shift: 0.04, swing_voter_pct: 0.2, party_effects: { P004: 0.2, P001: -0.08, P006: -0.06 } },
+  },
 ];
 
 const DIM_LABELS = {

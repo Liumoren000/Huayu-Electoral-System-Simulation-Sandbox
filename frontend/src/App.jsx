@@ -31,6 +31,12 @@ const defaultConfig = {
   allocation_method: 'd_hondt',
   district_magnitude: 1,
   name: '选举方案',
+  voter_stratification: false,
+  party_loyalty: 0,
+  swing_voter_pct: 0,
+  abstention_sensitivity: 0,
+  malapportionment: 0,
+  calibration: false,
 };
 
 function largestRemainderAllocation(pops, totalSeats, minSeats) {

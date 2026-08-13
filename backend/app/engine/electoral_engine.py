@@ -13,8 +13,26 @@ class ElectoralEngine:
         self.city_data = city_data
         self.parties = parties
         self.config = config
-        self.voter_model = VoterModel(seed=seed, turnout_shift=config.turnout_shift, dim_tilt=config.dim_tilt or {})
+        self.voter_model = VoterModel(
+            seed=seed, turnout_shift=config.turnout_shift, dim_tilt=config.dim_tilt or {},
+            party_effects=config.party_effects or {},
+            party_loyalty=config.party_loyalty or 0.0,
+            swing_voter_pct=config.swing_voter_pct or 0.0,
+            voter_stratification=config.voter_stratification,
+            calibration=config.calibration,
+        )
         self.party_map = {p.id: p for p in parties}
+
+    def _effective_population(self, city: City) -> float:
+        """应用 malapportionment：小城市/农业城市超代表"""
+        m = self.config.malapportionment or 0.0
+        if m <= 0:
+            return float(city.population)
+        max_pop = max((c.population for c in self.city_data.cities), default=1)
+        pop_ratio = city.population / max_pop if max_pop > 0 else 0.0
+        # 人口越少，权重放大越明显（上限 +malapportionment）
+        boost = m * (1.0 - pop_ratio) * (1.0 + city.primary_industry_pct)
+        return city.population * (1.0 + boost)
 
     def run(self) -> ElectionResult:
         if not self.parties:
@@ -46,6 +64,13 @@ class ElectoralEngine:
             return self._run_stv()
         else:
             return self._run_pr()
+
+    def _top_margin(self, shares: dict) -> float:
+        """前两名得票率之差（胜差）"""
+        vals = sorted(shares.values(), reverse=True)
+        if len(vals) < 2:
+            return 0.0
+        return vals[0] - vals[1]
 
     def _adjust_shares_for_urban_rural(self, shares: dict, city: City) -> dict:
         """
@@ -94,8 +119,14 @@ class ElectoralEngine:
             turnout = self.voter_model.get_city_turnout(city, self.config.urban_rural_weight)
             shares = self.voter_model.compute_vote_shares(city, self.parties, self.config.noise_amplitude)
             shares = self._adjust_shares_for_urban_rural(shares, city)
+            # 竞争度调节投票率（abstention_sensitivity）
+            comp = 1.0 - self._top_margin(shares)
+            turnout = self.voter_model.get_city_turnout(
+                city, self.config.urban_rural_weight,
+                competitiveness=comp, abstention_sensitivity=self.config.abstention_sensitivity or 0.0)
             city_votes_total = city.population * turnout
-            num_seats = max(1, round(city.population / pop_per_seat))
+            eff_pop = self._effective_population(city)
+            num_seats = max(1, round(eff_pop / pop_per_seat))
             city_votes_per_seat = city_votes_total / num_seats
 
             city_info[city.id] = {
