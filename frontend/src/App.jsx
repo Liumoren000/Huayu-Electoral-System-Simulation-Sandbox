@@ -251,6 +251,9 @@ export default function App() {
   const switchScheme = async (scheme) => {
     setActiveScheme(scheme);
     setShowCompare(false);
+    setRobustnessData(null);
+    setShowRobustnessModal(false);
+    setShowUncertainty(false);
     if (scriptItems.length === 0) return;
     // 剧本跟随方案：用新方案配置重算全部剧本
     const baseConfig = scheme === 'B' ? configB : config;
@@ -305,6 +308,9 @@ export default function App() {
       setScriptItems([]);
       setScriptIdx(-1);
       setShowCompare(false);
+      setRobustnessData(null);
+      setShowRobustnessModal(false);
+      setShowUncertainty(false);
     } catch (e) {
       console.error('Simulation error:', e);
       alert('推演失败：' + e.message);

@@ -359,15 +359,7 @@ function getTurnoutColor(turnout) {
   return '#e57373';
 }
 
-function hexToRgba(hex, alpha) {
-  const m = /^#([0-9a-f]{6})$/i.exec(hex || '');
-  if (!m) return `rgba(45,55,72,${alpha})`;
-  const n = parseInt(m[1], 16);
-  const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
-  return `rgba(${r},${g},${b},${alpha})`;
-}
-
-function getUncertaintyColor(baseColor, winRate, DEFAULT_COLOR = '#2d3748') {
+function getUncertaintyColor(winRate) {
   if (winRate >= 0.9) return '#66bb6a';
   if (winRate >= 0.75) return '#aed581';
   if (winRate >= 0.6) return '#ffd54f';
@@ -443,8 +435,7 @@ function renderMap(chart, result, manualSeatsData, currentProvince, viewMode, ci
       if (showUncertainty && uncertainty?.city) {
         unc = uncertainty.city[city.id];
         if (unc && unc.winner_party_id) {
-          const uparty = partyMap[unc.winner_party_id];
-          color = getUncertaintyColor(uparty?.color || DEFAULT_COLOR, unc.win_rate);
+          color = getUncertaintyColor(unc.win_rate);
         } else {
           color = DEFAULT_COLOR;
         }
@@ -604,8 +595,7 @@ function renderMap(chart, result, manualSeatsData, currentProvince, viewMode, ci
       if (showUncertainty && uncertainty?.province) {
         unc = uncertainty.province[name];
         if (unc && unc.winner_party_id) {
-          const party = result?.party_results.find(p => p.party_id === unc.winner_party_id);
-          color = getUncertaintyColor(party?.color || DEFAULT_COLOR, unc.win_rate);
+          color = getUncertaintyColor(unc.win_rate);
         }
       } else if (pr) {
         if (compareResult) {
