@@ -118,13 +118,15 @@ export default function ProvinceDetail({ province, result, cities, onClose, manu
             <div className="province-seats-title" style={{ marginTop: 12 }}>{isCityView ? '推演结果' : '城市明细'}</div>
             <table className="province-city-table">
                 <thead>
-                 <tr>
-                   <th>城市</th>
-                   <th>获胜政党</th>
-                   <th style={{ textAlign: 'center' }}>席位</th>
-                   <th style={{ textAlign: 'center' }}>政治倾向</th>
-                   <th style={{ textAlign: 'right' }}>得票分布</th>
-                 </tr>
+                  <tr>
+                    <th>城市</th>
+                    <th>获胜政党</th>
+                    <th style={{ textAlign: 'center' }}>胜差</th>
+                    <th style={{ textAlign: 'center' }}>投票率</th>
+                    <th style={{ textAlign: 'center' }}>席位</th>
+                    <th style={{ textAlign: 'center' }}>政治倾向</th>
+                    <th style={{ textAlign: 'right' }}>得票分布</th>
+                  </tr>
               </thead>
               <tbody>
                 {provinceCities.map(cr => {
@@ -133,12 +135,22 @@ export default function ProvinceDetail({ province, result, cities, onClose, manu
                   const dims = cr.dimensions || {};
                   const affinities = cr.affinities || {};
                   const sortedAff = Object.entries(affinities).sort((a, b) => b[1] - a[1]);
+                  const margin = (sortedShares[0]?.[1] ?? 0) - (sortedShares[1]?.[1] ?? 0);
                   return (
-                    <tr key={cr.city_id}>
-                      <td>{cr.city_name}</td>
+                     <tr key={cr.city_id}>
+                       <td>{cr.city_name}</td>
                       <td>
                         <span className="city-winner-dot" style={{ background: topParty?.color || '#999' }} />
                         {cr.winner_party_name}
+                      </td>
+                      <td style={{
+                        textAlign: 'center', fontWeight: 600,
+                        color: margin > 0.10 ? 'var(--accent-green)' : margin < 0.03 ? 'var(--accent-orange)' : 'var(--text-secondary)',
+                      }}>
+                        {(margin * 100).toFixed(1)}%
+                      </td>
+                      <td style={{ textAlign: 'center', color: (cr.turnout || 0.6) > 0.7 ? 'var(--accent-green)' : (cr.turnout || 0.6) < 0.55 ? 'var(--accent-orange)' : 'var(--text-secondary)' }}>
+                        {((cr.turnout || 0.6) * 100).toFixed(0)}%
                       </td>
                       <td style={{ textAlign: 'center', fontWeight: 700, color: 'var(--accent-blue)' }}>{cr.seats}</td>
                       <td>

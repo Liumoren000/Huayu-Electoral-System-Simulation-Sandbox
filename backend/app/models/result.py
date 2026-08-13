@@ -12,6 +12,7 @@ class CityResult(BaseModel):
     seats: int = 0
     affinities: dict[str, float] = {}  # party_id -> raw affinity score
     dimensions: dict[str, float] = {}  # economic, social, regional position
+    party_seats: dict[str, int] = {}  # party_id -> seats won in this city
 
 
 class PartySeatResult(BaseModel):
@@ -20,6 +21,8 @@ class PartySeatResult(BaseModel):
     seats: int
     vote_share: float
     color: str
+    economic_position: float = 0.0
+    social_position: float = 0.0
 
 
 class ProvinceResult(BaseModel):
@@ -30,6 +33,22 @@ class ProvinceResult(BaseModel):
     num_cities: int
     population: int
     seats: int
+    avg_turnout: float = 0.6
+    party_seats: dict[str, int] = {}  # party_id -> seats won in this province
+
+
+class DisproportionalityDecomposition(BaseModel):
+    """
+    不比例性三源分解（基于 Loosemore-Hanby 口径）：
+    - geographic: 选票地理分布效应 —— 全国选票在全国化比例分配下的固有偏差
+    - malapportionment: 选区名额失衡效应 —— 省际席位与人口错配造成的偏差
+    - mechanical: 制度机制效应 —— 胜者全得/门槛/选区内部赢家拿全部席位的剩余偏差
+    - total: 总偏差 = 0.5 * Σ|票份额 - 席份额|
+    """
+    geographic: float = 0.0
+    malapportionment: float = 0.0
+    mechanical: float = 0.0
+    total: float = 0.0
 
 
 class ElectionResult(BaseModel):
@@ -40,6 +59,14 @@ class ElectionResult(BaseModel):
     province_results: list[ProvinceResult]
     party_results: list[PartySeatResult]
     total_votes: int
+    effective_parties_vote: float = 0.0
+    effective_parties_seats: float = 0.0
+    gallagher_index: float = 0.0
+    loosemore_hanby: float = 0.0  # 0.5*Σ|票份额-席份额|
+    rose_index: float = 1.0  # 1 - Loosemore-Hanby，越高越成比例
+    malapportionment_index: float = 0.0  # 0.5*Σ|省席份额-省人口份额|
+    party_nationalization_index: float = 0.0  # 0-1，越高政党越全国化
+    disproportionality_decomposition: DisproportionalityDecomposition = DisproportionalityDecomposition()
     upper_house_party_results: list[PartySeatResult] = []
     upper_house_province_results: list[ProvinceResult] = []
     upper_house_total_seats: int = 0
@@ -57,6 +84,42 @@ class CoalitionOption(BaseModel):
     majority_type: str = "narrow"
 
 
+class PartyPowerIndex(BaseModel):
+    party_id: str
+    party_name: str
+    seats: int = 0
+    banzhaf: float = 0.0
+    shapley_shubik: float = 0.0
+    pivotal: bool = False  # 该党加入联盟即凑够多数（关键少数）
+
+
+class CoalitionMatrixRow(BaseModel):
+    """一个能凑够多数的政党组合"""
+    parties: list[str]
+    party_names: list[str]
+    total_seats: int
+    excess: int = 0  # 超过多数门槛的冗余席位数
+    size: int = 2
+    minimal: bool = False  # 最小获胜联盟：去掉任一党即不过半
+    stability_score: float = 0.0
+
+
+class CoalitionInclusion(BaseModel):
+    """政党出现在各获胜联盟中的参与度"""
+    party_id: str
+    party_name: str
+    total_count: int = 0  # 出现在多少个过半联盟中
+    minimal_count: int = 0  # 出现在多少个最小获胜联盟中
+
+
+class CoalitionMatrix(BaseModel):
+    single_party_majority: Optional[str] = None  # 单一政党绝对多数时记录其 id
+    total: int = 0  # 过半联盟总数
+    minimal_count: int = 0  # 其中最小获胜联盟数
+    rows: list[CoalitionMatrixRow] = []
+    inclusion: list[CoalitionInclusion] = []
+
+
 class CoalitionResult(BaseModel):
     has_majority: bool
     majority_party: Optional[str]
@@ -64,6 +127,8 @@ class CoalitionResult(BaseModel):
     coalition_options: list[CoalitionOption]
     recommended_coalition: Optional[CoalitionOption]
     majority_type: Optional[str] = None
+    power_indices: list[PartyPowerIndex] = []  # Banzhaf / Shapley-Shubik 权力指数
+    coalition_matrix: Optional[CoalitionMatrix] = None  # 全部过半联盟枚举
 
 
 class SimulationResponse(BaseModel):
@@ -71,3 +136,56 @@ class SimulationResponse(BaseModel):
     result_b: ElectionResult
     coalition_a: CoalitionResult
     coalition_b: CoalitionResult
+
+
+class RobustnessPartyRow(BaseModel):
+    party_id: str
+    party_name: str
+    color: str = "#888"
+    min_seats: int = 0
+    max_seats: int = 0
+    median_seats: float = 0.0
+    avg_seats: float = 0.0
+    win_count: int = 0
+    majority_count: int = 0
+    ci_low: float = 0.0  # 95% 置信区间下限（2.5 百分位）
+    ci_high: float = 0.0  # 95% 置信区间上限（97.5 百分位）
+
+
+class RobustnessChangePoint(BaseModel):
+    iteration: int
+    party_id: str
+    seats: int
+
+
+class RobustnessSummary(BaseModel):
+    iterations: int
+    majority_rate: float = 0.0  # 任一政党过半的概率
+    avg_effective_parties_seats: float = 0.0
+    avg_gallagher: float = 0.0
+    avg_largest_party_seats: float = 0.0
+
+
+class RobustnessResponse(BaseModel):
+    summary: RobustnessSummary
+    party_rows: list[RobustnessPartyRow]
+    series: list[RobustnessChangePoint]
+
+
+class MetricSnapshot(BaseModel):
+    gallagher: float = 0.0
+    effective_parties_seats: float = 0.0
+    majority_rate: float = 0.0
+    largest_party_seats: float = 0.0
+
+
+class SensitivityPoint(BaseModel):
+    param: str
+    base_value: float = 0.0
+    low: MetricSnapshot
+    baseline: MetricSnapshot
+    high: MetricSnapshot
+
+
+class SensitivityResponse(BaseModel):
+    points: list[SensitivityPoint]

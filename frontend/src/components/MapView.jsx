@@ -6,7 +6,7 @@ const DEFAULT_COLOR = '#2d3748';
 
 const MUNICIPALITIES = new Set(['北京市', '天津市', '上海市', '重庆市']);
 
-const NO_DRILLDOWN = new Set([]);
+const NO_DRILLDOWN = new Set(['台湾省']);
 
 const TAIWAN_CITIES = [
   { name: '台北市', lon: 121.56, lat: 25.03 },
@@ -34,14 +34,20 @@ const PROVINCE_ADCODES = {
   '台湾省': '710000',
 };
 
-export default function MapView({ result, cities, mapLabel, accentColor, onProvinceClick, manualMode, manualSeats, viewMode, onViewModeChange, onDrillDown }) {
+export default function MapView({ result, cities, mapLabel, accentColor, onProvinceClick, manualMode, manualSeats, viewMode, onViewModeChange, onDrillDown, compareResult, tippingCityIds }) {
   const containerRef = useRef(null);
   const chartRef = useRef(null);
   const clickHandlerRef = useRef(null);
   const [status, setStatus] = useState('loading');
   const [currentProvince, setCurrentProvince] = useState(null);
   const [cityGeoLoaded, setCityGeoLoaded] = useState(false);
+  const [showTurnout, setShowTurnout] = useState(false);
   const cityGeoCache = useRef({});
+  const viewModeRef = useRef(viewMode);
+  const currentProvinceRef = useRef(currentProvince);
+
+  viewModeRef.current = viewMode;
+  currentProvinceRef.current = currentProvince;
 
   useEffect(() => {
     clickHandlerRef.current = onProvinceClick;
@@ -66,7 +72,7 @@ export default function MapView({ result, cities, mapLabel, accentColor, onProvi
 
         setupClickHandler(chart);
 
-        renderMap(chart, result, manualSeats, currentProvince, viewMode, cities);
+        renderMap(chart, result, manualSeats, currentProvince, viewMode, cities, showTurnout, compareResult, tippingCityIds, currentProvince);
         setStatus('ready');
 
         const onResize = () => chart.resize();
@@ -93,7 +99,7 @@ export default function MapView({ result, cities, mapLabel, accentColor, onProvi
 
     if (currentProvince === '台湾省') {
       setCityGeoLoaded(true);
-      renderMap(chartRef.current, result, manualSeats, currentProvince, viewMode, cities);
+      renderMap(chartRef.current, result, manualSeats, currentProvince, viewMode, cities, showTurnout, compareResult, tippingCityIds, currentProvince);
       setStatus('ready');
       return;
     }
@@ -115,7 +121,7 @@ export default function MapView({ result, cities, mapLabel, accentColor, onProvi
         }
         echarts.registerMap('province', geo);
         setCityGeoLoaded(true);
-        renderMap(chartRef.current, result, manualSeats, currentProvince, viewMode, cities);
+        renderMap(chartRef.current, result, manualSeats, currentProvince, viewMode, cities, showTurnout, compareResult, tippingCityIds, currentProvince);
         setStatus('ready');
       } catch (e) {
         console.error('City geo error:', e);
@@ -129,8 +135,8 @@ export default function MapView({ result, cities, mapLabel, accentColor, onProvi
   useEffect(() => {
     if (!chartRef.current) return;
     if (viewMode === 'city' && currentProvince && !cityGeoLoaded && currentProvince !== '台湾省') return;
-    renderMap(chartRef.current, result, manualSeats, currentProvince, viewMode, cities);
-  }, [result, manualSeats, viewMode, cityGeoLoaded, currentProvince]);
+    renderMap(chartRef.current, result, manualSeats, currentProvince, viewMode, cities, showTurnout, compareResult, tippingCityIds, currentProvince);
+  }, [result, manualSeats, viewMode, cityGeoLoaded, currentProvince, showTurnout, compareResult]);
 
   useEffect(() => {
     const handler = () => chartRef.current?.resize();
@@ -143,7 +149,10 @@ export default function MapView({ result, cities, mapLabel, accentColor, onProvi
     chart.on('click', async (params) => {
       if (!params.name) return;
 
-      if (viewMode === 'city' && currentProvince) {
+      const vm = viewModeRef.current;
+      const cp = currentProvinceRef.current;
+
+      if (vm === 'city' && cp) {
         if (clickHandlerRef.current) {
           const cityName = params.data?._cityName || params.name;
           clickHandlerRef.current(cityName);
@@ -151,9 +160,8 @@ export default function MapView({ result, cities, mapLabel, accentColor, onProvi
         return;
       }
 
-
-      if (viewMode === 'province' && params.name) {
-        if (MUNICIPALITIES.has(params.name)) {
+      if (vm === 'province' && params.name) {
+        if (MUNICIPALITIES.has(params.name) || NO_DRILLDOWN.has(params.name)) {
           if (clickHandlerRef.current) {
             clickHandlerRef.current(params.name);
           }
@@ -177,6 +185,8 @@ export default function MapView({ result, cities, mapLabel, accentColor, onProvi
     setCityGeoLoaded(false);
     if (onViewModeChange) onViewModeChange('province');
   };
+
+  const tendingHasTipping = currentProvince && !!cities?.cities?.filter(c => c.province === currentProvince).some(c => tippingCityIds?.has(c.id));
 
   const cursorStyle = manualMode ? { cursor: 'pointer' } : {};
 
@@ -217,8 +227,60 @@ export default function MapView({ result, cities, mapLabel, accentColor, onProvi
             点击分配席位
           </span>
         )}
+        {result && viewMode === 'city' && currentProvince && tendingHasTipping && (
+          <span style={{ fontSize: 11, color: '#ffd54f', marginLeft: 12 }}>
+            ⚑ 黄色边框 = 翻转临界席
+          </span>
+        )}
+        {result && viewMode === 'city' && currentProvince && (
+          <button
+            style={{
+              marginLeft: 12, padding: '2px 10px', fontSize: 10,
+              background: showTurnout ? 'var(--accent-orange)' : 'var(--bg-tertiary)',
+              border: '1px solid var(--border-color)',
+              borderRadius: 4, color: showTurnout ? '#fff' : 'var(--accent-blue)', cursor: 'pointer',
+            }}
+            onClick={() => setShowTurnout(!showTurnout)}
+          >
+            {showTurnout ? '政党视图' : '投票率'}
+          </button>
+        )}
       </div>
       <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
+      {compareResult && (
+        <div style={{
+          position: 'absolute', bottom: 10, left: 16, zIndex: 20,
+          background: 'rgba(10,14,20,0.85)', border: '1px solid var(--border-color)',
+          borderRadius: 6, padding: '8px 12px', backdropFilter: 'blur(6px)',
+        }}>
+          <div style={{ fontSize: 11, color: 'var(--accent-orange)', fontWeight: 700, marginBottom: 6 }}>
+            制度对比模式
+          </div>
+          <div style={{ fontSize: 10, color: 'var(--text-secondary)', lineHeight: 1.7 }}>
+            <div><span style={{ display: 'inline-block', width: 10, height: 10, background: '#ff7043', marginRight: 6, borderRadius: 2 }} />翻盘（胜者改变）</div>
+            <div><span style={{ display: 'inline-block', width: 10, height: 10, background: '#39424e', marginRight: 6, borderRadius: 2 }} />未翻盘 / 无数据</div>
+          </div>
+        </div>
+      )}
+      {status === 'error' && (
+        <div style={{
+          position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+          color: 'var(--accent-orange)', fontSize: 13, textAlign: 'center',
+          background: 'var(--bg-secondary)', padding: '12px 20px', borderRadius: 6,
+          border: '1px solid var(--border-color)',
+        }}>
+          地图数据加载失败<br />
+          <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>请检查网络后刷新页面</span>
+        </div>
+      )}
+      {status === 'loading' && !currentProvince && (
+        <div style={{
+          position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+          color: 'var(--text-muted)', fontSize: 12,
+        }}>
+          加载地图中...
+        </div>
+      )}
     </div>
   );
 }
@@ -256,7 +318,17 @@ const GEO_NAME_TO_CITY_NAME = {
   '克孜勒苏柯尔克孜自治州': '克孜勒苏州',
 };
 
-function renderMap(chart, result, manualSeatsData, currentProvince, viewMode, citiesData) {
+function getTurnoutColor(turnout) {
+  if (turnout >= 0.70) return '#2e7d32';
+  if (turnout >= 0.65) return '#4caf50';
+  if (turnout >= 0.60) return '#81c784';
+  if (turnout >= 0.55) return '#fff176';
+  if (turnout >= 0.50) return '#ffb74d';
+  if (turnout >= 0.45) return '#ff8a65';
+  return '#e57373';
+}
+
+function renderMap(chart, result, manualSeatsData, currentProvince, viewMode, citiesData, showTurnout = false, compareResult = null, tippingCityIds = null) {
   if (!chart) return;
   if (viewMode === 'city' && currentProvince && currentProvince !== '台湾省' && !echarts.getMap('province')) return;
 
@@ -270,6 +342,9 @@ function renderMap(chart, result, manualSeatsData, currentProvince, viewMode, ci
   const partyMap = {};
   if (result?.party_results) {
     result.party_results.forEach(p => { partyMap[p.party_id] = p; });
+  }
+  if (compareResult?.party_results) {
+    compareResult.party_results.forEach(p => { if (!partyMap[p.party_id]) partyMap[p.party_id] = p; });
   }
 
   if (viewMode === 'city' && currentProvince) {
@@ -303,16 +378,41 @@ function renderMap(chart, result, manualSeatsData, currentProvince, viewMode, ci
     (result?.city_results || []).forEach(cr => {
       resultMap[cr.city_id] = cr;
     });
+    const compareResultMap = {};
+    (compareResult?.city_results || []).forEach(cr => {
+      compareResultMap[cr.city_id] = cr;
+    });
 
     const data = allProvinceCities.map(city => {
       const cr = resultMap[city.id];
+      const ccr = compareResultMap[city.id];
       const party = cr ? partyMap[cr.winner_party_id] : null;
       const geoName = Object.entries(GEO_NAME_TO_CITY_NAME).find(([k, v]) => v === city.name)?.[0] || city.name;
+      const turnout = cr?.turnout || 0.6;
+      const flipped = showTurnout || !compareResult ? false : (cr && ccr && cr.winner_party_id !== ccr.winner_party_id);
+      const isTipping = !showTurnout && !compareResult && !!tippingCityIds?.has(city.id);
+      let color;
+      if (showTurnout) {
+        color = getTurnoutColor(turnout);
+      } else if (compareResult) {
+        color = flipped
+          ? (ccr ? partyMap[ccr.winner_party_id]?.color || '#ff7043' : '#ff7043')
+          : '#39424e';
+      } else {
+        color = party?.color || DEFAULT_COLOR;
+      }
       return {
         name: geoName,
         value: 1,
-        itemStyle: { areaColor: party?.color || DEFAULT_COLOR, borderColor: '#0a0e14', borderWidth: 0.5 },
+        itemStyle: {
+          areaColor: color,
+          borderColor: isTipping ? '#ffd54f' : (flipped ? '#ffffff' : '#0a0e14'),
+          borderWidth: isTipping ? 1.8 : (flipped ? 1.3 : 0.5),
+        },
         _cityResult: cr || null,
+        _compareCityResult: ccr || null,
+        _flipped: flipped,
+        _tipping: isTipping,
         _cityName: city.name,
       };
     });
@@ -328,12 +428,44 @@ function renderMap(chart, result, manualSeatsData, currentProvince, viewMode, ci
           const cr = d?._cityResult;
           const displayName = d?._cityName || params.name;
           if (!cr) return `<b>${displayName}</b><br/><span style="color:#5a6378;font-size:10px">暂无推演数据</span>`;
+          if (compareResult && d._flipped !== undefined) {
+            const ccr = d._compareCityResult;
+            const aName = partyMap[cr.winner_party_id]?.name || cr.winner_party_name;
+            const bName = ccr ? (partyMap[ccr.winner_party_id]?.name || ccr.winner_party_name) : '-';
+            let h = `<div style="font-weight:700;margin-bottom:4px">${displayName}</div>`;
+            h += `<div style="margin-bottom:2px">方案A: ${aName} | ${cr.seats}席</div>`;
+            h += `<div style="margin-bottom:2px">方案B: ${bName} | ${ccr?.seats ?? '-'}席</div>`;
+            h += d._flipped
+              ? `<div style="color:#ff7043;font-weight:700;margin-top:2px">⟳ 翻盘</div>`
+              : `<div style="color:#81c784;margin-top:2px">= 未翻盘</div>`;
+            return h;
+          }
           const sorted = Object.entries(cr.vote_shares).sort((a, b) => b[1] - a[1]);
+          const margin = (sorted[0]?.[1] ?? 0) - (sorted[1]?.[1] ?? 0);
           const dims = cr.dimensions || {};
           const affinities = cr.affinities || {};
           const sortedAff = Object.entries(affinities).sort((a, b) => b[1] - a[1]);
           let h = `<div style="font-weight:700;margin-bottom:4px">${displayName}</div>`;
-          h += `<div style="color:#66bb6a;margin-bottom:2px">● ${cr.winner_party_name} | ${cr.seats}席</div>`;
+          h += `<div style="color:#66bb6a;margin-bottom:2px">● ${cr.winner_party_name} | ${cr.seats}席 | 投票率${(cr.turnout * 100).toFixed(0)}%</div>`;
+          h += `<div style="color:${margin > 0.10 ? '#81c784' : '#ffb74d'};margin-bottom:4px">胜差 ${(margin * 100).toFixed(1)}%</div>`;
+          if (d._tipping) {
+            const runnerName = sorted[1] ? (partyMap[sorted[1][0]]?.name || sorted[1][0]) : '-';
+            h += `<div style="color:#ffd54f;font-weight:700;margin-bottom:4px">⚑ 翻转临界席 · 追赶者: ${runnerName}</div>`;
+          }
+          if (cr.party_seats && Object.values(cr.party_seats).some(v => v > 0)) {
+            const seatRows = Object.entries(cr.party_seats)
+              .filter(([, n]) => n > 0)
+              .sort((a, b) => b[1] - a[1])
+              .slice(0, 3);
+            if (seatRows.length) {
+              h += `<div style="font-size:10px;color:#9aa0a6;margin-bottom:2px">席位构成:</div>`;
+              seatRows.forEach(([pid, n]) => {
+                const party = partyMap[pid];
+                h += `<div style="display:flex;justify-content:space-between;gap:8px;font-size:10px">
+                  <span style="color:${party?.color || '#999'}">${party?.name || pid}</span><span><b>${n}席</b></span></div>`;
+              });
+            }
+          }
           if (dims.economic !== undefined) {
             const dNames = [
               ['economic', '经'], ['social', '社'], ['regional', '区'],
@@ -390,23 +522,43 @@ function renderMap(chart, result, manualSeatsData, currentProvince, viewMode, ci
         provMap[pr.province_name] = pr;
       });
     }
+    const compareProvMap = {};
+    if (compareResult?.province_results) {
+      compareResult.province_results.forEach(pr => {
+        compareProvMap[pr.province_name] = pr;
+      });
+    }
 
     const PROVINCES = Object.keys(PROVINCE_ADCODES);
 
     const data = PROVINCES.map(name => {
       const pr = provMap[name];
+      const cpr = compareProvMap[name];
+      const flipped = compareResult ? (pr && cpr && pr.winner_party_id !== cpr.winner_party_id) : false;
       let color = DEFAULT_COLOR;
       if (pr) {
-        const party = result?.party_results.find(p => p.party_id === pr.winner_party_id);
-        color = party?.color || DEFAULT_COLOR;
+        if (compareResult) {
+          color = flipped
+            ? (partyMap[cpr.winner_party_id]?.color || '#ff7043')
+            : '#39424e';
+        } else {
+          const party = result?.party_results.find(p => p.party_id === pr.winner_party_id);
+          color = party?.color || DEFAULT_COLOR;
+        }
       }
       const ms = manualSeatsData?.[name];
       const hasManual = ms && Object.values(ms).some(v => v > 0);
       return {
         name,
         value: 1,
-        itemStyle: { areaColor: color, borderColor: '#0a0e14', borderWidth: 0.5 },
+        itemStyle: {
+          areaColor: color,
+          borderColor: flipped ? '#ffffff' : '#0a0e14',
+          borderWidth: flipped ? 1.5 : 0.5,
+        },
         _provinceResult: pr || null,
+        _compareProvinceResult: cpr || null,
+        _flipped: flipped,
         _manualSeats: hasManual ? ms : null,
       };
     });
@@ -420,6 +572,19 @@ function renderMap(chart, result, manualSeatsData, currentProvince, viewMode, ci
         formatter: (params) => {
           const d = params.data;
           if (!d?._provinceResult && !d?._manualSeats) return `<b>${params.name}</b>`;
+          if (compareResult && d._provinceResult && !d._manualSeats) {
+            const pr = d._provinceResult;
+            const cpr = d._compareProvinceResult;
+            const aName = partyMap[pr.winner_party_id]?.name || pr.winner_party_name;
+            const bName = cpr ? (partyMap[cpr.winner_party_id]?.name || cpr.winner_party_name) : '-';
+            let h = `<div style="font-weight:700;margin-bottom:4px">${pr.province_name}</div>`;
+            h += `<div style="margin-bottom:2px">方案A: ${aName} | ${pr.seats}席</div>`;
+            h += `<div style="margin-bottom:2px">方案B: ${bName} | ${cpr?.seats ?? '-'}席</div>`;
+            h += d._flipped
+              ? `<div style="color:#ff7043;font-weight:700;margin-top:2px">⟳ 翻盘</div>`
+              : `<div style="color:#81c784;margin-top:2px">= 未翻盘</div>`;
+            return h;
+          }
           let h = '';
           if (d._manualSeats) {
             const ms = d._manualSeats;
@@ -436,13 +601,25 @@ function renderMap(chart, result, manualSeatsData, currentProvince, viewMode, ci
             const sorted = Object.entries(pr.vote_shares).sort((a, b) => b[1] - a[1]);
             const totalSeats = result?.total_seats || 450;
             const seatPct = pr.seats > 0 ? ((pr.seats / totalSeats) * 100).toFixed(1) : 0;
+            const avgTurnout = pr.avg_turnout ? (pr.avg_turnout * 100).toFixed(0) : '-';
             h += `<div style="font-weight:700;margin-bottom:4px">${pr.province_name}</div>`;
-            h += `<div style="color:#66bb6a;margin-bottom:2px">● ${pr.winner_party_name} | ${pr.num_cities}城市</div>`;
+            h += `<div style="color:#66bb6a;margin-bottom:2px">● ${pr.winner_party_name} | ${pr.num_cities}城市 | 投票率${avgTurnout}%</div>`;
             h += `<div style="color:#4fc3f7;margin-bottom:4px"><b>${pr.seats}席</b> (${seatPct}% of ${totalSeats})</div>`;
             sorted.slice(0, 4).forEach(([pid, s]) => {
               h += `<div style="display:flex;justify-content:space-between;gap:12px;font-size:11px">
                 <span>${partyMap[pid]?.name || pid}</span><span>${(s * 100).toFixed(1)}%</span></div>`;
             });
+            if (pr.party_seats && Object.values(pr.party_seats).some(v => v > 0)) {
+              const seatRows = Object.entries(pr.party_seats)
+                .filter(([, n]) => n > 0)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 4);
+              h += `<div style="border-top:1px solid #2a3344;margin:5px 0 3px;padding-top:4px;font-size:10px;color:#9aa0a6">席位构成</div>`;
+              seatRows.forEach(([pid, n]) => {
+                h += `<div style="display:flex;justify-content:space-between;gap:12px;font-size:11px">
+                  <span>● ${partyMap[pid]?.name || pid}</span><span><b>${n}席</b></span></div>`;
+              });
+            }
           }
           return h;
         },

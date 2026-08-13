@@ -21,3 +21,23 @@ export async function runSimulation(request) {
   if (!res.ok) throw new Error('Simulation failed');
   return res.json();
 }
+
+export async function runRobustness(request) {
+  const res = await fetch(`${API_BASE}/simulate/robustness`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  if (!res.ok) throw new Error('Robustness analysis failed');
+  return res.json();
+}
+
+export async function runSensitivity(request) {
+  const res = await fetch(`${API_BASE}/simulate/sensitivity`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  if (!res.ok) throw new Error('Sensitivity analysis failed');
+  return res.json();
+}
