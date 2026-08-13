@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import * as echarts from 'echarts';
 
-const PROVINCE_GEO_URL = '/api/geojson';
+const API_BASE = import.meta.env.VITE_API_BASE || '/api';
+const PROVINCE_GEO_URL = `${API_BASE}/geojson`;
 const DEFAULT_COLOR = '#2d3748';
 
 const MUNICIPALITIES = new Set(['北京市', '天津市', '上海市', '重庆市']);
@@ -114,7 +115,7 @@ export default function MapView({ result, cities, mapLabel, accentColor, onProvi
         if (cityGeoCache.current[adcode]) {
           geo = cityGeoCache.current[adcode];
         } else {
-          const res = await fetch(`/api/geojson/${adcode}`);
+          const res = await fetch(`${API_BASE}/geojson/${adcode}`);
           if (!res.ok) throw new Error('fetch failed');
           geo = await res.json();
           cityGeoCache.current[adcode] = geo;

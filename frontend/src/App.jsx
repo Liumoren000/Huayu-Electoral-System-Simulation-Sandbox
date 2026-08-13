@@ -17,6 +17,7 @@ import RadarModal from './components/RadarModal.jsx';
 import ReportModal from './components/ReportModal.jsx';
 import SnapshotModal from './components/SnapshotModal.jsx';
 import { fetchParties, fetchCities, runSimulation, runRobustness } from './services/api.js';
+import { API_BASE } from './services/api.js';
 import { findCoalitions } from './utils/coalition.js';
 import { loadSavedState, saveState, buildShareUrl } from './utils/state.js';
 import { computeTippingSeats } from './utils/analysis.js';
@@ -419,7 +420,7 @@ export default function App() {
 
       for (const w of weights) {
         const simConfig = { ...config, total_seats: totalSeats, urban_rural_weight: w, min_seats_per_city: minSeats };
-        const simResponse = await fetch('/api/simulate', {
+        const simResponse = await fetch(`${API_BASE}/simulate`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -465,7 +466,7 @@ export default function App() {
 
       for (const sys of systems) {
         const simConfig = { ...config, system_type: sys, total_seats: totalSeats, min_seats_per_city: minSeats };
-        const simResponse = await fetch('/api/simulate', {
+        const simResponse = await fetch(`${API_BASE}/simulate`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -523,7 +524,7 @@ export default function App() {
 
       for (const y of years) {
         const simConfig = { ...config, total_seats: totalSeats, min_seats_per_city: minSeats };
-        const simResponse = await fetch('/api/simulate', {
+        const simResponse = await fetch(`${API_BASE}/simulate`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
 body: JSON.stringify({
