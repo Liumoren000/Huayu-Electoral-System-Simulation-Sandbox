@@ -32,6 +32,11 @@ export default function Sidebar({
     setConfigB(prev => ({ ...prev, [key]: value }));
   };
 
+  const setBothConfigs = (key, value) => {
+    setConfig(prev => ({ ...prev, [key]: value }));
+    setConfigB(prev => ({ ...prev, [key]: value }));
+  };
+
   const updateParty = (partyId, key, value) => {
     setParties(prev => prev.map(p =>
       p.id === partyId ? { ...p, [key]: key === 'name' ? value : parseFloat(value) } : p
@@ -88,6 +93,87 @@ export default function Sidebar({
         </div>
         <div style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 4 }}>
           0% = 城乡无差异 | 100% = 默认 | 200% = 差异加倍
+        </div>
+      </div>
+
+      {/* 真实感增强（全局模块，作用于方案 A/B） */}
+      <div className="sidebar-section realism-section">
+        <div className="section-title">
+          <span className="dot" style={{ background: '#ce93d8' }} />真实感增强
+        </div>
+        <div className="realism-check">
+          <label className="check-label">
+            <input
+              type="checkbox"
+              checked={!!config.voter_stratification}
+              onChange={e => setBothConfigs('voter_stratification', e.target.checked)}
+            />
+            <span>城市内选民分层（年龄/教育/产业结构）</span>
+          </label>
+          <label className="check-label">
+            <input
+              type="checkbox"
+              checked={!!config.calibration}
+              onChange={e => setBothConfigs('calibration', e.target.checked)}
+            />
+            <span>历史倾向校准（基准政党锚点）</span>
+          </label>
+        </div>
+        <div className="slider-row">
+          <label>
+            <span>政党忠诚度（铁票党）</span>
+            <span>{Math.round((config.party_loyalty ?? 0) * 100)}%</span>
+          </label>
+          <input
+            type="range"
+            min="0"
+            max="0.5"
+            step="0.01"
+            value={config.party_loyalty ?? 0}
+            onChange={e => setBothConfigs('party_loyalty', parseFloat(e.target.value))}
+          />
+        </div>
+        <div className="slider-row">
+          <label>
+            <span>摇摆选民比例</span>
+            <span>{Math.round((config.swing_voter_pct ?? 0) * 100)}%</span>
+          </label>
+          <input
+            type="range"
+            min="0"
+            max="0.6"
+            step="0.01"
+            value={config.swing_voter_pct ?? 0}
+            onChange={e => setBothConfigs('swing_voter_pct', parseFloat(e.target.value))}
+          />
+        </div>
+        <div className="slider-row">
+          <label>
+            <span>竞争-投票率联动</span>
+            <span>{Math.round((config.abstention_sensitivity ?? 0) * 100)}%</span>
+          </label>
+          <input
+            type="range"
+            min="0"
+            max="1"
+            step="0.05"
+            value={config.abstention_sensitivity ?? 0}
+            onChange={e => setBothConfigs('abstention_sensitivity', parseFloat(e.target.value))}
+          />
+        </div>
+        <div className="slider-row">
+          <label>
+            <span>选区不均衡（小城超代表）</span>
+            <span>{Math.round((config.malapportionment ?? 0) * 100)}%</span>
+          </label>
+          <input
+            type="range"
+            min="0"
+            max="1"
+            step="0.05"
+            value={config.malapportionment ?? 0}
+            onChange={e => setBothConfigs('malapportionment', parseFloat(e.target.value))}
+          />
         </div>
       </div>
 
@@ -364,83 +450,6 @@ function SchemePanel({ scheme, onChange, className, label, expanded, onToggle })
               value={scheme.urban_rural_weight ?? 1.0}
               onChange={e => onChange('urban_rural_weight', parseFloat(e.target.value))}
             />
-          </div>
-          <div className="realism-section">
-            <div className="realism-title">真实感增强</div>
-            <div className="realism-check">
-              <label className="check-label">
-                <input
-                  type="checkbox"
-                  checked={!!scheme.voter_stratification}
-                  onChange={e => onChange('voter_stratification', e.target.checked)}
-                />
-                <span>城市内选民分层（年龄/教育/产业结构）</span>
-              </label>
-              <label className="check-label">
-                <input
-                  type="checkbox"
-                  checked={!!scheme.calibration}
-                  onChange={e => onChange('calibration', e.target.checked)}
-                />
-                <span>历史倾向校准（基准政党锚点）</span>
-              </label>
-            </div>
-            <div className="slider-row">
-              <label>
-                <span>政党忠诚度（铁票党）</span>
-                <span>{Math.round((scheme.party_loyalty ?? 0) * 100)}%</span>
-              </label>
-              <input
-                type="range"
-                min="0"
-                max="0.5"
-                step="0.01"
-                value={scheme.party_loyalty ?? 0}
-                onChange={e => onChange('party_loyalty', parseFloat(e.target.value))}
-              />
-            </div>
-            <div className="slider-row">
-              <label>
-                <span>摇摆选民比例</span>
-                <span>{Math.round((scheme.swing_voter_pct ?? 0) * 100)}%</span>
-              </label>
-              <input
-                type="range"
-                min="0"
-                max="0.6"
-                step="0.01"
-                value={scheme.swing_voter_pct ?? 0}
-                onChange={e => onChange('swing_voter_pct', parseFloat(e.target.value))}
-              />
-            </div>
-            <div className="slider-row">
-              <label>
-                <span>竞争-投票率联动</span>
-                <span>{Math.round((scheme.abstention_sensitivity ?? 0) * 100)}%</span>
-              </label>
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.05"
-                value={scheme.abstention_sensitivity ?? 0}
-                onChange={e => onChange('abstention_sensitivity', parseFloat(e.target.value))}
-              />
-            </div>
-            <div className="slider-row">
-              <label>
-                <span>选区不均衡（小城超代表）</span>
-                <span>{Math.round((scheme.malapportionment ?? 0) * 100)}%</span>
-              </label>
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.05"
-                value={scheme.malapportionment ?? 0}
-                onChange={e => onChange('malapportionment', parseFloat(e.target.value))}
-              />
-            </div>
           </div>
           {scheme.upper_house_enabled && (
             <div className="uh-controls">
