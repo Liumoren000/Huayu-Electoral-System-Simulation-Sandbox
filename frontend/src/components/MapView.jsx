@@ -246,20 +246,18 @@ export default function MapView({ result, cities, mapLabel, accentColor, onProvi
             {showTurnout ? '政党视图' : '投票率'}
           </button>
         )}
-        {uncertainty && (
-          <button
-            style={{
-              marginLeft: 12, padding: '2px 10px', fontSize: 10,
-              background: showUncertainty ? 'var(--accent-green)' : 'var(--bg-tertiary)',
-              border: '1px solid var(--border-color)',
-              borderRadius: 4, color: showUncertainty ? '#fff' : 'var(--accent-blue)', cursor: 'pointer',
-            }}
-            onClick={onToggleUncertainty}
-            title="以蒙特卡洛稳健性结果着色：颜色越饱和 = 胜者越稳定"
-          >
-            {showUncertainty ? '确定性视图' : '不确定度'}
-          </button>
-        )}
+        <button
+          style={{
+            marginLeft: 12, padding: '2px 10px', fontSize: 10,
+            background: showUncertainty ? 'var(--accent-green)' : 'var(--bg-tertiary)',
+            border: '1px solid var(--border-color)',
+            borderRadius: 4, color: showUncertainty ? '#fff' : 'var(--accent-blue)', cursor: 'pointer',
+          }}
+          onClick={onToggleUncertainty}
+          title="以蒙特卡洛稳健性结果着色：绿=稳定，红=胶着。未分析时自动运行稳健性。"
+        >
+          {showUncertainty ? '确定性视图' : '不确定度'}
+        </button>
       </div>
       <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
       {showUncertainty && uncertainty && (

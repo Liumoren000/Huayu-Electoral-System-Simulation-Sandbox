@@ -808,7 +808,10 @@ body: JSON.stringify({
             onDrillDown={handleMapDrillDown}
             uncertainty={robustnessData ? buildUncertaintyMaps(robustnessData) : null}
             showUncertainty={showUncertainty}
-            onToggleUncertainty={() => setShowUncertainty(v => !v)}
+            onToggleUncertainty={() => {
+              if (!robustnessData) runRobustnessAnalysis();
+              else setShowUncertainty(v => !v);
+            }}
           />
 
           <BottomPanel result={displayResult} />
