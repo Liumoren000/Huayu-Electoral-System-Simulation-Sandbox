@@ -4,6 +4,50 @@ from app.models.city import City
 from app.models.party import Party
 
 
+# 省级政治文化倾向：在数据驱动的城市维度基础上叠加地区性偏移，
+# 使各区域投票倾向更贴近现实（沿海发达→商业/进步/绿色，东北→工人，
+# 内陆农业→发展/传统，边疆民族→民族自治党，等等）。
+# 键为省份名，值为对各政策维度的偏移量（社会/经济/区域/福利/环保/民族/城乡）。
+PROVINCE_TILT = {
+    # 沿海发达：现代、国际化、市场、低福利依赖、重环保
+    "北京市": {"social": 0.25, "regional": -0.15, "nationalism": -0.2, "welfare": -0.1, "environment": 0.15, "economic": 0.15},
+    "上海市": {"social": 0.3, "regional": -0.2, "nationalism": -0.25, "welfare": -0.2, "environment": 0.2, "economic": 0.2},
+    "天津市": {"social": 0.2, "regional": -0.1, "nationalism": -0.15, "welfare": -0.1, "economic": 0.15},
+    "江苏省": {"social": 0.2, "regional": -0.1, "nationalism": -0.15, "welfare": -0.15, "economic": 0.2, "environment": 0.1},
+    "浙江省": {"social": 0.25, "regional": -0.1, "nationalism": -0.2, "welfare": -0.15, "economic": 0.2, "environment": 0.15},
+    "福建省": {"social": 0.15, "regional": -0.1, "nationalism": -0.1, "welfare": -0.1, "economic": 0.15},
+    "广东省": {"social": 0.2, "regional": -0.15, "nationalism": -0.2, "welfare": -0.15, "economic": 0.2, "environment": 0.15},
+    "山东省": {"social": 0.05, "regional": -0.05, "nationalism": -0.05, "welfare": -0.05, "economic": 0.1},
+    "海南省": {"social": 0.15, "regional": -0.15, "nationalism": -0.15, "welfare": -0.05, "economic": 0.15, "environment": 0.15},
+    "台湾省": {"social": 0.25, "regional": -0.2, "nationalism": -0.25, "welfare": -0.05, "economic": 0.2, "environment": 0.15},
+    # 东北：产业衰退、老龄化、福利依赖、略传统
+    "辽宁省": {"social": -0.1, "nationalism": 0.1, "welfare": 0.15, "economic": -0.1},
+    "吉林省": {"social": -0.15, "nationalism": 0.1, "welfare": 0.2, "economic": -0.1},
+    "黑龙江省": {"social": -0.15, "nationalism": 0.15, "welfare": 0.2, "economic": -0.15},
+    # 中部/华北农业工业带：温和传统、偏福利、偏本土
+    "河北省": {"social": -0.05, "nationalism": 0.05, "welfare": 0.05},
+    "山西省": {"social": -0.1, "nationalism": 0.15, "welfare": 0.1, "economic": -0.05},
+    "河南省": {"social": -0.15, "nationalism": 0.15, "welfare": 0.1, "economic": -0.05},
+    "安徽省": {"social": -0.1, "nationalism": 0.1, "welfare": 0.1},
+    "江西省": {"social": -0.1, "nationalism": 0.1, "welfare": 0.1},
+    "湖北省": {"social": 0.0, "nationalism": 0.05, "welfare": 0.05},
+    "湖南省": {"social": -0.05, "nationalism": 0.1, "welfare": 0.1},
+    "四川省": {"social": -0.05, "nationalism": 0.1, "welfare": 0.05},
+    "重庆市": {"social": 0.0, "nationalism": 0.05, "welfare": 0.05},
+    "陕西省": {"social": -0.1, "nationalism": 0.15, "welfare": 0.15},
+    # 西部/边疆民族地区：传统、本土化、民族意识强、高福利需求
+    "甘肃省": {"social": -0.2, "nationalism": 0.25, "welfare": 0.2, "regional": 0.15, "economic": -0.1},
+    "青海省": {"social": -0.25, "nationalism": 0.3, "welfare": 0.2, "regional": 0.25, "economic": -0.15},
+    "宁夏回族自治区": {"social": -0.25, "nationalism": 0.4, "welfare": 0.2, "regional": 0.3, "economic": -0.1},
+    "新疆维吾尔自治区": {"social": -0.25, "nationalism": 0.35, "welfare": 0.25, "regional": 0.3, "economic": -0.15},
+    "西藏自治区": {"social": -0.3, "nationalism": 0.4, "welfare": 0.3, "regional": 0.35, "economic": -0.2},
+    "内蒙古自治区": {"social": -0.25, "nationalism": 0.4, "welfare": 0.2, "regional": 0.3, "economic": -0.1},
+    "广西壮族自治区": {"social": -0.2, "nationalism": 0.35, "welfare": 0.15, "regional": 0.3, "economic": -0.05},
+    "云南省": {"social": -0.2, "nationalism": 0.25, "welfare": 0.2, "regional": 0.2, "economic": -0.1},
+    "贵州省": {"social": -0.25, "nationalism": 0.25, "welfare": 0.25, "regional": 0.2, "economic": -0.15},
+}
+
+
 class VoterModel:
     """
     现实主义选民行为模型
@@ -33,6 +77,10 @@ class VoterModel:
     def _tilt(self, dim: str, base: float) -> float:
         """全国选民在某一政策维度上的偏好偏移（选举剧本机制）"""
         return base + self.dim_tilt.get(dim, 0.0)
+
+    def _city_tilt(self, city: City, dim: str, base: float) -> float:
+        """城市维度：叠加全国 dim_tilt 与省级政治文化 PROVINCE_TILT"""
+        return base + self.dim_tilt.get(dim, 0.0) + PROVINCE_TILT.get(city.province, {}).get(dim, 0.0)
 
     POLICY_DIMS = ['economic', 'social', 'regional', 'welfare', 'environment', 'nationalism', 'urban_rural']
 
@@ -193,16 +241,18 @@ class VoterModel:
         return max(0.01, raw_score + noise)
 
     def get_city_dimensions(self, city: City) -> dict[str, float]:
-        """获取城市在各维度的位置（叠加全国偏好偏移 dim_tilt）"""
-        return {
-            'economic': round(self._tilt('economic', self._city_economic_position(city)), 3),
-            'social': round(self._tilt('social', self._city_social_position(city)), 3),
-            'regional': round(self._tilt('regional', self._city_regional_position(city)), 3),
-            'welfare': round(self._tilt('welfare', self._city_welfare_preference(city)), 3),
-            'environment': round(self._tilt('environment', self._city_environment_preference(city)), 3),
-            'nationalism': round(self._tilt('nationalism', self._city_nationalism(city)), 3),
-            'urban_rural': round(self._tilt('urban_rural', self._city_urban_rural(city)), 3),
+        """获取城市在各维度的位置（叠加全国偏好偏移 dim_tilt 与省级政治文化 PROVINCE_TILT）"""
+        tilt = PROVINCE_TILT.get(city.province, {})
+        base = {
+            'economic': self._tilt('economic', self._city_economic_position(city)),
+            'social': self._tilt('social', self._city_social_position(city)),
+            'regional': self._tilt('regional', self._city_regional_position(city)),
+            'welfare': self._tilt('welfare', self._city_welfare_preference(city)),
+            'environment': self._tilt('environment', self._city_environment_preference(city)),
+            'nationalism': self._tilt('nationalism', self._city_nationalism(city)),
+            'urban_rural': self._tilt('urban_rural', self._city_urban_rural(city)),
         }
+        return {d: round(max(-1.0, min(1.0, base[d] + tilt.get(d, 0.0))), 3) for d in base}
 
     def get_city_turnout(self, city: City, urban_rural_weight: float = 1.0,
                          competitiveness: float = None, abstention_sensitivity: float = 0.0) -> float:
@@ -397,17 +447,17 @@ class VoterModel:
         - 老龄化程度高→需要福利
         - 城镇化高→需要公共服务
         - 农业比重高→依赖补贴
-        - 人均GDP低→需要再分配
+        - 人均GDP高→自给能力强，倾向低福利低税收
         """
         score = 0.0
         # 老龄化→高福利需求
-        score += city.aging_rate * 2.0
+        score += city.aging_rate * 1.5
         # 城镇化→公共服务需求
         score += (city.urbanization_rate - 0.4) * 0.8
         # 农业→补贴依赖
-        score += city.primary_industry_pct * 1.5
-        # 低GDP→再分配需求
-        score -= (city.gdp_per_capita / 200000 - 0.3) * 1.0
+        score += city.primary_industry_pct * 1.0
+        # 高GDP→低福利低税收偏好
+        score -= (city.gdp_per_capita / 200000 - 0.3) * 2.0
         return max(-1.0, min(1.0, score))
 
     def _city_environment_preference(self, city: City) -> float:
@@ -424,11 +474,11 @@ class VoterModel:
         # 高GDP→环保优先
         score += (city.gdp_per_capita / 200000) * 1.5
         # 工业→发展优先
-        score -= city.secondary_industry_pct * 1.2
+        score -= city.secondary_industry_pct * 1.5
         # 服务业→环保友好
         score += city.tertiary_industry_pct * 0.8
         # 城镇化→环保需求
-        score += (city.urbanization_rate - 0.5) * 0.6
+        score += (city.urbanization_rate - 0.5) * 0.5
         return max(-1.0, min(1.0, score))
 
     def _city_nationalism(self, city: City) -> float:
@@ -476,19 +526,19 @@ class VoterModel:
 
     def _economic_match(self, city: City, party: Party) -> float:
         """经济立场匹配"""
-        city_pos = self._tilt('economic', self._city_economic_position(city))
+        city_pos = self._city_tilt(city, 'economic', self._city_economic_position(city))
         diff = abs(city_pos - party.economic_position)
         return max(0, 1.0 - diff * 1.1)
 
     def _social_match(self, city: City, party: Party) -> float:
         """社会立场匹配"""
-        city_pos = self._tilt('social', self._city_social_position(city))
+        city_pos = self._city_tilt(city, 'social', self._city_social_position(city))
         diff = abs(city_pos - party.social_position)
         return max(0, 1.0 - diff * 1.0)
 
     def _regional_match(self, city: City, party: Party) -> float:
         """区域立场匹配"""
-        city_pos = self._tilt('regional', self._city_regional_position(city))
+        city_pos = self._city_tilt(city, 'regional', self._city_regional_position(city))
         diff = abs(city_pos - party.regional_position)
         return max(0, 1.0 - diff * 1.2)
 
@@ -499,22 +549,22 @@ class VoterModel:
         考虑多个政策维度的综合匹配
         """
         # 福利偏好匹配
-        city_welfare = self._tilt('welfare', self._city_welfare_preference(city))
+        city_welfare = self._city_tilt(city, 'welfare', self._city_welfare_preference(city))
         party_welfare = getattr(party, 'welfare_position', 0)
         welfare_match = max(0, 1.0 - abs(city_welfare - party_welfare) * 0.8)
 
         # 环保偏好匹配
-        city_env = self._tilt('environment', self._city_environment_preference(city))
+        city_env = self._city_tilt(city, 'environment', self._city_environment_preference(city))
         party_env = getattr(party, 'environment_position', 0)
         env_match = max(0, 1.0 - abs(city_env - party_env) * 0.8)
 
         # 民族主义匹配
-        city_nat = self._tilt('nationalism', self._city_nationalism(city))
+        city_nat = self._city_tilt(city, 'nationalism', self._city_nationalism(city))
         party_nat = getattr(party, 'nationalism_position', 0)
         nat_match = max(0, 1.0 - abs(city_nat - party_nat) * 0.7)
 
         # 城乡利益匹配
-        city_ur = self._tilt('urban_rural', self._city_urban_rural(city))
+        city_ur = self._city_tilt(city, 'urban_rural', self._city_urban_rural(city))
         party_ur = getattr(party, 'urban_rural_position', 0)
         ur_match = max(0, 1.0 - abs(city_ur - party_ur) * 0.7)
 
