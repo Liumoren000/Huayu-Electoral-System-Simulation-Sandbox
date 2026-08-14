@@ -202,6 +202,20 @@ export default function Sidebar({
             onChange={e => setBothConfigs('tactical_voting', parseFloat(e.target.value))}
           />
         </div>
+        <div className="slider-row">
+          <label>
+            <span>群体差异化投票率</span>
+            <span>{Math.round((config.turnout_differential ?? 0) * 100)}%</span>
+          </label>
+          <input
+            type="range"
+            min="0"
+            max="1"
+            step="0.05"
+            value={config.turnout_differential ?? 0}
+            onChange={e => setBothConfigs('turnout_differential', parseFloat(e.target.value))}
+          />
+        </div>
         </div>
         )}
       </div>

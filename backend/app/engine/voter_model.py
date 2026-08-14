@@ -63,7 +63,7 @@ class VoterModel:
     def __init__(self, seed: int = 42, turnout_shift: float = 0.0, dim_tilt: dict = None,
                  party_effects: dict = None, party_loyalty: float = 0.0,
                  swing_voter_pct: float = 0.0, voter_stratification: bool = False,
-                 calibration: bool = False):
+                 calibration: bool = False, turnout_differential: float = 0.0):
         self.rng = random.Random(seed)
         self.seed = seed
         self.turnout_shift = turnout_shift
@@ -73,6 +73,7 @@ class VoterModel:
         self.swing_voter_pct = swing_voter_pct
         self.voter_stratification = voter_stratification
         self.calibration = calibration
+        self.turnout_differential = turnout_differential
 
     def _tilt(self, dim: str, base: float) -> float:
         """全国选民在某一政策维度上的偏好偏移（选举剧本机制）"""
@@ -297,6 +298,25 @@ class VoterModel:
 
         turnout = base + urban_factor + edu_factor + aging_factor + region_factor
 
+        # 群体差异化投票率：老年/高学历/高收入/城市选民投票率更高，
+        # 城市实际投票率按人口结构的加权平均（turnout_differential 控制强度）
+        d = self.turnout_differential or 0.0
+        if d > 0:
+            city_base = turnout
+            weights = self._group_turnout_weights(city)
+            group_turnouts = {
+                'elder': 0.78, 'youth': 0.52,
+                'high_edu': 0.80, 'low_edu': 0.48,
+                'urban': 0.72, 'rural': 0.55,
+                'high_income': 0.75, 'low_income': 0.50,
+            }
+            total_w = sum(weights.values())
+            w_avg = 0.0
+            if total_w > 0:
+                w_avg = sum(w * group_turnouts.get(k, city_base) for k, w in weights.items()) / total_w
+            # 插值：强度 0 → 原城市投票率；强度 1 → 群体加权投票率
+            turnout = city_base + (w_avg - city_base) * d
+
         # 竞争激烈调节：胜差越小（越胶着）投票率越高
         if abstention_sensitivity > 0 and competitiveness is not None:
             # competitiveness = 1 - 胜差，胶着 → 投票率提高；碾压 → 略降
@@ -304,6 +324,30 @@ class VoterModel:
 
         turnout += self.turnout_shift
         return round(max(0.20, min(0.95, turnout)), 4)
+
+    def _group_turnout_weights(self, city: City) -> dict[str, float]:
+        """
+        城市人口结构 → 各差异化投票群体的相对占比。
+        复用 _STRUCTURE_GROUPS 的画像权重逻辑，但输出归一化占比
+        （同维度两群体互补，和为 1），供群体差异化投票率加权使用。
+        """
+        aging = max(0.0, min(1.0, city.aging_rate))
+        edu = max(0.0, min(1.0, city.education_index))
+        urban = max(0.0, min(1.0, city.urbanization_rate))
+        gdp = city.gdp_per_capita
+        # 收入高低占比：与 gdp 相关（gdp 越高 → 高收入占比越高）
+        gmin, gmax = 30000.0, 200000.0
+        income_high = max(0.02, min(0.98, 0.15 + 0.7 * (gdp - gmin) / max(1e-9, gmax - gmin)))
+        return {
+            'elder': aging,
+            'youth': 1.0 - aging,
+            'high_edu': edu,
+            'low_edu': 1.0 - edu,
+            'urban': urban,
+            'rural': 1.0 - urban,
+            'high_income': income_high,
+            'low_income': 1.0 - income_high,
+        }
 
     def get_city_affinities(self, city: City, parties: list[Party], noise_amplitude: float = 0.03) -> dict[str, float]:
         """获取城市对各政党的亲和度"""

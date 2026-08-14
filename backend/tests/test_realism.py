@@ -140,6 +140,39 @@ class RealismFeatureTest(unittest.TestCase):
         self.assertGreater(squeeze_fptp, 0)
         self.assertGreaterEqual(squeeze_fptp, squeeze_runoff)
 
+    def test_turnout_differential_preserves_seats(self):
+        """群体差异化投票率开启后席位总数守恒"""
+        r, cfg = self._run(turnout_differential=0.8)
+        self.assertEqual(sum(p.seats for p in r.party_results), cfg.total_seats)
+        self.assertAlmostEqual(sum(p.vote_share for p in r.party_results), 1.0, places=3)
+
+    def test_turnout_differential_raises_elderly_city(self):
+        """老龄化高的城市投票率上升、年轻城市下降（差异化开启时）"""
+        from app.engine.voter_model import VoterModel
+        elder = max(self.cd.cities, key=lambda c: c.aging_rate)
+        young = min(self.cd.cities, key=lambda c: c.aging_rate)
+
+        vm_off = VoterModel(seed=42)
+        vm_on = VoterModel(seed=42, turnout_differential=1.0)
+
+        elder_off = vm_off.get_city_turnout(elder, 1.0)
+        elder_on = vm_on.get_city_turnout(elder, 1.0)
+        young_off = vm_off.get_city_turnout(young, 1.0)
+        young_on = vm_on.get_city_turnout(young, 1.0)
+
+        self.assertGreater(elder_on, elder_off)   # 老年城市投票率升
+        self.assertLess(young_on, young_off)       # 年轻城市投票率降
+        self.assertGreater(elder_on, young_on)      # 老年城市 > 年轻城市
+
+    def test_turnout_differential_zero_is_noop(self):
+        """turnout_differential=0 时投票率与默认完全一致（确定性）"""
+        from app.engine.voter_model import VoterModel
+        vm_a = VoterModel(seed=42)
+        vm_b = VoterModel(seed=42, turnout_differential=0.0)
+        for city in self.cd.cities[:5]:
+            self.assertEqual(vm_a.get_city_turnout(city, 1.0),
+                             vm_b.get_city_turnout(city, 1.0))
+
 
 if __name__ == '__main__':
     unittest.main()

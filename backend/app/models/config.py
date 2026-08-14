@@ -33,6 +33,7 @@ class ElectoralConfig(BaseModel):
     party_effects: dict[str, float] = Field(default_factory=dict, description="政党特定亲和度扰动（丑闻/领袖魅力等事件，party_id->delta）")
     calibration: bool = Field(default=False, description="启用历史倾向锚点校准（每城基准政党）")
     tactical_voting: float = Field(default=0.0, ge=0.0, le=1.0, description="策略性投票/弃保比例：小选区制下弱势候选人支持者转投可赢政党（Duverger 效应）")
+    turnout_differential: float = Field(default=0.0, ge=0.0, le=1.0, description="群体差异化投票率：老年/高学历/高收入/城市选民投票率显著更高，城市投票率按人口结构加权（0=关闭，1=完全差异化）")
 
 
 class SimulationRequest(BaseModel):

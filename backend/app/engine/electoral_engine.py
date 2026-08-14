@@ -20,6 +20,7 @@ class ElectoralEngine:
             swing_voter_pct=config.swing_voter_pct or 0.0,
             voter_stratification=config.voter_stratification,
             calibration=config.calibration,
+            turnout_differential=config.turnout_differential or 0.0,
         )
         self.party_map = {p.id: p for p in parties}
 
