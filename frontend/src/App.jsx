@@ -22,7 +22,8 @@ import SwingAnalysisModal from './components/SwingAnalysisModal.jsx';
 import CoalitionNegotiationModal from './components/CoalitionNegotiationModal.jsx';
 
 import CalibrationModal from './components/CalibrationModal.jsx';
-import { fetchParties, fetchCities, runSimulation, runRobustness } from './services/api.js';
+import EraModal from './components/EraModal.jsx';
+import { fetchParties, fetchCities, fetchEras, runSimulation, runRobustness } from './services/api.js';
 import { API_BASE } from './services/api.js';
 import { findCoalitions } from './utils/coalition.js';
 import { loadSavedState, saveState, buildShareUrl } from './utils/state.js';
@@ -155,6 +156,8 @@ export default function App() {
   const [showNegotiation, setShowNegotiation] = useState(false);
   const [showCalibration, setShowCalibration] = useState(false);
   const [snapshots, setSnapshots] = useState([]);  // { id, label, result }
+  const [eras, setEras] = useState([]);
+  const [showEra, setShowEra] = useState(false);
 
   useEffect(() => {
     fetchParties().then(data => {
@@ -168,6 +171,17 @@ export default function App() {
     }).catch(console.error);
     fetchCities(year).then(data => setCities(data)).catch(console.error);
   }, [year]);
+
+  useEffect(() => {
+    fetchEras().then(data => {
+      setEras(data.eras || []);
+      const cur = (data.eras || []).find(e => e.year === year);
+      if (cur) {
+        setConfig(prev => ({ ...prev, ...cur.config }));
+        setConfigB(prev => ({ ...prev, ...cur.config }));
+      }
+    }).catch(console.error);
+  }, []);
 
   const captureState = () => {
     const partyOverrides = {};
@@ -545,7 +559,7 @@ export default function App() {
     }
     setLoading(true);
     try {
-      const years = [2020, 2021, 2022, 2023, 2024];
+      const years = eras.length ? eras.map(e => e.year).sort((a, b) => a - b) : [2020, 2021, 2022, 2023, 2024];
       const enabledParties = parties.filter(p => p.enabled !== false).map(({ enabled, ...rest }) => rest);
       const analysisResults = [];
 
@@ -555,7 +569,7 @@ export default function App() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
 body: JSON.stringify({
-            year: year,
+            year: y,
             config_a: simConfig,
             config_b: simConfig,
             parties: parties.filter(p => p.enabled !== false).map(({ enabled, ...rest }) => rest),
@@ -782,16 +796,12 @@ body: JSON.stringify({
               <button className="header-btn" onClick={handleShare} title="生成配置分享链接">
                 分享
               </button>
-              <div className="header-stat">
-                年份:
-            <select className="year-select" value={year} onChange={e => setYear(parseInt(e.target.value))}>
-              <option value={2020}>2020</option>
-              <option value={2021}>2021</option>
-              <option value={2022}>2022</option>
-              <option value={2023}>2023</option>
-              <option value={2024}>2024</option>
-            </select>
-          </div>
+              <div className="header-stat" title="点击切换研究年代：城市数据参数与选民政见默认值将随之更新">
+                年代:
+                <button className="year-select" onClick={() => setShowEra(true)}>
+                  {(eras.find(e => e.year === year)?.name || year)} {year}
+                </button>
+              </div>
         </div>
       </header>
 
@@ -941,6 +951,20 @@ body: JSON.stringify({
             setShowScript(false);
           }}
           onClose={() => setShowScript(false)}
+        />
+      )}
+      {showEra && (
+        <EraModal
+          eras={eras}
+          currentYear={year}
+          onApply={(eraYear, eraConfig) => {
+            setYear(eraYear);
+            const merged = { ...defaultConfig, ...config, ...eraConfig };
+            setConfig(merged);
+            setConfigB({ ...defaultConfig, ...configB, ...eraConfig });
+            setShowEra(false);
+          }}
+          onClose={() => setShowEra(false)}
         />
       )}
       {showBubble && (
@@ -1118,7 +1142,7 @@ function TrendModal({ trendAnalysis, onClose }) {
     <div className="analysis-overlay" onClick={onClose}>
       <div className="analysis-modal" onClick={e => e.stopPropagation()}>
         <div className="analysis-header">
-          <h3>年份趋势分析 (2020→2024)</h3>
+          <h3>年份趋势分析（研究年代 → 选举特征）</h3>
           <button className="province-close-btn" onClick={onClose}>✕</button>
         </div>
         <div className="analysis-body">

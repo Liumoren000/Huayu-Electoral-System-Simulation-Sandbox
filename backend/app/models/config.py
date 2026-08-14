@@ -35,21 +35,21 @@ class ElectoralConfig(BaseModel):
 
 
 class SimulationRequest(BaseModel):
-    year: int = Field(default=2023, ge=2010, le=2024)
+    year: int = Field(default=2023, ge=1949, le=2024)
     config_a: ElectoralConfig
     config_b: ElectoralConfig
     parties: list[Party]
 
 
 class RobustnessRequest(BaseModel):
-    year: int = Field(default=2023, ge=2010, le=2024)
+    year: int = Field(default=2023, ge=1949, le=2024)
     config: ElectoralConfig
     parties: list[Party]
     iterations: int = Field(default=30, ge=5, le=200)
 
 
 class SensitivityRequest(BaseModel):
-    year: int = Field(default=2023, ge=2010, le=2024)
+    year: int = Field(default=2023, ge=1949, le=2024)
     config: ElectoralConfig
     parties: list[Party]
     delta: float = Field(default=0.2, ge=0.05, le=1.0, description="单因素扰动幅度（相对±delta）")
@@ -58,14 +58,14 @@ class SensitivityRequest(BaseModel):
 
 
 class VoterExplainRequest(BaseModel):
-    year: int = Field(default=2023, ge=2010, le=2024)
+    year: int = Field(default=2023, ge=1949, le=2024)
     city_id: str
     config: ElectoralConfig
     parties: list[Party]
 
 
 class PollRequest(BaseModel):
-    year: int = Field(default=2023, ge=2010, le=2024)
+    year: int = Field(default=2023, ge=1949, le=2024)
     config: ElectoralConfig
     parties: list[Party]
     weeks: int = Field(default=12, ge=4, le=30)
@@ -73,13 +73,13 @@ class PollRequest(BaseModel):
 
 
 class SwingAnalysisRequest(BaseModel):
-    year: int = Field(default=2023, ge=2010, le=2024)
+    year: int = Field(default=2023, ge=1949, le=2024)
     config: ElectoralConfig
     parties: list[Party]
 
 
 class CalibrationRequest(BaseModel):
-    year: int = Field(default=2023, ge=2011, le=2024)
+    year: int = Field(default=2023, ge=1949, le=2024)
     config: ElectoralConfig
     parties: list[Party]
     baseline_year: int = Field(default=0, ge=0, le=2024, description="0 = 自动取 year-4（上一届）")

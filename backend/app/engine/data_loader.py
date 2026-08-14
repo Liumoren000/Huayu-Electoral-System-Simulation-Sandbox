@@ -475,6 +475,15 @@ class DataLoader:
         return "inland"
 
     def get_city_data(self, year: int = 2023) -> CityData:
+        # 研究年代库：收录的年代使用年代预设参数，其余年份沿用旧版线性折算
+        from .eras import get_era, apply_era_city
+
+        era = get_era(year)
+        if era:
+            cities = [apply_era_city(c, era) for c in self._cities]
+            total_pop = sum(c.population for c in cities)
+            return CityData(year=year, cities=cities, total_population=total_pop)
+
         year_factor = 1.0 + (year - 2020) * 0.01
         cities = []
         for c in self._cities:

@@ -80,6 +80,14 @@ def get_default_parties():
     return {"parties": [p.model_dump() for p in parties]}
 
 
+@router.get("/eras")
+def get_eras():
+    """研究年代库：建国至今的重大变动年代及其参数差异说明"""
+    from app.engine.eras import ERA_LIBRARY
+
+    return {"eras": ERA_LIBRARY}
+
+
 @router.get("/cities")
 def get_cities(year: int = 2023):
     city_data = data_loader.get_city_data(year)

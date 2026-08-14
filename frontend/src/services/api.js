@@ -6,6 +6,12 @@ export async function fetchParties() {
   return res.json();
 }
 
+export async function fetchEras() {
+  const res = await fetch(`${API_BASE}/eras`);
+  if (!res.ok) throw new Error('Failed to fetch eras');
+  return res.json();
+}
+
 export async function fetchCities(year = 2023) {
   const res = await fetch(`${API_BASE}/cities?year=${year}`);
   if (!res.ok) throw new Error('Failed to fetch cities');
