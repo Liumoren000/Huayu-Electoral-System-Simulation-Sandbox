@@ -20,9 +20,9 @@ import VoterModelModal from './components/VoterModelModal.jsx';
 import PollModal from './components/PollModal.jsx';
 import SwingAnalysisModal from './components/SwingAnalysisModal.jsx';
 import CoalitionNegotiationModal from './components/CoalitionNegotiationModal.jsx';
-import RollingCountModal from './components/RollingCountModal.jsx';
+
 import CalibrationModal from './components/CalibrationModal.jsx';
-import { fetchParties, fetchCities, runSimulation, runRobustness, runRollingCount } from './services/api.js';
+import { fetchParties, fetchCities, runSimulation, runRobustness } from './services/api.js';
 import { API_BASE } from './services/api.js';
 import { findCoalitions } from './utils/coalition.js';
 import { loadSavedState, saveState, buildShareUrl } from './utils/state.js';
@@ -153,11 +153,6 @@ export default function App() {
   const [showPoll, setShowPoll] = useState(false);
   const [showSwing, setShowSwing] = useState(false);
   const [showNegotiation, setShowNegotiation] = useState(false);
-  const [showRolling, setShowRolling] = useState(false);
-  const [rollingData, setRollingData] = useState(null);
-  const [rollingStep, setRollingStep] = useState(0);
-  const [rollingPlaying, setRollingPlaying] = useState(false);
-  const [rollingSpeed, setRollingSpeed] = useState(600);
   const [showCalibration, setShowCalibration] = useState(false);
   const [snapshots, setSnapshots] = useState([]);  // { id, label, result }
 
@@ -670,61 +665,6 @@ body: JSON.stringify({
   }, [displayResult]);
   const tippingCityIds = new Set(tippingSeats.filter(t => t.margin < 0.05).slice(0, 10).map(t => t.city_id));
 
-  // 选举日直播：累计已开票城市 → 胜者 + 各党席位，驱动地图变色
-  const liveCounts = useMemo(() => {
-    if (!rollingData) return null;
-    const acc = {};
-    for (let i = 0; i <= rollingStep && i < rollingData.steps.length; i++) {
-      (rollingData.steps[i].new_cities || []).forEach(nc => {
-        acc[nc.city_id] = {
-          winner: nc.winner_party_id,
-          seats: nc.party_seats || {},
-        };
-      });
-    }
-    return acc;
-  }, [rollingData, rollingStep]);
-
-  // 开票动画定时推进
-  useEffect(() => {
-    if (!rollingPlaying || !rollingData) return;
-    if (rollingStep >= rollingData.steps.length - 1) {
-      setRollingPlaying(false);
-      return;
-    }
-    const t = setTimeout(() => setRollingStep(s => s + 1), rollingSpeed);
-    return () => clearTimeout(t);
-  }, [rollingPlaying, rollingData, rollingStep, rollingSpeed]);
-
-  const startRolling = () => {
-    setShowRolling(true);
-  };
-
-  const closeRolling = () => {
-    setShowRolling(false);
-    setRollingPlaying(false);
-    setRollingData(null);
-    setRollingStep(0);
-  };
-
-  // 切换方案后重新拉取直播数据，确保地图与开票与当前方案一致
-  useEffect(() => {
-    if (!showRolling) return;
-    const simConfig = { ...(activeScheme === 'B' ? configB : config), total_seats: totalSeats, min_seats_per_city: minSeats };
-    const enabled = parties.filter(p => p.enabled !== false).map(({ enabled, ...rest }) => rest);
-    setRollingPlaying(false);
-    setRollingData(null);
-    setRollingStep(0);
-    runRollingCount({ config: simConfig, parties: enabled, steps: 40 })
-      .then(d => {
-        setRollingData(d);
-        setRollingStep(0);
-        setRollingPlaying(true);
-      })
-      .catch(console.error);
-    /* eslint-disable-next-line react-hooks/exhaustive-deps */
-  }, [activeScheme, showRolling]);
-
   return (
     <div className="app">
       <header className="header">
@@ -822,9 +762,6 @@ body: JSON.stringify({
                   </div>
                 )}
               </div>
-              <button className="header-btn" onClick={startRolling} title="模拟选举日各选区逐步开票，地图实时变色追踪席位与领先党">
-                选举日直播
-              </button>
               <button className="header-btn" onClick={saveSnapshot} title="把当前结果存入快照，用于跨制度/剧本/年份对比">
                 存入快照
               </button>
@@ -898,7 +835,6 @@ body: JSON.stringify({
             onDrillDown={handleMapDrillDown}
             uncertainty={robustnessData ? buildUncertaintyMaps(robustnessData) : null}
             showUncertainty={showUncertainty}
-            liveCounts={rollingData && rollingStep < rollingData.steps.length - 1 ? liveCounts : null}
             onToggleUncertainty={() => {
               if (!robustnessData) runRobustnessAnalysis();
               else setShowUncertainty(v => !v);
@@ -1107,21 +1043,6 @@ body: JSON.stringify({
           result={displayResult}
           parties={parties}
           onClose={() => setShowNegotiation(false)}
-        />
-      )}
-
-      {showRolling && (
-        <RollingCountModal
-          data={rollingData}
-          step={rollingStep}
-          playing={rollingPlaying}
-          speed={rollingSpeed}
-          onSpeedChange={setRollingSpeed}
-          onPlay={() => {
-            if (rollingData && rollingStep >= rollingData.steps.length - 1) setRollingStep(0);
-            setRollingPlaying(v => !v);
-          }}
-          onClose={closeRolling}
         />
       )}
 

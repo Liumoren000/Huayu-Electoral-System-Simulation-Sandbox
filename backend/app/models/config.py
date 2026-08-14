@@ -78,14 +78,6 @@ class SwingAnalysisRequest(BaseModel):
     parties: list[Party]
 
 
-class RollingCountRequest(BaseModel):
-    year: int = Field(default=2023, ge=2010, le=2024)
-    config: ElectoralConfig
-    parties: list[Party]
-    steps: int = Field(default=30, ge=5, le=120, description="开票动画的步数（越多越平滑）")
-    order_seed: int = Field(default=2023, ge=1, le=100000, description="选区开票顺序随机种子")
-
-
 class CalibrationRequest(BaseModel):
     year: int = Field(default=2023, ge=2011, le=2024)
     config: ElectoralConfig

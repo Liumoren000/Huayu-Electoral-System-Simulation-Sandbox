@@ -5,7 +5,7 @@ from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 from app.models.config import (
     SimulationRequest, RobustnessRequest, SensitivityRequest, VoterExplainRequest,
-    PollRequest, SwingAnalysisRequest, RollingCountRequest, CalibrationRequest,
+    PollRequest, SwingAnalysisRequest, CalibrationRequest,
 )
 from app.models.result import (
     SimulationResponse,
@@ -23,13 +23,12 @@ from app.models.result import (
     VoterExplainResponse,
     PollResponse,
     SwingAnalysisResponse,
-    RollingCountResponse,
     CalibrationResponse,
 )
 from app.engine import DataLoader, generate_default_parties, ElectoralEngine, CoalitionEngine
 from app.engine.voter_model import VoterModel
 from app.engine.poll_engine import PollEngine, swing_analysis
-from app.engine.rolling_engine import RollingCountEngine, historical_calibration
+from app.engine.calibration_engine import historical_calibration
 
 router = APIRouter()
 data_loader = DataLoader()
@@ -345,19 +344,6 @@ def simulate_swing(request: SwingAnalysisRequest):
         return JSONResponse(status_code=400, content={"error": "至少需要一个参选政党"})
     city_data = data_loader.get_city_data(request.year)
     return swing_analysis(city_data, request.parties, request.config)
-
-
-@router.post("/simulate/rolling-count")
-def simulate_rolling_count(request: RollingCountRequest):
-    """
-    选举日实时开票：模拟各选区逐步开票，累计席位、实时领先党与过半可达性。
-    """
-    if not request.parties:
-        return JSONResponse(status_code=400, content={"error": "至少需要一个参选政党"})
-    city_data = data_loader.get_city_data(request.year)
-    engine = RollingCountEngine(city_data, request.parties, request.config,
-                                steps=request.steps, order_seed=request.order_seed)
-    return engine.run()
 
 
 @router.post("/simulate/calibrate")

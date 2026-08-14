@@ -153,6 +153,5 @@ npm run dev
 | `/api/simulate/sensitivity` | POST | 关键参数敏感性分析 |
 | `/api/simulate/poll` | POST | 竞选期民调与舆论推演（支持率曲线 + 席位投影 + 胜率预测） |
 | `/api/simulate/swing` | POST | 选区级摇摆/风向标分析（tossup/lean/safe + bellwether） |
-| `/api/simulate/rolling-count` | POST | 选举日实时开票（逐步累计席位与领先党） |
 | `/api/simulate/calibrate` | POST | 历史选举校准（上届对比、城市翻盘、稳定度） |
 | `/api/voter-model/explain` | POST | 选民行为模型透明分解（城市偏好→政党亲和度） |

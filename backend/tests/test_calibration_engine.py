@@ -2,39 +2,16 @@ import unittest
 
 from app.engine import DataLoader, generate_default_parties
 from app.models.config import ElectoralConfig
-from app.engine.rolling_engine import RollingCountEngine, historical_calibration
+from app.engine.calibration_engine import historical_calibration
 
 
-class RollingCountTest(unittest.TestCase):
+class CalibrationTest(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
         cls.dl = DataLoader()
         cls.cd = cls.dl.get_city_data(2023)
         cls.parties = generate_default_parties()
-
-    def test_rolling_count_converges_to_full_result(self):
-        """开票结束应覆盖全部选区，席位总和等于总席位数"""
-        cfg = ElectoralConfig(system_type='PR', total_seats=450)
-        rc = RollingCountEngine(self.cd, self.parties, cfg, steps=15).run()
-        self.assertEqual(rc.steps[-1].counted, rc.steps[-1].total)
-        self.assertEqual(sum(rc.steps[-1].party_seats.values()), rc.total_seats)
-        self.assertEqual(rc.quota, 226)
-
-    def test_rolling_count_progresses(self):
-        """开票过程选区数单调不降，席位总和单调不降并收敛到总席位"""
-        cfg = ElectoralConfig(system_type='FPTP', total_seats=450)
-        rc = RollingCountEngine(self.cd, self.parties, cfg, steps=10).run()
-        prev_counted = 0
-        prev_seats = 0
-        for s in rc.steps:
-            self.assertGreaterEqual(s.counted, prev_counted)
-            self.assertGreaterEqual(sum(s.party_seats.values()), prev_seats)
-            prev_counted = s.counted
-            prev_seats = sum(s.party_seats.values())
-        self.assertEqual(rc.steps[-1].counted, rc.steps[-1].total)
-        self.assertEqual(prev_seats, rc.total_seats)
-        self.assertTrue(all(s.leader_party_id for s in rc.steps))
 
     def test_calibration_baseline_is_earlier(self):
         """校准基准年应早于当前年"""

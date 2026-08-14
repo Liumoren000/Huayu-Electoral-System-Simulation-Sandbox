@@ -72,16 +72,6 @@ export async function runSwingAnalysis(request) {
   return res.json();
 }
 
-export async function runRollingCount(request) {
-  const res = await fetch(`${API_BASE}/simulate/rolling-count`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(request),
-  });
-  if (!res.ok) throw new Error('Rolling count failed');
-  return res.json();
-}
-
 export async function runCalibration(request) {
   const res = await fetch(`${API_BASE}/simulate/calibrate`, {
     method: 'POST',
