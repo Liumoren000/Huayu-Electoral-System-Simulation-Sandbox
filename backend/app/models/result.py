@@ -315,6 +315,7 @@ class RollingCityReport(BaseModel):
     province: str = ""
     winner_party_id: str = ""
     winner_party_name: str = ""
+    party_seats: dict[str, int] = {}  # 本城各党实际席位
 
 
 class RollingCountStep(BaseModel):

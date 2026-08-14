@@ -670,13 +670,16 @@ body: JSON.stringify({
   }, [displayResult]);
   const tippingCityIds = new Set(tippingSeats.filter(t => t.margin < 0.05).slice(0, 10).map(t => t.city_id));
 
-  // 选举日直播：累计已开票城市 → 胜者，驱动地图变色
+  // 选举日直播：累计已开票城市 → 胜者 + 各党席位，驱动地图变色
   const liveCounts = useMemo(() => {
     if (!rollingData) return null;
     const acc = {};
     for (let i = 0; i <= rollingStep && i < rollingData.steps.length; i++) {
       (rollingData.steps[i].new_cities || []).forEach(nc => {
-        acc[nc.city_id] = nc.winner_party_id;
+        acc[nc.city_id] = {
+          winner: nc.winner_party_id,
+          seats: nc.party_seats || {},
+        };
       });
     }
     return acc;
@@ -893,7 +896,7 @@ body: JSON.stringify({
             onDrillDown={handleMapDrillDown}
             uncertainty={robustnessData ? buildUncertaintyMaps(robustnessData) : null}
             showUncertainty={showUncertainty}
-            liveCounts={liveCounts}
+            liveCounts={rollingData && rollingStep < rollingData.steps.length - 1 ? liveCounts : null}
             onToggleUncertainty={() => {
               if (!robustnessData) runRobustnessAnalysis();
               else setShowUncertainty(v => !v);

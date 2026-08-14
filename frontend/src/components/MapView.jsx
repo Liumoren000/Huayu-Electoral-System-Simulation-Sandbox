@@ -435,8 +435,8 @@ function renderMap(chart, result, manualSeatsData, currentProvince, viewMode, ci
       if (liveCounts) {
         // 选举日直播：已开票选区按胜者着色，未开票保持灰色
         const lw = liveCounts[city.id];
-        if (lw) {
-          color = partyMap[lw]?.color || DEFAULT_COLOR;
+        if (lw?.winner) {
+          color = partyMap[lw.winner]?.color || DEFAULT_COLOR;
         } else {
           color = '#232b38';
         }
@@ -486,8 +486,8 @@ function renderMap(chart, result, manualSeatsData, currentProvince, viewMode, ci
           const displayName = d?._cityName || params.name;
           if (liveCounts) {
             const lw = liveCounts[cr?.city_id];
-            if (lw) {
-              const lwName = partyMap[lw]?.name || lw;
+            if (lw?.winner) {
+              const lwName = partyMap[lw.winner]?.name || lw.winner;
               let h = `<div style="font-weight:700;margin-bottom:4px">${displayName} <span style="color:#4fc3f7">· 已开票</span></div>`;
               h += `<div style="color:#66bb6a;margin-bottom:2px">● ${lwName}</div>`;
               if (cr) {
@@ -611,15 +611,26 @@ function renderMap(chart, result, manualSeatsData, currentProvince, viewMode, ci
 
     const PROVINCES = Object.keys(PROVINCE_ADCODES);
 
-    // 直播模式：按已开票选区聚合出各省当前领先党
+    // 直播模式：按已开票选区的实际席位加总出各省当前领先党（与推演结果一致）；
+    // 若某省尚无席位（小省/零席省），退化为按胜者城市数计票，与推演一致。
     const provLive = {};
+    const provCityTally = {};
     if (liveCounts && citiesData?.cities) {
-      const cityProvSeatTally = {};
       citiesData.cities.forEach(c => {
-        const pid = liveCounts[c.id];
-        if (!pid) return;
+        const lw = liveCounts[c.id];
+        if (!lw) return;
+        if (!provCityTally[c.province]) provCityTally[c.province] = {};
+        provCityTally[c.province][lw.winner] = (provCityTally[c.province][lw.winner] || 0) + 1;
+        if (!lw.seats) return;
         if (!provLive[c.province]) provLive[c.province] = {};
-        provLive[c.province][pid] = (provLive[c.province][pid] || 0) + 1;
+        Object.entries(lw.seats).forEach(([pid, s]) => {
+          if (s > 0) provLive[c.province][pid] = (provLive[c.province][pid] || 0) + s;
+        });
+      });
+      Object.keys(provLive).forEach(p => {
+        if (Object.values(provLive[p]).every(v => v <= 0)) {
+          provLive[p] = provCityTally[p] || {};
+        }
       });
     }
 

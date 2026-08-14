@@ -33,35 +33,43 @@ class RollingCountEngine:
         quota = int(total / 2) + 1
         pname = {p.id: p.name for p in self.parties}
 
-        # 各选区结果（席位 + 首名党 + 人口 + 加权票）
+        # 各选区结果（实际席位 + 首名党 + 人口 + 得票率）
+        # 直接采用选举引擎逐城分配的 party_seats：各市席位加总恰好等于各党
+        # 总席位，因此直播累计就是对真实结果的逐城加总，最终严格一致。
         province_map = {c.id: c.province for c in self.city_data.cities}
         pop_map = {c.id: c.population for c in self.city_data.cities}
         city_outcomes = []
         for cr in result.city_results:
-            pop = pop_map.get(cr.city_id, 0)
-            turnout = cr.turnout or 0.5
-            city_weight = pop * turnout
             city_outcomes.append({
                 'city_id': cr.city_id,
                 'city_name': cr.city_name,
                 'province': province_map.get(cr.city_id, ""),
-                'population': pop,
-                'turnout': turnout,
+                'population': pop_map.get(cr.city_id, 0),
                 'winner': cr.winner_party_id,
-                'party_seats': dict(cr.party_seats) if cr.party_seats else {cr.winner_party_id: 1},
+                'party_seats': dict(cr.party_seats) if cr.party_seats else {},
                 'votes': dict(cr.vote_shares),
-                'weighted_votes': {pid: share * city_weight for pid, share in cr.vote_shares.items()},
             })
 
-        # 开票顺序：小城市先开（清点快），大城市后开（悬念后置），带少量随机扰动
+        # 开票顺序：大小城市交错（小城先开营造节奏，但穿插大城市让席位从
+        # 开局就持续累计），带少量随机扰动。
         n = len(city_outcomes)
         jitter_rng = random.Random(self.order_seed)
-        order = sorted(
+        by_pop = sorted(
             range(n),
-            key=lambda i: (city_outcomes[i]['population'] * (1 + jitter_rng.uniform(-0.2, 0.2)), i),
+            key=lambda i: city_outcomes[i]['population'] * (1 + jitter_rng.uniform(-0.2, 0.2)),
         )
+        order = []
+        lo, hi = 0, n - 1
+        turn = 0
+        while lo <= hi:
+            order.append(by_pop[lo if turn == 0 else hi])
+            if turn == 0:
+                lo += 1
+            else:
+                hi -= 1
+            turn = 1 - turn
 
-        # 开票节奏：S 型曲线 —— 开局零星小城、中段冲刺、尾段零星清尾
+        # 开票节奏：S 型曲线 —— 开局零星、中段冲刺、尾段清尾（每步至少开 1 城）
         steps_n = max(2, self.steps)
         increments = []
         cum_prev = 0
@@ -72,40 +80,12 @@ class RollingCountEngine:
             if i == steps_n - 1:
                 cum_target = n
             inc = cum_target - cum_prev
+            if inc <= 0 and cum_target < n:
+                inc = 1
             if i == 0:
                 inc = max(1, min(inc, 3))
             increments.append(max(0, inc))
             cum_prev = cum_target
-
-        # 将各党最终实际席位按各市加权票比例归属到市（最大余数法），
-        # 使直播累计永远是对真实结果的逐城加总——每步都严格一致，无需末步矫正
-        city_attr = {oc['city_id']: {p.id: 0 for p in self.parties} for oc in city_outcomes}
-        for pid, total_seats_party in result_party_seats.items():
-            if total_seats_party <= 0:
-                continue
-            v_by_city = [(oc['city_id'], oc['weighted_votes'].get(pid, 0.0)) for oc in city_outcomes]
-            vsum = sum(v for _, v in v_by_city)
-            if vsum <= 0:
-                continue
-            alloc = {}
-            assigned = 0
-            for cid, v in v_by_city:
-                seatn = int(total_seats_party * v / vsum)
-                alloc[cid] = seatn
-                assigned += seatn
-            # 余数部分按小数大小补齐
-            remain = total_seats_party - assigned
-            if remain > 0:
-                fracs = sorted(
-                    v_by_city,
-                    key=lambda cv: (total_seats_party * cv[1] / vsum) - int(total_seats_party * cv[1] / vsum),
-                    reverse=True,
-                )
-                for cid, _ in fracs[:remain]:
-                    alloc[cid] = alloc.get(cid, 0) + 1
-            for cid, seatn in alloc.items():
-                if seatn > 0:
-                    city_attr[cid][pid] = seatn
 
         steps_out = []
         seats = {p.id: 0 for p in self.parties}
@@ -119,8 +99,7 @@ class RollingCountEngine:
                     break
                 oc = city_outcomes[order[counted]]
                 counted += 1
-                attr = city_attr.get(oc['city_id'], {})
-                for pid, s in attr.items():
+                for pid, s in oc['party_seats'].items():
                     seats[pid] = seats.get(pid, 0) + s
                 for pid, share in oc['votes'].items():
                     votes[pid] = votes.get(pid, 0.0) + share
@@ -130,8 +109,9 @@ class RollingCountEngine:
                     province=oc['province'],
                     winner_party_id=oc['winner'],
                     winner_party_name=pname.get(oc['winner'], ""),
+                    party_seats=dict(oc['party_seats']),
                 ))
-            if counted == 0:
+            if not new_cities:
                 continue
 
             # 归一化得票
