@@ -157,6 +157,7 @@ export default function App() {
   const [rollingData, setRollingData] = useState(null);
   const [rollingStep, setRollingStep] = useState(0);
   const [rollingPlaying, setRollingPlaying] = useState(false);
+  const [rollingSpeed, setRollingSpeed] = useState(600);
   const [showCalibration, setShowCalibration] = useState(false);
   const [snapshots, setSnapshots] = useState([]);  // { id, label, result }
 
@@ -688,9 +689,9 @@ body: JSON.stringify({
       setRollingPlaying(false);
       return;
     }
-    const t = setTimeout(() => setRollingStep(s => s + 1), 150);
+    const t = setTimeout(() => setRollingStep(s => s + 1), rollingSpeed);
     return () => clearTimeout(t);
-  }, [rollingPlaying, rollingData, rollingStep]);
+  }, [rollingPlaying, rollingData, rollingStep, rollingSpeed]);
 
   const startRolling = async () => {
     setShowRolling(true);
@@ -1102,6 +1103,8 @@ body: JSON.stringify({
           data={rollingData}
           step={rollingStep}
           playing={rollingPlaying}
+          speed={rollingSpeed}
+          onSpeedChange={setRollingSpeed}
           onPlay={() => {
             if (rollingData && rollingStep >= rollingData.steps.length - 1) setRollingStep(0);
             setRollingPlaying(v => !v);

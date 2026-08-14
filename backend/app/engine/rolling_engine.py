@@ -32,8 +32,9 @@ class RollingCountEngine:
         quota = int(total / 2) + 1
         pname = {p.id: p.name for p in self.parties}
 
-        # 各选区结果（席位 + 首名党）
+        # 各选区结果（席位 + 首名党 + 人口）
         province_map = {c.id: c.province for c in self.city_data.cities}
+        pop_map = {c.id: c.population for c in self.city_data.cities}
         city_outcomes = []
         for cr in result.city_results:
             sorted_shares = sorted(cr.vote_shares.items(), key=lambda x: x[1], reverse=True)
@@ -41,21 +42,35 @@ class RollingCountEngine:
                 'city_id': cr.city_id,
                 'city_name': cr.city_name,
                 'province': province_map.get(cr.city_id, ""),
+                'population': pop_map.get(cr.city_id, 0),
                 'winner': cr.winner_party_id,
                 'party_seats': dict(cr.party_seats) if cr.party_seats else {cr.winner_party_id: 1},
                 'votes': dict(cr.vote_shares),
             })
 
-        # 开票顺序：模拟各选区投票站进度不同（随机但稳定）
-        rng = random.Random(self.order_seed)
-        order = list(range(len(city_outcomes)))
-        rng.shuffle(order)
+        # 开票顺序：小城市先开（清点快），大城市后开（悬念后置），带少量随机扰动
+        n = len(city_outcomes)
+        jitter_rng = random.Random(self.order_seed)
+        order = sorted(
+            range(n),
+            key=lambda i: (city_outcomes[i]['population'] * (1 + jitter_rng.uniform(-0.2, 0.2)), i),
+        )
 
-        # 确定每个步长开几个选区
-        n = len(order)
+        # 开票节奏：S 型曲线 —— 开局零星小城、中段冲刺、尾段零星清尾
+        steps_n = max(2, self.steps)
         increments = []
-        for i in range(self.steps):
-            increments.append(max(1, round((i + 1) * n / self.steps) - sum(increments)))
+        cum_prev = 0
+        for i in range(steps_n):
+            t = i / (steps_n - 1)
+            s = 1 / (1 + __import__('math').exp(-11 * (t - 0.5)))
+            cum_target = round(n * s)
+            if i == steps_n - 1:
+                cum_target = n
+            inc = cum_target - cum_prev
+            if i == 0:
+                inc = max(1, min(inc, 3))
+            increments.append(max(0, inc))
+            cum_prev = cum_target
 
         steps_out = []
         seats = {p.id: 0 for p in self.parties}
