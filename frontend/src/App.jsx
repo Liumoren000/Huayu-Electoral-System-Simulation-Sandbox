@@ -693,27 +693,32 @@ body: JSON.stringify({
     return () => clearTimeout(t);
   }, [rollingPlaying, rollingData, rollingStep, rollingSpeed]);
 
-  const startRolling = async () => {
+  const startRolling = () => {
     setShowRolling(true);
-    setRollingPlaying(false);
-    setRollingData(null);
-    setRollingStep(0);
-    try {
-      const simConfig = { ...(activeScheme === 'B' ? configB : config), total_seats: totalSeats, min_seats_per_city: minSeats };
-      const enabled = parties.filter(p => p.enabled !== false).map(({ enabled, ...rest }) => rest);
-      const d = await runRollingCount({ config: simConfig, parties: enabled, steps: 40 });
-      setRollingData(d);
-      setRollingStep(0);
-      setRollingPlaying(true);
-    } catch (e) {
-      console.error('rolling failed', e);
-    }
   };
 
   const closeRolling = () => {
     setShowRolling(false);
     setRollingPlaying(false);
   };
+
+  // 切换方案后重新拉取直播数据，确保地图与开票与当前方案一致
+  useEffect(() => {
+    if (!showRolling) return;
+    const simConfig = { ...(activeScheme === 'B' ? configB : config), total_seats: totalSeats, min_seats_per_city: minSeats };
+    const enabled = parties.filter(p => p.enabled !== false).map(({ enabled, ...rest }) => rest);
+    setRollingPlaying(false);
+    setRollingData(null);
+    setRollingStep(0);
+    runRollingCount({ config: simConfig, parties: enabled, steps: 40 })
+      .then(d => {
+        setRollingData(d);
+        setRollingStep(0);
+        setRollingPlaying(true);
+      })
+      .catch(console.error);
+    /* eslint-disable-next-line react-hooks/exhaustive-deps */
+  }, [activeScheme, showRolling]);
 
   return (
     <div className="app">
