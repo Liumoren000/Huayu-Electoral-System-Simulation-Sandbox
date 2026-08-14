@@ -109,12 +109,8 @@ class ElectoralEngine:
         party_votes = {p.id: 0.0 for p in self.parties}
         total_votes = 0
 
-        total_pop = sum(c.population for c in self.city_data.cities)
-        pop_per_seat = total_pop / self.config.total_seats
-
         # 一次性计算每个城市的得票率、投票率，保证胜者与得票分布一致
         city_info = {}
-        election_queue = []
         for city in self.city_data.cities:
             turnout = self.voter_model.get_city_turnout(city, self.config.urban_rural_weight)
             shares = self.voter_model.compute_vote_shares(city, self.parties, self.config.noise_amplitude)
@@ -125,50 +121,31 @@ class ElectoralEngine:
                 city, self.config.urban_rural_weight,
                 competitiveness=comp, abstention_sensitivity=self.config.abstention_sensitivity or 0.0)
             city_votes_total = city.population * turnout
-            eff_pop = self._effective_population(city)
-            num_seats = max(1, round(eff_pop / pop_per_seat))
-            city_votes_per_seat = city_votes_total / num_seats
 
             city_info[city.id] = {
                 'city': city,
                 'shares': shares,
                 'turnout': turnout,
-                'votes_per_seat': city_votes_per_seat,
+                'votes_per_seat': city_votes_total,
             }
 
             for pid, share in shares.items():
                 party_votes[pid] += share * city_votes_total
             total_votes += city_votes_total
 
-            for _ in range(num_seats):
-                election_queue.append({
-                    'city': city,
-                    'votes': {pid: share * city_votes_per_seat for pid, share in shares.items()},
-                })
+        # 按有效人口以最大余数法分配议席（尊重 min_seats_per_city 保底），
+        # 保证每个城市至少 1 席——旧实现先 max(1,round) 再截断，会整城丢席。
+        eff_pops = {cid: self._effective_population(info['city']) for cid, info in city_info.items()}
+        min_seats = min(self.config.min_seats_per_city, self.config.total_seats // max(1, len(eff_pops)))
+        city_seats = self._largest_remainder_seats(eff_pops, self.config.total_seats, min_seats=min_seats)
 
-        if len(election_queue) > self.config.total_seats:
-            election_queue.sort(key=lambda x: max(x['votes'].values()), reverse=True)
-            election_queue = election_queue[:self.config.total_seats]
-        elif len(election_queue) < self.config.total_seats and self.city_data.cities:
-            while len(election_queue) < self.config.total_seats:
-                idx = len(election_queue) % len(self.city_data.cities)
-                info = city_info[self.city_data.cities[idx].id]
-                election_queue.append({
-                    'city': info['city'],
-                    'votes': {pid: share * info['votes_per_seat'] for pid, share in info['shares'].items()},
-                })
+        # 每市席位全部归于该市得票最高的政党（胜者全得）
+        city_winners = {cid: max(info['shares'], key=info['shares'].get) for cid, info in city_info.items()}
+        for cid, n in city_seats.items():
+            party_seats[city_winners[cid]] += n
 
-        city_winners = {}
-        city_seat_count = {}
-        for seat in election_queue:
-            winner_id = max(seat['votes'], key=seat['votes'].get)
-            party_seats[winner_id] += 1
-            cid = seat['city'].id
-            city_seat_count[cid] = city_seat_count.get(cid, 0) + 1
-            city_winners[cid] = winner_id
-
-        city_party_seats = {cid: {city_winners[cid]: n} for cid, n in city_seat_count.items()}
-        city_seats_map = {c.id: city_seat_count.get(c.id, 0) for c in self.city_data.cities}
+        city_party_seats = {cid: {city_winners[cid]: n} for cid, n in city_seats.items() if city_winners.get(cid)}
+        city_seats_map = {c.id: city_seats.get(c.id, 0) for c in self.city_data.cities}
 
         city_results = self._build_city_results(city_info, city_winners)
 
@@ -418,7 +395,11 @@ class ElectoralEngine:
 
     def _district_count(self, total: int) -> int:
         n = round(total * (1 - self.config.mixed_ratio))
-        return max(1, min(total - 1, n))
+        n = max(1, min(total - 1, n))
+        # 保底：选区席不得少于城市数×每市最低席（否则 min_seats 保底会被静默清零）。
+        # 允许名单席降为 0，保证每市至少 1 席优先于 mixed_ratio。
+        min_district = len(self.city_data.cities) * self.config.min_seats_per_city
+        return min(total, max(n, min_district))
 
     # ========== 排名票制度（单议席） ==========
 
@@ -901,7 +882,7 @@ class ElectoralEngine:
 
         entity_count = len(entity_pops)
         reserved = entity_count * min_seats
-        if total_seats <= reserved:
+        if total_seats < reserved:
             # 席位不足以保障每方最低席位时，退化为无保底的最大余数法
             return self._largest_remainder_seats(entity_pops, total_seats, min_seats=0)
 
