@@ -188,6 +188,20 @@ export default function Sidebar({
             onChange={e => setBothConfigs('malapportionment', parseFloat(e.target.value))}
           />
         </div>
+        <div className="slider-row">
+          <label>
+            <span>策略性投票（弃保效应）</span>
+            <span>{Math.round((config.tactical_voting ?? 0) * 100)}%</span>
+          </label>
+          <input
+            type="range"
+            min="0"
+            max="1"
+            step="0.05"
+            value={config.tactical_voting ?? 0}
+            onChange={e => setBothConfigs('tactical_voting', parseFloat(e.target.value))}
+          />
+        </div>
         </div>
         )}
       </div>

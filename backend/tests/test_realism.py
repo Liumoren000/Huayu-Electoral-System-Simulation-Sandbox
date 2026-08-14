@@ -97,6 +97,49 @@ class RealismFeatureTest(unittest.TestCase):
         self.assertAlmostEqual(sum(strat.values()), 1.0, places=4)
         self.assertTrue(any(abs(strat[p] - base[p]) > 0.005 for p in base))
 
+    def test_tactical_voting_preserves_seats(self):
+        """弃保开启后 FPTP 席位总数守恒"""
+        r, cfg = self._run(tactical_voting=0.6)
+        self.assertEqual(sum(p.seats for p in r.party_results), cfg.total_seats)
+        self.assertAlmostEqual(sum(p.vote_share for p in r.party_results), 1.0, places=3)
+
+    def test_tactical_voting_squeezes_minor_parties_fptp(self):
+        """弃保效应（Duverger）：FPTP 下弱势政党被挤压，前两大党份额上升"""
+        base, _ = self._run()
+        tactical, _ = self._run(tactical_voting=0.8)
+        base_shares = sorted((p.vote_share for p in base.party_results), reverse=True)
+        tact_shares = sorted((p.vote_share for p in tactical.party_results), reverse=True)
+        # 前两名（可赢集合）份额上升
+        self.assertGreater(tact_shares[0] + tact_shares[1], base_shares[0] + base_shares[1])
+        # 最末党被挤压
+        self.assertLess(tact_shares[-1], base_shares[-1])
+
+    def test_tactical_voting_does_not_affect_pr_list_votes(self):
+        """比例代表制下名单席位反映真实偏好，弃保不应改变 PR 总得票"""
+        def run_pr(tv):
+            cfg = ElectoralConfig(system_type='PR', total_seats=450, tactical_voting=tv)
+            eng = ElectoralEngine(self.cd, self.parties, cfg, seed=42)
+            r = eng.run()
+            return {p.party_id: p.vote_share for p in r.party_results}
+        no_tv = run_pr(0.0)
+        with_tv = run_pr(0.8)
+        for pid in no_tv:
+            self.assertAlmostEqual(with_tv[pid], no_tv[pid], places=6)
+
+    def test_tactical_voting_weakens_under_runoff(self):
+        """两轮制首轮弃保压力弱于小选区制：RUNOFF 得票挤压程度 ≤ FPTP"""
+        def run(sys, tv):
+            cfg = ElectoralConfig(system_type=sys, total_seats=450, tactical_voting=tv)
+            eng = ElectoralEngine(self.cd, self.parties, cfg, seed=42)
+            r = eng.run()
+            return sorted((p.vote_share for p in r.party_results), reverse=True)
+        fptp_base, fptp_tac = run('FPTP', 0.0), run('FPTP', 0.8)
+        runoff_base, runoff_tac = run('RUNOFF', 0.0), run('RUNOFF', 0.8)
+        squeeze_fptp = (fptp_tac[0] + fptp_tac[1]) - (fptp_base[0] + fptp_base[1])
+        squeeze_runoff = (runoff_tac[0] + runoff_tac[1]) - (runoff_base[0] + runoff_base[1])
+        self.assertGreater(squeeze_fptp, 0)
+        self.assertGreaterEqual(squeeze_fptp, squeeze_runoff)
+
 
 if __name__ == '__main__':
     unittest.main()

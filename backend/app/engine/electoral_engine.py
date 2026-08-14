@@ -66,11 +66,46 @@ class ElectoralEngine:
             return self._run_pr()
 
     def _top_margin(self, shares: dict) -> float:
-        """前两名得票率之差（胜差）"""
+        """第一名与第二名得票率之差"""
         vals = sorted(shares.values(), reverse=True)
         if len(vals) < 2:
             return 0.0
         return vals[0] - vals[1]
+
+    def _apply_tactical_voting(self, shares: dict, city: City, intensity: float = 1.0) -> dict:
+        """
+        策略性投票/弃保（Duverger 效应）：适用于赢者全得的小选区制。
+
+        选民事前基于民调/感知判断哪些政党"有望获胜"。若自己首选政党
+        不在可赢之列，则按 tactical_voting 比例"弃保"——把票转投给
+        可赢政党中最接近自己偏好的一个（按亲和度）。
+
+        intensity: 阻尼系数。两轮制首轮弃保压力弱于小选区制（可用 <1）。
+        """
+        t = (self.config.tactical_voting or 0.0) * intensity
+        if t <= 0 or len(self.parties) < 3:
+            return shares
+        # 可赢集合：当前得票率前二（M+1 法则下 M=1 → 2 个可赢候选人）
+        viable = sorted(shares, key=shares.get, reverse=True)[:2]
+        viable_set = set(viable)
+        # 各政党在该城市的亲和度（弃保时按偏好排序，噪声置 0 保证确定性）
+        affinities = {
+            p.id: self.voter_model.compute_city_party_affinity(city, p, 0.0)
+            for p in self.parties
+        }
+        out = dict(shares)
+        for pid, share in shares.items():
+            if pid in viable_set or share <= 0:
+                continue
+            # 该党的支持者中，按弃保比例转投可赢政党中最偏好者
+            transfer = share * t
+            out[pid] -= transfer
+            best_viable = max(viable, key=lambda v: affinities.get(v, 0.0))
+            out[best_viable] += transfer
+        total = sum(out.values())
+        if total <= 0:
+            return shares
+        return {pid: v / total for pid, v in out.items()}
 
     def _adjust_shares_for_urban_rural(self, shares: dict, city: City) -> dict:
         """
@@ -115,6 +150,8 @@ class ElectoralEngine:
             turnout = self.voter_model.get_city_turnout(city, self.config.urban_rural_weight)
             shares = self.voter_model.compute_vote_shares(city, self.parties, self.config.noise_amplitude)
             shares = self._adjust_shares_for_urban_rural(shares, city)
+            # 策略性投票/弃保：弱势候选人支持者转投可赢政党
+            shares = self._apply_tactical_voting(shares, city)
             # 竞争度调节投票率（abstention_sensitivity）
             comp = 1.0 - self._top_margin(shares)
             turnout = self.voter_model.get_city_turnout(
@@ -175,6 +212,8 @@ class ElectoralEngine:
         for city in self.city_data.cities:
             shares = self.voter_model.compute_vote_shares(city, self.parties, self.config.noise_amplitude)
             shares = self._adjust_shares_for_urban_rural(shares, city)
+            # 两轮制首轮弃保压力弱于小选区制：转投者可等第二轮再表达，故阻尼 0.5
+            shares = self._apply_tactical_voting(shares, city, intensity=0.5)
             turnout = self.voter_model.get_city_turnout(city, self.config.urban_rural_weight)
             city_votes = city.population * turnout
 
@@ -617,8 +656,11 @@ class ElectoralEngine:
             turnout = self.voter_model.get_city_turnout(city, self.config.urban_rural_weight)
             shares = self.voter_model.compute_vote_shares(city, self.parties, self.config.noise_amplitude)
             shares = self._adjust_shares_for_urban_rural(shares, city)
+            # 名单席位/比例代表反映"真实偏好"；选区席赢者通吃才受弃保影响
+            honest = dict(shares)
+            shares = self._apply_tactical_voting(shares, city)
             city_votes = city.population * turnout
-            for pid, share in shares.items():
+            for pid, share in honest.items():
                 party_votes[pid] += share * city_votes
             total_votes += city_votes
             city_info[city.id] = {

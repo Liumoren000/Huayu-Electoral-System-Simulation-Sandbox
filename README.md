@@ -86,6 +86,7 @@ npm run dev
 - **摇摆选民**：设定比例选民用 3 倍噪声模拟高频波动，作为易变选票的来源
 - **竞争-投票率联动（弃票机制）**：竞争越胶着投票率越高、越悬殊越低，模拟选民"弃票/动员"行为
 - **选区不均衡（malapportionment）**：小城市/农业城市按比例获得超代表权重，模拟人口变动滞后于议席分配的现实偏差
+- **策略性投票/弃保（Duverger 效应）**：赢者全得的小选区制（FPTP/混合制选区席）下，选民事前感知哪些政党"有望获胜"，弱势候选人支持者按比例把票转投给可赢政党中与己偏好最接近者；比例代表名单席仍反映真实偏好。两轮制首轮弃保压力较弱（阻尼 0.5）。开启后小党被挤压、两大党集中，契合真实小选区政治
 
 ### 立法推演
 - 多维度法案立场配置，结合各政党光谱位置计算支持概率
@@ -155,7 +156,7 @@ npm run dev
 | `/api/eras` | GET | 获取研究年代库（重大变动年代及参数差异） |
 | `/api/geojson` | GET | 获取中国省级 GeoJSON |
 | `/api/geojson/{adcode}` | GET | 获取省级以下 GeoJSON |
-| `/api/simulate` | POST | 运行选举推演（支持 `voter_stratification` / `party_loyalty` / `swing_voter_pct` / `abstention_sensitivity` / `malapportionment` / `party_effects` / `calibration` 真实感参数） |
+| `/api/simulate` | POST | 运行选举推演（支持 `voter_stratification` / `party_loyalty` / `swing_voter_pct` / `abstention_sensitivity` / `malapportionment` / `party_effects` / `calibration` / `tactical_voting` 真实感参数） |
 | `/api/simulate/robustness` | POST | 蒙特卡洛稳健性分析（含省级/城市级不确定性） |
 | `/api/simulate/sensitivity` | POST | 关键参数敏感性分析 |
 | `/api/simulate/poll` | POST | 竞选期民调与舆论推演（支持率曲线 + 席位投影 + 胜率预测） |

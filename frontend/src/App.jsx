@@ -45,6 +45,7 @@ const defaultConfig = {
   abstention_sensitivity: 0,
   malapportionment: 0,
   calibration: false,
+  tactical_voting: 0,
 };
 
 function largestRemainderAllocation(pops, totalSeats, minSeats) {
