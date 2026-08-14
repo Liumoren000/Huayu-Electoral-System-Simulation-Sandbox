@@ -700,6 +700,8 @@ body: JSON.stringify({
   const closeRolling = () => {
     setShowRolling(false);
     setRollingPlaying(false);
+    setRollingData(null);
+    setRollingStep(0);
   };
 
   // 切换方案后重新拉取直播数据，确保地图与开票与当前方案一致
