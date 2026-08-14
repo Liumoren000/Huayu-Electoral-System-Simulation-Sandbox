@@ -58,6 +58,16 @@ export async function explainVoterModel(request) {
   return res.json();
 }
 
+export async function fetchVoterStructure(request) {
+  const res = await fetch(`${API_BASE}/voter-model/structure`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  if (!res.ok) throw new Error('Voter structure analysis failed');
+  return res.json();
+}
+
 export async function runPoll(request) {
   const res = await fetch(`${API_BASE}/simulate/poll`, {
     method: 'POST',

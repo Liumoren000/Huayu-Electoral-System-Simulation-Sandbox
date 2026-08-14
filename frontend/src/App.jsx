@@ -18,6 +18,7 @@ import RadarModal from './components/RadarModal.jsx';
 import ReportModal from './components/ReportModal.jsx';
 import SnapshotModal from './components/SnapshotModal.jsx';
 import VoterModelModal from './components/VoterModelModal.jsx';
+import VoterStructureModal from './components/VoterStructureModal.jsx';
 import PollModal from './components/PollModal.jsx';
 import SwingAnalysisModal from './components/SwingAnalysisModal.jsx';
 import CoalitionNegotiationModal from './components/CoalitionNegotiationModal.jsx';
@@ -154,6 +155,7 @@ export default function App() {
   const [showReport, setShowReport] = useState(false);
   const [showSnap, setShowSnap] = useState(false);
   const [showVoterModel, setShowVoterModel] = useState(false);
+  const [showVoterStructure, setShowVoterStructure] = useState(false);
   const [showPoll, setShowPoll] = useState(false);
   const [showSwing, setShowSwing] = useState(false);
   const [showNegotiation, setShowNegotiation] = useState(false);
@@ -782,6 +784,7 @@ body: JSON.stringify({
                     <button onClick={() => { setShowRadar(true); setShowTools(false); }}>综合代表指数</button>
                     <button onClick={() => { setShowReport(true); setShowTools(false); }}>自动解读报告</button>
                     <button onClick={() => { setShowVoterModel(true); setShowTools(false); }}>选民模型透明面板</button>
+                    <button onClick={() => { setShowVoterStructure(true); setShowTools(false); }}>选民结构构成</button>
                     <button onClick={() => { setShowCalibration(true); setShowTools(false); }}>历史选举校准</button>
                     <button onClick={() => { setShowSnap(true); setShowTools(false); }}>多快照对比</button>
                   </div>
@@ -1062,6 +1065,19 @@ body: JSON.stringify({
           parties={parties}
           cities={cities}
           onClose={() => setShowVoterModel(false)}
+        />
+      )}
+
+      {showVoterStructure && (
+        <VoterStructureModal
+          year={year}
+          config={activeScheme === 'B' ? configB : config}
+          totalSeats={totalSeats}
+          minSeats={minSeats}
+          parties={parties}
+          cities={cities}
+          result={displayResult}
+          onClose={() => setShowVoterStructure(false)}
         />
       )}
 

@@ -1,6 +1,6 @@
 import math
 import random
-from app.models.city import City
+from app.models.city import City, CityData
 from app.models.party import Party
 
 
@@ -641,3 +641,197 @@ class VoterModel:
         out = {pid: base[pid] * (1 - anchor_share) for pid in base}
         out[anchor] = out.get(anchor, 0.0) + anchor_share
         return self._normalize(out)
+
+    # ========== 选民结构分解（按年龄/教育/城乡/收入） ==========
+
+    # 各人口群体的政策偏好偏移（沿用 _city_segments 的亚群画像）
+    _STRUCTURE_GROUPS = {
+        'age': {
+            'label': '年龄结构',
+            'groups': [
+                ('elder', '老年选民', 'aging_rate',
+                 {'social': -0.35, 'welfare': 0.35, 'environment': -0.15, 'nationalism': 0.2, 'economic': -0.1, 'urban_rural': -0.2}),
+                ('youth', '中青年选民', None,
+                 {'social': 0.4, 'environment': 0.3, 'economic': 0.1, 'nationalism': -0.2, 'urban_rural': 0.2}),
+            ],
+        },
+        'education': {
+            'label': '教育程度',
+            'groups': [
+                ('high_edu', '高学历选民', 'education_index',
+                 {'economic': 0.3, 'social': 0.25, 'regional': -0.3, 'environment': 0.15, 'nationalism': -0.3}),
+                ('low_edu', '中低学历选民', None,
+                 {'economic': -0.25, 'social': -0.25, 'regional': 0.25, 'welfare': 0.3, 'nationalism': 0.25}),
+            ],
+        },
+        'urban_rural': {
+            'label': '城乡分布',
+            'groups': [
+                ('urban', '城市选民', 'urbanization_rate',
+                 {'social': 0.3, 'environment': 0.25, 'economic': 0.15, 'nationalism': -0.2, 'urban_rural': 0.25}),
+                ('rural', '乡村选民', None,
+                 {'economic': -0.3, 'regional': 0.4, 'nationalism': 0.3, 'welfare': 0.2, 'urban_rural': -0.5}),
+            ],
+        },
+        'income': {
+            'label': '收入水平',
+            'groups': [
+                ('high_income', '高收入选民', 'income_high',
+                 {'economic': 0.35, 'welfare': -0.3, 'social': 0.2, 'environment': 0.15}),
+                ('low_income', '中低收入选民', None,
+                 {'economic': -0.4, 'welfare': 0.4, 'social': -0.1, 'environment': -0.2}),
+            ],
+        },
+    }
+
+    def compute_structure(self, city_data: CityData, parties: list[Party],
+                          scope_provinces: list[str] = None,
+                          noise_amplitude: float = 0.0,
+                          city_vote_shares: dict[str, dict[str, float]] = None,
+                          party_results: list = None) -> dict:
+        """
+        按人口群体分解全国/某省选票构成。
+
+        对每个维度（年龄/教育/城乡/收入），将人口划分为两个互斥群体，
+        用该群体的政策偏好偏移与城市基准位置计算各政党亲和度，
+        再按（城市人口 × 群体占比）加权聚合，得到每个群体的政党得票率。
+
+        若传入 city_vote_shares（引擎实际模拟的城市级得票率），则把每个城市
+        的真实得票按群体占比分解，保证总体=实际推演结果、赢家与主表一致。
+        """
+        cities = [c for c in city_data.cities
+                  if not scope_provinces or c.province in scope_provinces]
+        if not cities or not parties:
+            return {}
+
+        gdps = sorted(c.gdp_per_capita for c in city_data.cities)
+        gmin, gmax = (gdps[0], gdps[-1]) if gdps else (0, 1)
+
+        def _weight(city, spec):
+            if spec == 'aging_rate':
+                return max(0.0, city.aging_rate)
+            if spec == 'education_index':
+                return max(0.0, min(1.0, city.education_index))
+            if spec == 'urbanization_rate':
+                return max(0.0, min(1.0, city.urbanization_rate))
+            if spec == 'income_high':
+                r = 0.15 + 0.7 * (city.gdp_per_capita - gmin) / max(1e-9, gmax - gmin)
+                return max(0.02, min(0.98, r))
+            return None  # 互补群体
+
+        def _group_shares(city, offset, noise):
+            """某城市在给定群体偏好下的政党份额（含忠诚/摇摆/事件，与引擎一致）"""
+            seg = self._shares_with_loyalty(city, parties, noise, offset, 1.0)
+            total = sum(seg.values())
+            if total <= 0:
+                return {p.id: 0.0 for p in parties}
+            return {pid: v / total for pid, v in seg.items()}
+
+        def _city_vote(city):
+            if city_vote_shares:
+                vs = city_vote_shares.get(city.id)
+                if vs:
+                    return {pid: max(0.0, v) for pid, v in vs.items()}
+            return _group_shares(city, None, noise_amplitude)
+
+        dimensions = {}
+        for dim_key, dim in self._STRUCTURE_GROUPS.items():
+            entries = []
+            for (gkey, glabel, spec, offset) in dim['groups']:
+                votes = {p.id: 0.0 for p in parties}
+                pop = 0.0
+                for city in cities:
+                    w = _weight(city, spec)
+                    if spec is None:
+                        w = max(0.0, 1.0 - _weight(city, dim['groups'][0][2]))
+                    if w <= 0:
+                        continue
+                    city_pop = city.population * w
+                    # 该群体在给定偏好下的政党份额（噪声 0，稳定可解读）
+                    grp_share = _group_shares(city, offset, 0.0)
+                    for pid, v in grp_share.items():
+                        votes[pid] += v * city_pop
+                    pop += city_pop
+                if pop <= 0:
+                    shares = {p.id: 0.0 for p in parties}
+                else:
+                    shares = {pid: v / pop for pid, v in votes.items()}
+                winner = max(parties, key=lambda p: shares[p.id])
+                entries.append({
+                    'key': gkey,
+                    'label': glabel,
+                    'weight': round(pop, 1),
+                    'shares': {pid: round(s, 4) for pid, s in shares.items()},
+                    'winner': winner.id,
+                })
+            dimensions[dim_key] = {'label': dim['label'], 'groups': entries}
+
+        # 总体：优先使用引擎真实 party_results（含 turnout/人口加权），
+        # 保证与主表完全一致；否则回退为群体加权平均
+        if party_results:
+            overall = {pr.party_id: round(pr.vote_share, 4) for pr in party_results}
+            # 赢家按席位排序（与主表一致）；备注得票率第一名
+            winner = max(party_results, key=lambda pr: pr.seats)
+            runner_up = sorted(party_results, key=lambda pr: -pr.seats)[1] if len(party_results) > 1 else None
+            vote_leader = max(party_results, key=lambda pr: pr.vote_share)
+            winner = {
+                'party_id': winner.party_id, 'party_name': winner.party_name,
+                'color': winner.color, 'share': overall[winner.party_id],
+                'seats': winner.seats,
+            }
+            runner_up = ({
+                'party_id': runner_up.party_id, 'party_name': runner_up.party_name,
+                'color': runner_up.color, 'share': overall[runner_up.party_id],
+                'seats': runner_up.seats,
+            } if runner_up else None)
+            vote_leader = {
+                'party_id': vote_leader.party_id, 'party_name': vote_leader.party_name,
+                'color': vote_leader.color, 'share': overall[vote_leader.party_id],
+            }
+        else:
+            if city_vote_shares:
+                agg_votes = {p.id: 0.0 for p in parties}
+                agg_pop = 0.0
+                for city in cities:
+                    cv = _city_vote(city)
+                    tot = sum(cv.values())
+                    if tot <= 0:
+                        continue
+                    w = city.population
+                    for pid, v in cv.items():
+                        agg_votes[pid] += (v / tot) * w
+                    agg_pop += w
+                overall = {pid: round(v / agg_pop, 4) if agg_pop else 0
+                           for pid, v in agg_votes.items()}
+            else:
+                agg_votes = {p.id: 0.0 for p in parties}
+                agg_pop = 0.0
+                for dim in dimensions.values():
+                    for g in dim['groups']:
+                        for pid, s in g['shares'].items():
+                            agg_votes[pid] += s * g['weight']
+                        agg_pop += g['weight']
+                overall = {pid: round(v / agg_pop, 4) if agg_pop else 0
+                           for pid, v in agg_votes.items()}
+            winner = max(parties, key=lambda p: overall[p.id])
+            runner_up = sorted(parties, key=lambda p: -overall[p.id])[1] if len(parties) > 1 else None
+            winner = {
+                'party_id': winner.id, 'party_name': winner.name,
+                'color': winner.color, 'share': overall[winner.id],
+            }
+            runner_up = ({
+                'party_id': runner_up.id, 'party_name': runner_up.name,
+                'color': runner_up.color, 'share': overall[runner_up.id],
+            } if runner_up else None)
+
+        return {
+            'scope': (scope_provinces[0] if scope_provinces and len(scope_provinces) == 1
+                      else '全国'),
+            'city_count': len(cities),
+            'total_population': int(sum(c.population for c in cities)),
+            'overall': overall,
+            'winner': winner,
+            'runner_up': runner_up,
+            'vote_leader': vote_leader if party_results else None,
+            'dimensions': dimensions,
+        }

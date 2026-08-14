@@ -5,7 +5,7 @@ from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 from app.models.config import (
     SimulationRequest, RobustnessRequest, SensitivityRequest, VoterExplainRequest,
-    PollRequest, SwingAnalysisRequest, CalibrationRequest,
+    VoterStructureRequest, PollRequest, SwingAnalysisRequest, CalibrationRequest,
 )
 from app.models.result import (
     SimulationResponse,
@@ -417,3 +417,36 @@ def explain_voter_model(request: VoterExplainRequest):
         city_position=city_position,
         parties=parties,
     )
+
+
+@router.post("/voter-model/structure")
+def voter_structure(request: VoterStructureRequest):
+    """
+    选民结构构成：按年龄/教育/城乡/收入拆分全国或某省的选票构成，
+    展示各人口群体投给哪些政党，解释获胜原因。
+    """
+    if not request.parties:
+        return JSONResponse(status_code=400, content={"error": "至少需要一个参选政党"})
+
+    city_data = data_loader.get_city_data(request.year)
+    scope = request.scope.strip()
+    provinces = None
+    if scope and scope != "全国":
+        provinces = [p.strip() for p in scope.split("、") if p.strip()]
+
+    vm = VoterModel(seed=42, turnout_shift=request.config.turnout_shift,
+                    dim_tilt=request.config.dim_tilt or {},
+                    party_effects=request.config.party_effects or {},
+                    party_loyalty=request.config.party_loyalty or 0.0,
+                    swing_voter_pct=request.config.swing_voter_pct or 0.0,
+                    voter_stratification=request.config.voter_stratification,
+                    calibration=request.config.calibration,
+                    )
+    # 用与主推演完全一致的引擎跑一遍，拿到真实城市级得票率，
+    # 保证结构分解的总体与赢家始终等于界面主表结果。
+    engine = ElectoralEngine(city_data, request.parties, request.config, seed=42)
+    result = engine.run()
+    city_vote_shares = {cr.city_id: cr.vote_shares for cr in result.city_results}
+    return vm.compute_structure(city_data, request.parties, provinces,
+                                request.config.noise_amplitude or 0.0,
+                                city_vote_shares, result.party_results)

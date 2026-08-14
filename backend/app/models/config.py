@@ -64,6 +64,13 @@ class VoterExplainRequest(BaseModel):
     parties: list[Party]
 
 
+class VoterStructureRequest(BaseModel):
+    year: int = Field(default=2023, ge=1949, le=2024)
+    scope: str = Field(default="全国", description="'全国' 或省份名")
+    config: ElectoralConfig
+    parties: list[Party]
+
+
 class PollRequest(BaseModel):
     year: int = Field(default=2023, ge=1949, le=2024)
     config: ElectoralConfig

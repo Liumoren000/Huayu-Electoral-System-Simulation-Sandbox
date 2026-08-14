@@ -6,9 +6,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from fastapi.responses import JSONResponse
 
-from app.api.routes import explain_voter_model, simulate_robustness
+from app.api.routes import explain_voter_model, simulate_robustness, voter_structure
 from app.engine import generate_default_parties
-from app.models.config import ElectoralConfig, RobustnessRequest, VoterExplainRequest
+from app.models.config import ElectoralConfig, RobustnessRequest, VoterExplainRequest, VoterStructureRequest
 
 
 def make_robustness_request(iterations=10):
@@ -65,6 +65,51 @@ class TestVoterExplain(unittest.TestCase):
         resp = explain_voter_model(make_explain_request(city_id="999999"))
         self.assertIsInstance(resp, JSONResponse)
         self.assertEqual(resp.status_code, 404)
+
+
+def make_structure_request(scope="全国"):
+    return VoterStructureRequest(
+        year=2023,
+        scope=scope,
+        config=ElectoralConfig(
+            system_type="PR",
+            total_seats=450,
+            threshold=0.03,
+            allocation_method="d_hondt",
+            min_seats_per_city=1,
+            noise_amplitude=0.03,
+        ),
+        parties=generate_default_parties(),
+    )
+
+
+class TestVoterStructure(unittest.TestCase):
+    def test_returns_all_dimensions_and_groups(self):
+        resp = voter_structure(make_structure_request())
+        self.assertEqual(resp['scope'], '全国')
+        self.assertEqual(resp['city_count'], 350)
+        self.assertEqual(set(resp['dimensions'].keys()),
+                         {'age', 'education', 'urban_rural', 'income'})
+        for dim_key, dim in resp['dimensions'].items():
+            self.assertEqual(len(dim['groups']), 2)
+            for g in dim['groups']:
+                self.assertGreater(g['weight'], 0)
+                shares = g['shares']
+                self.assertAlmostEqual(sum(shares.values()), 1.0, places=2)
+                self.assertIn(g['winner'], shares)
+
+    def test_overall_matches_engine_party_results(self):
+        resp = voter_structure(make_structure_request())
+        overall = resp['overall']
+        self.assertAlmostEqual(sum(overall.values()), 1.0, places=2)
+        winner_id = resp['winner']['party_id']
+        self.assertEqual(winner_id, max(overall, key=lambda k: overall[k]))
+
+    def test_province_scope(self):
+        resp = voter_structure(make_structure_request(scope="广东省"))
+        self.assertEqual(resp['scope'], '广东省')
+        self.assertGreater(resp['city_count'], 0)
+        self.assertLess(resp['city_count'], 350)
 
 
 class TestRobustnessUncertainty(unittest.TestCase):
