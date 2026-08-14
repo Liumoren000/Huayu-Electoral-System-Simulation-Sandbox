@@ -865,6 +865,7 @@ body: JSON.stringify({
           {replay && (
             <CountReplay
               result={replay}
+              config={activeScheme === 'B' ? configB : config}
               cities={cities}
               totalSeats={totalSeats}
               onPartial={setReplayPartial}

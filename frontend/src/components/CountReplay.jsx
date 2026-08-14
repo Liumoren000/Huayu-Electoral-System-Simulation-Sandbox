@@ -1,65 +1,165 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 
-function buildPartial(fullResult, revealedProvinceNames, provByCity) {
+function divisorAllocation(pops, totalSeats, method) {
+  const keys = Object.keys(pops);
+  if (!keys.length || totalSeats <= 0) return {};
+  const seats = {};
+  for (const k of keys) seats[k] = 0;
+  for (let s = 0; s < totalSeats; s++) {
+    let best = null;
+    let bestQ = -1;
+    for (const k of keys) {
+      const divisor = method === 'sainte_lague' ? (2 * seats[k] + 1) : (seats[k] + 1);
+      const q = pops[k] / divisor;
+      if (q > bestQ) { bestQ = q; best = k; }
+    }
+    if (best != null) seats[best]++;
+  }
+  return seats;
+}
+
+function largestRemainder(pops, totalSeats) {
+  const keys = Object.keys(pops);
+  const total = Object.values(pops).reduce((s, v) => s + v, 0) || 1;
+  const seats = {};
+  const remainders = {};
+  for (const k of keys) {
+    const quota = (pops[k] / total) * totalSeats;
+    seats[k] = Math.floor(quota);
+    remainders[k] = quota - Math.floor(quota);
+  }
+  let remaining = totalSeats - Object.values(seats).reduce((s, v) => s + v, 0);
+  const sorted = keys.slice().sort((a, b) => remainders[b] - remainders[a]);
+  for (let i = 0; i < remaining && i < sorted.length; i++) seats[sorted[i]]++;
+  return seats;
+}
+
+function allocatePr(votes, totalSeats, threshold, method) {
+  let eligible = { ...votes };
+  if (threshold && Object.values(votes).reduce((s, v) => s + v, 0) > 0) {
+    const total = Object.values(votes).reduce((s, v) => s + v, 0);
+    const filtered = {};
+    Object.entries(votes).forEach(([pid, v]) => { if (v / total >= threshold) filtered[pid] = v; });
+    if (Object.keys(filtered).length > 0) eligible = filtered;
+  }
+  if (method === 'sainte_lague') return divisorAllocation(eligible, totalSeats, 'sainte_lague');
+  if (method === 'largest_remainder') return largestRemainder(eligible, totalSeats);
+  return divisorAllocation(eligible, totalSeats, 'd_hondt');
+}
+
+function buildPartial(fullResult, config, revealedProvinceNames, provByCity, citiesById) {
   const revealedCities = (fullResult?.city_results || []).filter(cr => revealedProvinceNames.has(provByCity[cr.city_id]));
 
-  const seats = {};
-  const provinceMap = {};
+  // 全国运行票数（每个已开票城市：人口 × 投票率 × 得票率）
+  const votes = {};
+  revealedCities.forEach(cr => {
+    const city = citiesById[cr.city_id];
+    const cityVotes = (city?.population || 0) * (cr.turnout || 0);
+    Object.entries(cr.vote_shares || {}).forEach(([pid, s]) => {
+      votes[pid] = (votes[pid] || 0) + cityVotes * s;
+    });
+  });
+
+  // 全国席位投影：按方案真实分配逻辑重算，保证与最终结果一致
+  const totalSeats = config?.total_seats || fullResult?.total_seats || 450;
+  const method = config?.allocation_method || 'd_hondt';
+  const threshold = config?.threshold ?? 0;
+  const system = config?.system_type || fullResult?.system_type || 'PR';
+
+  if (!Object.keys(votes).length) {
+    return {
+      ...fullResult,
+      total_seats: totalSeats,
+      city_results: revealedCities,
+      province_results: (fullResult?.province_results || []).filter(pr => revealedProvinceNames.has(pr.province_name)),
+      party_results: (fullResult?.party_results || []).map(p => ({ ...p, seats: 0 })),
+    };
+  }
+
+  const districtSeats = {};
   revealedCities.forEach(cr => {
     Object.entries(cr.party_seats || {}).forEach(([pid, n]) => {
-      seats[pid] = (seats[pid] || 0) + n;
+      districtSeats[pid] = (districtSeats[pid] || 0) + n;
     });
-    const prov = provByCity[cr.city_id] || '未知';
-    if (!provinceMap[prov]) {
-      provinceMap[prov] = { province_name: prov, party_seats: {}, seats: 0, num_cities: 0, vote_shares: {}, turnout_sum: 0 };
+  });
+
+  const districtTotal = Object.values(districtSeats).reduce((a, b) => a + b, 0);
+  const listTotal = Math.max(0, totalSeats - districtTotal);
+
+  let projected;
+  if (system === 'PR') {
+    projected = allocatePr(votes, totalSeats, threshold, method);
+  } else if (system === 'MMP') {
+    const ideal = allocatePr(votes, totalSeats, threshold, method);
+    const list = {};
+    Object.keys(ideal).forEach(pid => { list[pid] = Math.max(0, ideal[pid] - (districtSeats[pid] || 0)); });
+    let s = Object.values(list).reduce((a, b) => a + b, 0);
+    if (s < listTotal) {
+      while (s < listTotal) {
+        const pid = Object.keys(list).reduce((a, b) => {
+          const va = (ideal[a] || 0) - (districtSeats[a] || 0) - (list[a] || 0);
+          const vb = (ideal[b] || 0) - (districtSeats[b] || 0) - (list[b] || 0);
+          return va >= vb ? a : b;
+        });
+        list[pid]++;
+        s++;
+      }
+    } else if (s > listTotal) {
+      while (s > listTotal) {
+        const candidates = Object.keys(list).filter(p => list[p] > 0);
+        if (!candidates.length) break;
+        const pid = candidates.reduce((a, b) => {
+          const va = (districtSeats[a] || 0) - (ideal[a] || 0);
+          const vb = (districtSeats[b] || 0) - (ideal[b] || 0);
+          return va >= vb ? a : b;
+        });
+        list[pid]--;
+        s--;
+      }
     }
-    const p = provinceMap[prov];
-    p.seats += cr.seats || 0;
-    p.num_cities += 1;
-    p.turnout_sum += cr.turnout || 0;
-    Object.entries(cr.party_seats || {}).forEach(([pid, n]) => {
-      p.party_seats[pid] = (p.party_seats[pid] || 0) + n;
-    });
-    Object.entries(cr.vote_shares || {}).forEach(([pid, s]) => {
-      p.vote_shares[pid] = (p.vote_shares[pid] || 0) + s;
-    });
-  });
+    projected = {};
+    Object.keys(votes).forEach(pid => { projected[pid] = (districtSeats[pid] || 0) + (list[pid] || 0); });
+  } else if (system === 'PARALLEL') {
+    const list = allocatePr(votes, listTotal, threshold, method);
+    projected = {};
+    Object.keys(votes).forEach(pid => { projected[pid] = (districtSeats[pid] || 0) + (list[pid] || 0); });
+  } else {
+    // FPTP / RUNOFF：胜者全得，逐市累加即全国结果
+    projected = districtSeats;
+  }
 
-  const fullPartyResults = fullResult?.party_results || [];
-  const party_results = fullPartyResults.map(p => ({ ...p, seats: seats[p.party_id] || 0 }));
+  const partyMap = {};
+  (fullResult?.party_results || []).forEach(p => { partyMap[p.party_id] = p; });
+  const party_results = Object.keys(votes).length
+    ? Object.keys(partyMap).map(pid => ({
+        ...partyMap[pid],
+        seats: projected[pid] || 0,
+      }))
+    : (fullResult?.party_results || []).map(p => ({ ...p, seats: 0 }));
 
-  const province_results = Object.values(provinceMap).map(p => {
-    const totalShares = Object.values(p.vote_shares).reduce((a, b) => a + b, 0) || 1;
-    const vote_shares = {};
-    Object.entries(p.vote_shares).forEach(([k, v]) => { vote_shares[k] = v / totalShares; });
-    const sortedSeats = Object.entries(p.party_seats).sort((a, b) => b[1] - a[1]);
-    const winnerId = sortedSeats[0]?.[0] || '';
-    const winParty = fullPartyResults.find(pp => pp.party_id === winnerId);
-    return {
-      province_name: p.province_name,
-      winner_party_id: winnerId,
-      winner_party_name: winParty?.party_name || '',
-      vote_shares,
-      num_cities: p.num_cities,
-      population: 0,
-      seats: p.seats,
-      avg_turnout: p.num_cities ? p.turnout_sum / p.num_cities : 0,
-      party_seats: p.party_seats,
-    };
-  });
+  // 地图：只点亮已开票省份的真实最终结果（未开票保持暗色）
+  const province_results = (fullResult?.province_results || []).filter(pr => revealedProvinceNames.has(pr.province_name));
+  const city_results = revealedCities;
 
   return {
     ...fullResult,
-    city_results: revealedCities,
+    total_seats: totalSeats,
+    city_results,
     province_results,
     party_results,
   };
 }
 
-export default function CountReplay({ result, cities, totalSeats, onPartial, onFinish, onSkip }) {
+export default function CountReplay({ result, config, cities, totalSeats, onPartial, onFinish, onSkip }) {
   const provByCity = useMemo(() => {
     const m = {};
     (cities?.cities || []).forEach(c => { m[c.id] = c.province; });
+    return m;
+  }, [cities]);
+
+  const citiesById = useMemo(() => {
+    const m = {};
+    (cities?.cities || []).forEach(c => { m[c.id] = c; });
     return m;
   }, [cities]);
 
@@ -71,20 +171,22 @@ export default function CountReplay({ result, cities, totalSeats, onPartial, onF
       (provMap[prov] = provMap[prov] || []).push(cr);
     });
     const marginOf = (list) => {
-      const seats = {};
-      list.forEach(cr => Object.entries(cr.party_seats || {}).forEach(([pid, n]) => {
-        seats[pid] = (seats[pid] || 0) + n;
-      }));
-      const sorted = Object.entries(seats).sort((a, b) => b[1] - a[1]);
+      const votes = {};
+      list.forEach(cr => {
+        const city = citiesById[cr.city_id];
+        const v = (city?.population || 0) * (cr.turnout || 0);
+        Object.entries(cr.vote_shares || {}).forEach(([pid, s]) => { votes[pid] = (votes[pid] || 0) + v * s; });
+      });
+      const sorted = Object.entries(votes).sort((a, b) => b[1] - a[1]);
       if (sorted.length < 2) return 999;
       return sorted[0][1] - sorted[1][1];
     };
     return Object.entries(provMap)
       .map(([name, list]) => ({ name, cities: list, margin: marginOf(list) }))
       .sort((a, b) => b.margin - a.margin || a.cities.length - b.cities.length);
-  }, [result, provByCity]);
+  }, [result, provByCity, citiesById]);
 
-  const totalCities = useMemo(() => (result?.city_results || []).length, [result]);
+  const totalCityCount = useMemo(() => (result?.city_results || []).length, [result]);
   const [revealedProvinceIdx, setRevealedProvinceIdx] = useState(0);
   const [ticker, setTicker] = useState('');
   const [speed, setSpeed] = useState(1);
@@ -106,9 +208,10 @@ export default function CountReplay({ result, cities, totalSeats, onPartial, onF
     [order, revealedProvinceIdx]
   );
 
+  const allRevealed = revealedProvinceNames.size >= order.length;
   const partial = useMemo(
-    () => buildPartial(result, revealedProvinceNames, provByCity),
-    [result, revealedProvinceNames, provByCity]
+    () => (allRevealed ? result : buildPartial(result, config, revealedProvinceNames, provByCity, citiesById)),
+    [result, config, revealedProvinceNames, provByCity, citiesById, allRevealed]
   );
 
   const tally = useMemo(() => {
@@ -171,7 +274,7 @@ export default function CountReplay({ result, cities, totalSeats, onPartial, onF
     onSkipRef.current?.();
   };
 
-  const progressPct = totalCities ? Math.min(100, (revealedCities / totalCities) * 100) : 0;
+  const progressPct = totalCityCount ? Math.min(100, (revealedCities / totalCityCount) * 100) : 0;
 
   return (
     <div className="replay-panel">
@@ -179,7 +282,7 @@ export default function CountReplay({ result, cities, totalSeats, onPartial, onF
         <div>
           <div className="replay-title">{complete ? '开票完成' : '全国开票中'}</div>
           <div className="replay-sub">
-            {complete ? '最终结果已出炉' : `已统计 ${revealedCities} / ${totalCities} 城市 · ${progressPct.toFixed(0)}%`}
+            {complete ? '最终结果已出炉' : `已统计 ${revealedCities} / ${totalCityCount} 城市 · ${progressPct.toFixed(0)}%`}
           </div>
         </div>
         <div className="replay-controls">
@@ -191,7 +294,7 @@ export default function CountReplay({ result, cities, totalSeats, onPartial, onF
       <div className="replay-progress"><div className="replay-progress-bar" style={{ width: `${progressPct}%` }} /></div>
 
       {!complete && ticker && <div className="replay-ticker">正在统计：{ticker}</div>}
-      {complete && <div className="replay-ticker replay-done">✓ 全部 {totalCities} 城市已开票</div>}
+      {complete && <div className="replay-ticker replay-done">✓ 全部 {totalCityCount} 城市已开票</div>}
       {flipMsg && <div className="replay-flip">⚡ {flipMsg}</div>}
 
       <div className="replay-tally">
