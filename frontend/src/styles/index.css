@@ -733,6 +733,22 @@ body {
 .config-panel.config-a .scheme-name { color: var(--accent-blue); }
 .config-panel.config-b .scheme-name { color: var(--accent-orange); }
 
+.config-panel.active-scheme {
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: 0 0 0 1px var(--border-color) inset;
+}
+
+.scheme-active-tag {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 3px;
+  margin-left: 2px;
+  background: var(--accent-green, #2ea44f);
+  color: #fff;
+  vertical-align: middle;
+}
+
 .scheme-chevron {
   margin-left: auto;
   color: var(--text-muted);

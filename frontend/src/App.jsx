@@ -878,6 +878,8 @@ body: JSON.stringify({
           onTotalSeatsChange={setTotalSeats}
           minSeats={minSeats}
           onMinSeatsChange={setMinSeats}
+          activeScheme={activeScheme}
+          onActivateScheme={switchScheme}
         />
 
         <div className="map-area">

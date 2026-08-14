@@ -20,6 +20,7 @@ export default function Sidebar({
   seatMethod, onSeatMethodChange,
   totalSeats, onTotalSeatsChange,
   minSeats, onMinSeatsChange,
+  activeScheme, onActivateScheme,
 }) {
   const [expandedParty, setExpandedParty] = useState(null);
   const [openSchemes, setOpenSchemes] = useState({ A: true, B: false });
@@ -60,6 +61,8 @@ export default function Sidebar({
           onChange={updateConfig}
           className="config-a"
           label="A"
+          active={activeScheme === 'A'}
+          onActivate={() => onActivateScheme?.('A')}
           expanded={!!openSchemes.A}
           onToggle={() => setOpenSchemes(prev => ({ ...prev, A: !prev.A }))}
         />
@@ -68,6 +71,8 @@ export default function Sidebar({
           onChange={updateConfigB}
           className="config-b"
           label="B"
+          active={activeScheme === 'B'}
+          onActivate={() => onActivateScheme?.('B')}
           expanded={!!openSchemes.B}
           onToggle={() => setOpenSchemes(prev => ({ ...prev, B: !prev.B }))}
         />
@@ -322,11 +327,21 @@ export default function Sidebar({
   );
 }
 
-function SchemePanel({ scheme, onChange, className, label, expanded, onToggle }) {
+function SchemePanel({ scheme, onChange, className, label, active, onActivate, expanded, onToggle }) {
   return (
-    <div className={`config-panel ${className}`}>
-      <div className="scheme-header" onClick={onToggle} title={expanded ? '收起配置' : '展开配置'}>
-        <span className="scheme-name">方案 {label}</span>
+    <div className={`config-panel ${className} ${active ? 'active-scheme' : ''}`}>
+      <div
+        className="scheme-header"
+        onClick={() => {
+          onActivate?.();
+          onToggle();
+        }}
+        title={expanded ? '收起配置' : '展开配置'}
+      >
+        <span className="scheme-name">
+          方案 {label}
+          {active && <span className="scheme-active-tag">当前</span>}
+        </span>
         <label className="uh-toggle" onClick={e => e.stopPropagation()} title="启用上议院">
           <input
             type="checkbox"
