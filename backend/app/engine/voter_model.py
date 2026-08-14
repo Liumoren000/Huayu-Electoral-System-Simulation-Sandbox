@@ -213,28 +213,22 @@ class VoterModel:
         scores = []
 
         # 经济维度匹配 (权重30%)
-        econ_score = self._economic_match(city, party)
+        econ_score = self._economic_match(city, party, segment_offset)
         scores.append(('economic', econ_score, 0.30))
 
         # 社会维度匹配 (权重20%)
-        social_score = self._social_match(city, party)
+        social_score = self._social_match(city, party, segment_offset)
         scores.append(('social', social_score, 0.20))
 
         # 区域维度匹配 (权重20%)
-        regional_score = self._regional_match(city, party)
+        regional_score = self._regional_match(city, party, segment_offset)
         scores.append(('regional', regional_score, 0.20))
 
         # 政策维度匹配 (权重30%)
-        policy_score = self._policy_match(city, party)
+        policy_score = self._policy_match(city, party, segment_offset)
         scores.append(('policy', policy_score, 0.30))
 
         raw_score = sum(s * w for _, s, w in scores)
-
-        # 选民分层：亚群偏好偏移影响政策匹配
-        if segment_offset:
-            seg_penalty = sum(abs(segment_offset.get(d, 0)) for d in
-                              ('social', 'welfare', 'environment', 'nationalism', 'urban_rural'))
-            raw_score += seg_penalty * 0.05
 
         # 添加随机扰动模拟现实不确定性（幅度可调）
         noise = self.rng.gauss(0, noise_amplitude)
@@ -524,47 +518,58 @@ class VoterModel:
 
     # ========== 匹配度计算 ==========
 
-    def _economic_match(self, city: City, party: Party) -> float:
+    def _economic_match(self, city: City, party: Party, segment_offset: dict = None) -> float:
         """经济立场匹配"""
         city_pos = self._city_tilt(city, 'economic', self._city_economic_position(city))
+        city_pos += (segment_offset or {}).get('economic', 0.0)
         diff = abs(city_pos - party.economic_position)
         return max(0, 1.0 - diff * 1.1)
 
-    def _social_match(self, city: City, party: Party) -> float:
+    def _social_match(self, city: City, party: Party, segment_offset: dict = None) -> float:
         """社会立场匹配"""
         city_pos = self._city_tilt(city, 'social', self._city_social_position(city))
+        city_pos += (segment_offset or {}).get('social', 0.0)
         diff = abs(city_pos - party.social_position)
         return max(0, 1.0 - diff * 1.0)
 
-    def _regional_match(self, city: City, party: Party) -> float:
+    def _regional_match(self, city: City, party: Party, segment_offset: dict = None) -> float:
         """区域立场匹配"""
         city_pos = self._city_tilt(city, 'regional', self._city_regional_position(city))
+        city_pos += (segment_offset or {}).get('regional', 0.0)
         diff = abs(city_pos - party.regional_position)
         return max(0, 1.0 - diff * 1.2)
 
-    def _policy_match(self, city: City, party: Party) -> float:
+    def _policy_match(self, city: City, party: Party, segment_offset: dict = None) -> float:
         """
         政策偏好匹配
 
-        考虑多个政策维度的综合匹配
+        考虑多个政策维度的综合匹配。
+
+        segment_offset：亚群政策偏好偏移（如老年→福利/传统，青年→环保/进步）。
+        偏移直接作用于城市在对应维度上的位置，使不同人群对同一政党产生不同亲和度。
         """
+        off = segment_offset or {}
         # 福利偏好匹配
         city_welfare = self._city_tilt(city, 'welfare', self._city_welfare_preference(city))
+        city_welfare += off.get('welfare', 0.0)
         party_welfare = getattr(party, 'welfare_position', 0)
         welfare_match = max(0, 1.0 - abs(city_welfare - party_welfare) * 0.8)
 
         # 环保偏好匹配
         city_env = self._city_tilt(city, 'environment', self._city_environment_preference(city))
+        city_env += off.get('environment', 0.0)
         party_env = getattr(party, 'environment_position', 0)
         env_match = max(0, 1.0 - abs(city_env - party_env) * 0.8)
 
         # 民族主义匹配
         city_nat = self._city_tilt(city, 'nationalism', self._city_nationalism(city))
+        city_nat += off.get('nationalism', 0.0)
         party_nat = getattr(party, 'nationalism_position', 0)
         nat_match = max(0, 1.0 - abs(city_nat - party_nat) * 0.7)
 
         # 城乡利益匹配
         city_ur = self._city_tilt(city, 'urban_rural', self._city_urban_rural(city))
+        city_ur += off.get('urban_rural', 0.0)
         party_ur = getattr(party, 'urban_rural_position', 0)
         ur_match = max(0, 1.0 - abs(city_ur - party_ur) * 0.7)
 
