@@ -77,16 +77,38 @@ class RollingCountEngine:
             increments.append(max(0, inc))
             cum_prev = cum_target
 
-        steps_out = []
-        st = self.config.system_type
-        # 名单制/并立/联立等含全国比例分配的制度：按累计加权票实时投影席位
-        proportional = st in ("PR", "MMP", "PARALLEL")
-        district_total = engine._district_count(total) if st in ("MMP", "PARALLEL") else 0
-        list_total = total - district_total if st in ("MMP", "PARALLEL") else 0
+        # 将各党最终实际席位按各市加权票比例归属到市（最大余数法），
+        # 使直播累计永远是对真实结果的逐城加总——每步都严格一致，无需末步矫正
+        city_attr = {oc['city_id']: {p.id: 0 for p in self.parties} for oc in city_outcomes}
+        for pid, total_seats_party in result_party_seats.items():
+            if total_seats_party <= 0:
+                continue
+            v_by_city = [(oc['city_id'], oc['weighted_votes'].get(pid, 0.0)) for oc in city_outcomes]
+            vsum = sum(v for _, v in v_by_city)
+            if vsum <= 0:
+                continue
+            alloc = {}
+            assigned = 0
+            for cid, v in v_by_city:
+                seatn = int(total_seats_party * v / vsum)
+                alloc[cid] = seatn
+                assigned += seatn
+            # 余数部分按小数大小补齐
+            remain = total_seats_party - assigned
+            if remain > 0:
+                fracs = sorted(
+                    v_by_city,
+                    key=lambda cv: (total_seats_party * cv[1] / vsum) - int(total_seats_party * cv[1] / vsum),
+                    reverse=True,
+                )
+                for cid, _ in fracs[:remain]:
+                    alloc[cid] = alloc.get(cid, 0) + 1
+            for cid, seatn in alloc.items():
+                if seatn > 0:
+                    city_attr[cid][pid] = seatn
 
+        steps_out = []
         seats = {p.id: 0 for p in self.parties}
-        district_seats = {p.id: 0 for p in self.parties}
-        weighted = {p.id: 0.0 for p in self.parties}
         votes = {p.id: 0.0 for p in self.parties}
         counted = 0
 
@@ -97,10 +119,9 @@ class RollingCountEngine:
                     break
                 oc = city_outcomes[order[counted]]
                 counted += 1
-                for pid, s in oc['party_seats'].items():
-                    district_seats[pid] = district_seats.get(pid, 0) + s
-                for pid, wv in oc['weighted_votes'].items():
-                    weighted[pid] = weighted.get(pid, 0.0) + wv
+                attr = city_attr.get(oc['city_id'], {})
+                for pid, s in attr.items():
+                    seats[pid] = seats.get(pid, 0) + s
                 for pid, share in oc['votes'].items():
                     votes[pid] = votes.get(pid, 0.0) + share
                 new_cities.append(RollingCityReport(
@@ -117,50 +138,20 @@ class RollingCountEngine:
             vtotal = sum(votes.values())
             norm_votes = {pid: v / vtotal for pid, v in votes.items()} if vtotal > 0 else votes
 
-            # 席位投影：按制度类型
-            if proportional:
-                if st == "PR":
-                    projected = engine._allocate_pr(weighted, total, threshold=self.config.threshold)
-                elif st == "MMP":
-                    ideal = engine._allocate_pr(weighted, total, threshold=self.config.threshold)
-                    proj_list = {pid: max(0, ideal[pid] - district_seats.get(pid, 0)) for pid in weighted}
-                    s = sum(proj_list.values())
-                    if s < list_total:
-                        while s < list_total:
-                            pid = max(proj_list, key=lambda p: ideal[p] - district_seats.get(p, 0) - proj_list[p])
-                            proj_list[pid] += 1
-                            s += 1
-                    elif s > list_total:
-                        while s > list_total:
-                            pid = max((p for p in proj_list if proj_list[p] > 0),
-                                      key=lambda p: district_seats.get(p, 0) - ideal[p])
-                            proj_list[pid] -= 1
-                            s -= 1
-                    projected = {pid: district_seats.get(pid, 0) + proj_list.get(pid, 0) for pid in weighted}
-                else:  # PARALLEL
-                    proj_list = engine._allocate_pr(weighted, list_total, threshold=self.config.threshold)
-                    projected = {pid: district_seats.get(pid, 0) + proj_list.get(pid, 0) for pid in weighted}
-            else:
-                projected = district_seats
-
-            # 最终步强制与实际结果一致
-            if counted >= n:
-                projected = dict(result_party_seats)
-
             # 领先党
-            leader = max(projected, key=lambda pid: (projected[pid], norm_votes.get(pid, 0)))
-            leader_seats = projected[leader]
-            second = sorted(projected.values(), reverse=True)[1] if len(projected) > 1 else 0
+            leader = max(seats, key=lambda pid: (seats[pid], norm_votes.get(pid, 0)))
+            leader_seats = seats[leader]
+            second = sorted(seats.values(), reverse=True)[1] if len(seats) > 1 else 0
 
             # 过半可达性：剩余席位全给领先党能否过半（上限估计）
-            remaining_seats = total - sum(projected.values())
+            remaining_seats = total - sum(seats.values())
             majority_reachable = leader_seats + remaining_seats >= quota
 
             steps_out.append(RollingCountStep(
                 step=step_i + 1,
                 counted=counted,
                 total=n,
-                party_seats=projected,
+                party_seats=dict(seats),
                 party_votes={pid: round(v, 4) for pid, v in norm_votes.items()},
                 leader_party_id=leader,
                 leader_seats=leader_seats,

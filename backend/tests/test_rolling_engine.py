@@ -22,14 +22,18 @@ class RollingCountTest(unittest.TestCase):
         self.assertEqual(rc.quota, 226)
 
     def test_rolling_count_progresses(self):
-        """开票过程席位单调不降，逐步逼近总席位"""
+        """开票过程选区数单调不降，席位总和单调不降并收敛到总席位"""
         cfg = ElectoralConfig(system_type='FPTP', total_seats=450)
         rc = RollingCountEngine(self.cd, self.parties, cfg, steps=10).run()
-        prev = 0
+        prev_counted = 0
+        prev_seats = 0
         for s in rc.steps:
-            self.assertGreaterEqual(s.counted, prev)
-            self.assertGreaterEqual(sum(s.party_seats.values()), prev)
-            prev = s.counted
+            self.assertGreaterEqual(s.counted, prev_counted)
+            self.assertGreaterEqual(sum(s.party_seats.values()), prev_seats)
+            prev_counted = s.counted
+            prev_seats = sum(s.party_seats.values())
+        self.assertEqual(rc.steps[-1].counted, rc.steps[-1].total)
+        self.assertEqual(prev_seats, rc.total_seats)
         self.assertTrue(all(s.leader_party_id for s in rc.steps))
 
     def test_calibration_baseline_is_earlier(self):
