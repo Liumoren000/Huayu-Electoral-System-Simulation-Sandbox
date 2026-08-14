@@ -3,6 +3,7 @@ import * as echarts from 'echarts';
 import Sidebar from './components/Sidebar.jsx';
 import MapView from './components/MapView.jsx';
 import BottomPanel from './components/BottomPanel.jsx';
+import CountReplay from './components/CountReplay.jsx';
 import ProvinceDetail from './components/ProvinceDetail.jsx';
 import ManualSeatModal from './components/ManualSeatModal.jsx';
 import ComparePanel from './components/ComparePanel.jsx';
@@ -115,6 +116,8 @@ export default function App() {
   const [result, setResult] = useState(null);
   const [resultB, setResultB] = useState(null);
   const [coalitionB, setCoalitionB] = useState(null);
+  const [replay, setReplay] = useState(null);
+  const [replayPartial, setReplayPartial] = useState(null);
   const [activeScheme, setActiveScheme] = useState('A');
   const [selectedProvince, setSelectedProvince] = useState(null);
   const [manualMode, setManualMode] = useState(false);
@@ -340,6 +343,14 @@ export default function App() {
       setRobustnessData(null);
       setShowRobustnessModal(false);
       setShowUncertainty(false);
+      const replayTarget = activeScheme === 'B' ? response.result_b : response.result_a;
+      setReplay(replayTarget);
+      setReplayPartial({
+        ...replayTarget,
+        city_results: [],
+        province_results: [],
+        party_results: (replayTarget?.party_results || []).map(p => ({ ...p, seats: 0 })),
+      });
     } catch (e) {
       console.error('Simulation error:', e);
       alert('推演失败：' + e.message);
@@ -831,7 +842,7 @@ body: JSON.stringify({
 
         <div className="map-area">
           <MapView
-            result={displayResult}
+            result={replayPartial || displayResult}
             compareResult={showCompare ? (activeScheme === 'B' ? displayResultA : displayResultB) : null}
             cities={cities}
             tippingCityIds={tippingCityIds}
@@ -851,7 +862,18 @@ body: JSON.stringify({
             }}
           />
 
-          <BottomPanel result={displayResult} />
+          {replay && (
+            <CountReplay
+              result={replay}
+              cities={cities}
+              totalSeats={totalSeats}
+              onPartial={setReplayPartial}
+              onFinish={() => { setReplay(null); setReplayPartial(null); }}
+              onSkip={() => { setReplay(null); setReplayPartial(null); }}
+            />
+          )}
+
+          <BottomPanel result={replayPartial || displayResult} />
 
           {showCompare && displayResultA && displayResultB && (
             <ComparePanel
