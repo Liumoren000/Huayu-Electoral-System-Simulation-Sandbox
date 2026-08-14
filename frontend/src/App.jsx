@@ -48,6 +48,7 @@ const defaultConfig = {
   calibration: false,
   tactical_voting: 0,
   turnout_differential: 0,
+  affinity_power: 4,
 };
 
 function largestRemainderAllocation(pops, totalSeats, minSeats) {
@@ -206,6 +207,7 @@ export default function App() {
         environment_position: p.environment_position,
         nationalism_position: p.nationalism_position,
         urban_rural_position: p.urban_rural_position,
+        camp: p.camp || '',
       };
     });
     return { year, totalSeats, minSeats, seatMethod, config, configB, parties: partyOverrides };

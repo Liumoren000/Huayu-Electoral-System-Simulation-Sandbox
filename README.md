@@ -86,8 +86,9 @@ npm run dev
 - **摇摆选民**：设定比例选民用 3 倍噪声模拟高频波动，作为易变选票的来源
 - **竞争-投票率联动（弃票机制）**：竞争越胶着投票率越高、越悬殊越低，模拟选民"弃票/动员"行为
 - **选区不均衡（malapportionment）**：小城市/农业城市按比例获得超代表权重，模拟人口变动滞后于议席分配的现实偏差
-- **策略性投票/弃保（Duverger 效应）**：赢者全得的小选区制（FPTP/混合制选区席）下，选民事前感知哪些政党"有望获胜"，弱势候选人支持者按比例把票转投给可赢政党中与己偏好最接近者；比例代表名单席仍反映真实偏好。两轮制首轮弃保压力较弱（阻尼 0.5）。开启后小党被挤压、两大党集中，契合真实小选区政治
-- **群体差异化投票率**：老年/高学历/高收入/城市选民的投票率显著高于青年/低学历/低收入/乡村选民，城市实际投票率按其人口结构的加权平均计算（强度可调）。开启后老龄化高的城市投票率上升、年轻城市下降，老年选民的现实权重得到体现
+- **策略性投票/弃保（Duverger 效应）**：赢者全得的小选区制（FPTP/混合制选区席）下，选民事前感知哪些政党"有望获胜"，弱势候选人支持者按比例把票转投给可赢政党中与己偏好最接近者；比例代表名单席仍反映真实偏好。两轮制首轮弃保压力较弱（阻尼 0.5）。开启后小党被挤压、两大党集中，契合真实小选区政治。弃保**按落后度梯度化**（三强并列的胶着区不整体崩塌），且**默认限同阵营（camp）转投**、跨阵营折半，模拟台湾式"泛蓝/泛绿"阵营内转移
+- **群体差异化投票率**：老年/高学历/高收入/城市选民的投票率相对更高，城市实际投票率按其人口结构加权（强度可调）。采用**乘性增量**方式保留城市间区域差异（开启后沿海—西部投票率差不会塌缩），群体间差异幅度收敛到更贴近现实的 10-14pp
+- **得票率浓缩指数（affinity_power）**：对亲和度做幂次变换后归一化，放大政党间得票差距，修复"全国各党票率趋近 1/N"的均等失真。默认 4.0，使首党得票率从 ~16% 提升到 ~21%（贴近现实多党制），城区胜者平均领先 margin 放大 4 倍
 
 ### 立法推演
 - 多维度法案立场配置，结合各政党光谱位置计算支持概率
@@ -165,7 +166,7 @@ npm run dev
 | `/api/eras` | GET | 获取研究年代库（重大变动年代及参数差异） |
 | `/api/geojson` | GET | 获取中国省级 GeoJSON |
 | `/api/geojson/{adcode}` | GET | 获取省级以下 GeoJSON |
-| `/api/simulate` | POST | 运行选举推演（支持 `voter_stratification` / `party_loyalty` / `swing_voter_pct` / `abstention_sensitivity` / `malapportionment` / `party_effects` / `calibration` / `tactical_voting` / `turnout_differential` 真实感参数） |
+| `/api/simulate` | POST | 运行选举推演（支持 `voter_stratification` / `party_loyalty` / `swing_voter_pct` / `abstention_sensitivity` / `malapportionment` / `party_effects` / `calibration` / `tactical_voting` / `turnout_differential` / `affinity_power` 真实感参数） |
 | `/api/simulate/robustness` | POST | 蒙特卡洛稳健性分析（含省级/城市级不确定性） |
 | `/api/simulate/sensitivity` | POST | 关键参数敏感性分析 |
 | `/api/simulate/poll` | POST | 竞选期民调与舆论推演（支持率曲线 + 席位投影 + 胜率预测） |

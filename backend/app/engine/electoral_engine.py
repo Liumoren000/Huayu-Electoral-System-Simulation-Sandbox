@@ -21,6 +21,7 @@ class ElectoralEngine:
             voter_stratification=config.voter_stratification,
             calibration=config.calibration,
             turnout_differential=config.turnout_differential or 0.0,
+            affinity_power=config.affinity_power or 3.0,
         )
         self.party_map = {p.id: p for p in parties}
 
@@ -81,28 +82,52 @@ class ElectoralEngine:
         不在可赢之列，则按 tactical_voting 比例"弃保"——把票转投给
         可赢政党中最接近自己偏好的一个（按亲和度）。
 
+        现实化：
+        1) 可赢集合 = 前二 + 与第二名差距 <5pp 的"边缘可赢党"，避免
+           三强并列城市第三名被整体抹除；
+        2) 转投比例按落后度梯度化（越接近可赢线越少弃保），而非全有全无；
+        3) 优先转投同阵营（camp）的可赢党；无同阵营可赢党时才跨阵营，
+           幅度折半（阵营认同仍约束投票行为）。
+
         intensity: 阻尼系数。两轮制首轮弃保压力弱于小选区制（可用 <1）。
         """
         t = (self.config.tactical_voting or 0.0) * intensity
         if t <= 0 or len(self.parties) < 3:
             return shares
-        # 可赢集合：当前得票率前二（M+1 法则下 M=1 → 2 个可赢候选人）
-        viable = sorted(shares, key=shares.get, reverse=True)[:2]
-        viable_set = set(viable)
+        ranked = sorted(shares, key=shares.get, reverse=True)
+        top, second = ranked[0], ranked[1]
+        top_share, second_share = shares[top], shares[second]
+        # 可赢集合：前二 + 与第二名差距 <5pp
+        viable = set(ranked[:2])
+        for pid in ranked[2:]:
+            if second_share - shares[pid] < 0.05:
+                viable.add(pid)
         # 各政党在该城市的亲和度（弃保时按偏好排序，噪声置 0 保证确定性）
         affinities = {
             p.id: self.voter_model.compute_city_party_affinity(city, p, 0.0)
             for p in self.parties
         }
+        camp_of = {p.id: getattr(p, 'camp', '') for p in self.parties}
         out = dict(shares)
         for pid, share in shares.items():
-            if pid in viable_set or share <= 0:
+            if pid in viable or share <= 0:
                 continue
-            # 该党的支持者中，按弃保比例转投可赢政党中最偏好者
-            transfer = share * t
+            # 落后度：落后越多越"无望"，弃保率越高（距可赢线 15pp 以上全转）
+            lag = max(0.0, top_share - share)
+            rate = t * min(1.0, lag / 0.15)
+            if rate <= 0:
+                continue
+            transfer = share * rate
             out[pid] -= transfer
-            best_viable = max(viable, key=lambda v: affinities.get(v, 0.0))
-            out[best_viable] += transfer
+            # 转投目标：同阵营可赢党优先
+            my_camp = camp_of.get(pid, '')
+            same_camp = [v for v in viable if camp_of.get(v) and camp_of.get(v) == my_camp]
+            candidates = same_camp or list(viable)
+            cross_camp = not same_camp
+            best_viable = max(candidates, key=lambda v: affinities.get(v, 0.0))
+            out[best_viable] += transfer * (0.5 if cross_camp else 1.0)
+            if cross_camp:
+                out[pid] += transfer * 0.5  # 跨阵营时保留一半（阵营认同）
         total = sum(out.values())
         if total <= 0:
             return shares
@@ -832,12 +857,15 @@ class ElectoralEngine:
         mal = 0.5 * sum(abs(pr.seats / prov_seats - pr.population / prov_pop) for pr in province_results)
 
         pns = 0.0
+        total_pop = sum(pr.population for pr in province_results) or 1
         for p in party_results:
             nat = p.vote_share
             dev = 0.0
             for pr in province_results:
+                # 按省人口份额加权：偏差有界于 2·nat·(1-nat)，保证 PNS∈[0,1]
+                w = pr.population / total_pop
                 prov_vote = pr.vote_shares.get(p.party_id, 0)
-                dev += abs(prov_vote - nat)
+                dev += w * abs(prov_vote - nat)
             pns += nat * (1.0 - 0.5 * dev)
         return lh, 1.0 - lh, mal, pns
 

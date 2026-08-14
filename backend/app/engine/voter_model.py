@@ -63,7 +63,8 @@ class VoterModel:
     def __init__(self, seed: int = 42, turnout_shift: float = 0.0, dim_tilt: dict = None,
                  party_effects: dict = None, party_loyalty: float = 0.0,
                  swing_voter_pct: float = 0.0, voter_stratification: bool = False,
-                 calibration: bool = False, turnout_differential: float = 0.0):
+                 calibration: bool = False, turnout_differential: float = 0.0,
+                 affinity_power: float = 4.0):
         self.rng = random.Random(seed)
         self.seed = seed
         self.turnout_shift = turnout_shift
@@ -74,6 +75,7 @@ class VoterModel:
         self.voter_stratification = voter_stratification
         self.calibration = calibration
         self.turnout_differential = turnout_differential
+        self.affinity_power = affinity_power
 
     def _tilt(self, dim: str, base: float) -> float:
         """全国选民在某一政策维度上的偏好偏移（选举剧本机制）"""
@@ -270,7 +272,7 @@ class VoterModel:
             competitiveness: 竞争度 0~1（1-胜差），越接近 1 越胶着
             abstention_sensitivity: 竞争度对投票率的调节强度
         """
-        base = 0.45
+        base = 0.55
 
         # 城镇化率影响，受权重调节
         urban_factor = (city.urbanization_rate - 0.5) * 0.25 * urban_rural_weight
@@ -298,24 +300,25 @@ class VoterModel:
 
         turnout = base + urban_factor + edu_factor + aging_factor + region_factor
 
-        # 群体差异化投票率：老年/高学历/高收入/城市选民投票率更高，
-        # 城市实际投票率按人口结构的加权平均（turnout_differential 控制强度）
+        # 群体差异化投票率：老年/高学历/高收入/城市选民投票率更高。
+        # 采用"相对强度×城市基准"的增量方式，保留城市间区域/结构差异
+        # （避免整体替换导致全国投票率塌缩到狭窄区间）。
         d = self.turnout_differential or 0.0
         if d > 0:
-            city_base = turnout
             weights = self._group_turnout_weights(city)
-            group_turnouts = {
-                'elder': 0.78, 'youth': 0.52,
-                'high_edu': 0.80, 'low_edu': 0.48,
-                'urban': 0.72, 'rural': 0.55,
-                'high_income': 0.75, 'low_income': 0.50,
+            # 各群体相对基准的投票率乘数（围绕 1.0 的差异化强度）
+            group_mult = {
+                'elder': 1.10, 'youth': 0.92,
+                'high_edu': 1.10, 'low_edu': 0.92,
+                'urban': 1.06, 'rural': 0.94,
+                'high_income': 1.08, 'low_income': 0.94,
             }
             total_w = sum(weights.values())
-            w_avg = 0.0
+            mult = 1.0
             if total_w > 0:
-                w_avg = sum(w * group_turnouts.get(k, city_base) for k, w in weights.items()) / total_w
-            # 插值：强度 0 → 原城市投票率；强度 1 → 群体加权投票率
-            turnout = city_base + (w_avg - city_base) * d
+                mult = sum(w * group_mult.get(k, 1.0) for k, w in weights.items()) / total_w
+            # 强度 0 → 城市基准；强度 1 → 城市基准 × 群体相对乘数
+            turnout *= (1.0 - d + d * mult)
 
         # 竞争激烈调节：胜差越小（越胶着）投票率越高
         if abstention_sensitivity > 0 and competitiveness is not None:
@@ -323,7 +326,7 @@ class VoterModel:
             turnout += (competitiveness - 0.6) * abstention_sensitivity * 0.20
 
         turnout += self.turnout_shift
-        return round(max(0.20, min(0.95, turnout)), 4)
+        return round(max(0.35, min(0.95, turnout)), 4)
 
     def _group_turnout_weights(self, city: City) -> dict[str, float]:
         """
@@ -611,13 +614,13 @@ class VoterModel:
         city_nat = self._city_tilt(city, 'nationalism', self._city_nationalism(city))
         city_nat += off.get('nationalism', 0.0)
         party_nat = getattr(party, 'nationalism_position', 0)
-        nat_match = max(0, 1.0 - abs(city_nat - party_nat) * 0.7)
+        nat_match = max(0, 1.0 - abs(city_nat - party_nat) * 1.0)
 
         # 城乡利益匹配
         city_ur = self._city_tilt(city, 'urban_rural', self._city_urban_rural(city))
         city_ur += off.get('urban_rural', 0.0)
         party_ur = getattr(party, 'urban_rural_position', 0)
-        ur_match = max(0, 1.0 - abs(city_ur - party_ur) * 0.7)
+        ur_match = max(0, 1.0 - abs(city_ur - party_ur) * 0.9)
 
         # 政策维度综合（等权重）
         return (welfare_match + env_match + nat_match + ur_match) / 4
@@ -637,9 +640,25 @@ class VoterModel:
                 seg_share = self._shares_with_loyalty(city, parties, noise_amplitude, seg['offset'], seg['weight'])
                 for pid, v in seg_share.items():
                     agg[pid] += v * seg['weight'] / total_w
-            return self._normalize(agg)
+            return self._concentrate(self._normalize(agg))
 
-        return self._normalize(self._shares_with_loyalty(city, parties, noise_amplitude, None, 1.0))
+        return self._concentrate(self._normalize(self._shares_with_loyalty(city, parties, noise_amplitude, None, 1.0)))
+
+    def _concentrate(self, shares: dict) -> dict[str, float]:
+        """
+        得票率浓缩：对得票率做幂次加权后归一化，放大政党间差距。
+
+        现实多党制中首党常获 30%+、末党 <5%，而线性归一化会使其趋近 1/N。
+        以 p = affinity_power 做 s^p 归一化，模拟选民"偏好集中"而非均匀分散。
+        """
+        p = self.affinity_power or 1.0
+        if p <= 1.0:
+            return shares
+        powered = {pid: max(0.0, v) ** p for pid, v in shares.items()}
+        total = sum(powered.values())
+        if total <= 0:
+            return shares
+        return {pid: v / total for pid, v in powered.items()}
 
     def _normalize(self, raw: dict) -> dict[str, float]:
         total = sum(raw.values())
@@ -683,15 +702,23 @@ class VoterModel:
 
     def _compute_calibrated_shares(self, city: City, parties: list[Party],
                                    noise_amplitude: float) -> dict[str, float]:
-        """校准模式：以城市基准政党为核心，结合亲和度分配"""
+        """校准模式：以城市基准政党为核心，结合亲和度分配。
+
+        锚点份额按基准党在城市中的真实亲和强度缩放：强区 40-55%、
+        弱区 <10%，而非固定 30%——避免制造"双头垄断"。
+        """
         anchor = self._city_anchor_party(city, parties)
-        anchor_share = 0.30  # 基准政党历史份额锚点
-        shares = self._shares_with_loyalty(city, parties, noise_amplitude, None, 1.0)
-        total = sum(shares.values())
-        base = {pid: v / total if total > 0 else 0 for pid, v in shares.items()}
+        # 基准党亲和度相对各党的优势程度 → 锚点强度
+        raw = self._shares_with_loyalty(city, parties, noise_amplitude, None, 1.0)
+        total_raw = sum(raw.values())
+        anchor_aff = raw.get(anchor, 0.0)
+        share_of_total = anchor_aff / total_raw if total_raw > 0 else 1.0 / max(1, len(parties))
+        # 锚点份额随优势程度从 0.08 到 0.55 线性映射（优势越明显锚点越强）
+        anchor_share = 0.08 + 0.47 * max(0.0, min(1.0, (share_of_total - 1.0 / max(1, len(parties))) * len(parties)))
+        base = {pid: v / total_raw if total_raw > 0 else 0 for pid, v in raw.items()}
         out = {pid: base[pid] * (1 - anchor_share) for pid in base}
         out[anchor] = out.get(anchor, 0.0) + anchor_share
-        return self._normalize(out)
+        return self._concentrate(self._normalize(out))
 
     # ========== 选民结构分解（按年龄/教育/城乡/收入） ==========
 

@@ -377,6 +377,7 @@ def generate_default_parties() -> list[Party]:
             economic_position=0.7, social_position=0.4, regional_position=-0.7,
             welfare_position=-0.3, environment_position=-0.2,
             nationalism_position=-0.5, urban_rural_position=0.5,
+            camp="liberal",
             description="代表沿海发达地区商业利益，主张自由贸易与经济开放"
         ),
         Party(
@@ -384,6 +385,7 @@ def generate_default_parties() -> list[Party]:
             economic_position=-0.5, social_position=-0.4, regional_position=0.7,
             welfare_position=0.6, environment_position=-0.3,
             nationalism_position=0.4, urban_rural_position=-0.6,
+            camp="populist",
             description="代表内陆农业与欠发达地区，主张产业转移与区域平衡"
         ),
         Party(
@@ -391,6 +393,7 @@ def generate_default_parties() -> list[Party]:
             economic_position=-0.8, social_position=-0.2, regional_position=0.3,
             welfare_position=0.9, environment_position=-0.1,
             nationalism_position=0.2, urban_rural_position=0.3,
+            camp="labor",
             description="代表传统工业城市工人阶级，主张劳动保护与社会福利"
         ),
         Party(
@@ -398,6 +401,7 @@ def generate_default_parties() -> list[Party]:
             economic_position=0.2, social_position=0.7, regional_position=-0.4,
             welfare_position=0.3, environment_position=0.6,
             nationalism_position=-0.4, urban_rural_position=0.6,
+            camp="progressive",
             description="代表城市化进程中涌现的知识分子与新中产，主张社会进步"
         ),
         Party(
@@ -405,6 +409,7 @@ def generate_default_parties() -> list[Party]:
             economic_position=-0.2, social_position=-0.65, regional_position=0.8,
             welfare_position=0.5, environment_position=0.3,
             nationalism_position=0.7, urban_rural_position=-0.4,
+            camp="ethnic",
             description="代表边疆少数民族地区，主张文化保护与区域自治"
         ),
         Party(
@@ -412,6 +417,7 @@ def generate_default_parties() -> list[Party]:
             economic_position=-0.1, social_position=0.6, regional_position=0.0,
             welfare_position=0.4, environment_position=0.9,
             nationalism_position=-0.2, urban_rural_position=0.3,
+            camp="green",
             description="关注环境保护与可持续发展，主张绿色经济转型"
         ),
         Party(
@@ -419,6 +425,7 @@ def generate_default_parties() -> list[Party]:
             economic_position=-0.4, social_position=-0.65, regional_position=0.5,
             welfare_position=0.5, environment_position=-0.5,
             nationalism_position=0.6, urban_rural_position=-0.6,
+            camp="conservative",
             description="代表保守社会群体，主张传统文化价值与社会稳定"
         ),
     ]

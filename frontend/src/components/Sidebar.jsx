@@ -216,6 +216,20 @@ export default function Sidebar({
             onChange={e => setBothConfigs('turnout_differential', parseFloat(e.target.value))}
           />
         </div>
+        <div className="slider-row">
+          <label>
+            <span>得票率浓缩指数</span>
+            <span>{(config.affinity_power ?? 4).toFixed(1)}</span>
+          </label>
+          <input
+            type="range"
+            min="1"
+            max="8"
+            step="0.5"
+            value={config.affinity_power ?? 4}
+            onChange={e => setBothConfigs('affinity_power', parseFloat(e.target.value))}
+          />
+        </div>
         </div>
         )}
       </div>

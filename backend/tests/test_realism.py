@@ -188,6 +188,51 @@ class RealismFeatureTest(unittest.TestCase):
         self.assertGreater(max(weights), 0.7)
         self.assertLess(min(weights), 0.15)
 
+    def test_affinity_power_concentrates_vote_shares(self):
+        """得票率浓缩：affinity_power 放大政党间差距，避免全国得票率趋近 1/N"""
+        flat, _ = self._run(affinity_power=1.0)
+        concentrated, _ = self._run(affinity_power=5.0)
+        flat_shares = sorted((p.vote_share for p in flat.party_results), reverse=True)
+        conc_shares = sorted((p.vote_share for p in concentrated.party_results), reverse=True)
+        # 浓缩后首末党差距更大
+        flat_span = flat_shares[0] - flat_shares[-1]
+        conc_span = conc_shares[0] - conc_shares[-1]
+        self.assertGreater(conc_span, flat_span)
+        # 全国首党份额应更高（贴近现实多党制 20%+）
+        self.assertGreater(conc_shares[0], flat_shares[0])
+        self.assertAlmostEqual(sum(conc_shares), 1.0, places=3)
+
+    def test_affinity_power_default_is_realistic(self):
+        """默认 affinity_power=4 下全国首党得票率应显著高于 1/N"""
+        r, cfg = self._run()
+        top = max(p.vote_share for p in r.party_results)
+        self.assertGreater(top, 0.19)
+        self.assertLess(top, 0.45)
+
+    def test_tactical_voting_camp_aware(self):
+        """弃保转投应主要流向同阵营，跨阵营仅折半"""
+        cfg = ElectoralConfig(system_type='FPTP', total_seats=450, tactical_voting=1.0)
+        eng = ElectoralEngine(self.cd, self.parties, cfg, seed=42)
+        r = eng.run()
+        self.assertEqual(sum(p.seats for p in r.party_results), cfg.total_seats)
+        self.assertAlmostEqual(sum(p.vote_share for p in r.party_results), 1.0, places=3)
+
+    def test_turnout_base_raised(self):
+        """基准投票率应贴近现实东亚水平，且群体差异化开启后保留区域差异"""
+        from app.engine.voter_model import VoterModel
+        import statistics
+        vm0 = VoterModel(seed=42)
+        vm1 = VoterModel(seed=42, turnout_differential=1.0)
+        off = [vm0.get_city_turnout(c, 1.0) for c in self.cd.cities]
+        on = [vm1.get_city_turnout(c, 1.0) for c in self.cd.cities]
+        self.assertGreater(statistics.mean(off), 0.60)
+        coastal = [c for c in self.cd.cities if c.region_type == 'coastal']
+        western = [c for c in self.cd.cities if c.region_type == 'western']
+        m_c = statistics.mean(vm1.get_city_turnout(c, 1.0) for c in coastal)
+        m_w = statistics.mean(vm1.get_city_turnout(c, 1.0) for c in western)
+        # 差异化开启后沿海-西部投票率差异仍保留（>5pp），而非塌缩
+        self.assertGreater(m_c - m_w, 0.05)
+
 
 if __name__ == '__main__':
     unittest.main()

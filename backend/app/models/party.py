@@ -12,4 +12,5 @@ class Party(BaseModel):
     environment_position: float = 0.0  # -1.0 (发展优先) to 1.0 (环保优先)
     nationalism_position: float = 0.0  # -1.0 (国际主义) to 1.0 (民族主义)
     urban_rural_position: float = 0.0  # -1.0 (农业农村利益) to 1.0 (城市居民利益)
+    camp: str = ""  # 政治阵营（如 "liberal"/"labor"/"conservative"），弃保转投默认限同阵营；空=无阵营限制
     description: str = ""
