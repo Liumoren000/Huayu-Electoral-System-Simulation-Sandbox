@@ -6,6 +6,7 @@ from fastapi.responses import JSONResponse
 from app.models.config import (
     SimulationRequest, RobustnessRequest, SensitivityRequest, VoterExplainRequest,
     VoterStructureRequest, PollRequest, SwingAnalysisRequest, CalibrationRequest,
+    GovernmentRequest,
 )
 from app.models.result import (
     SimulationResponse,
@@ -29,6 +30,7 @@ from app.engine import DataLoader, generate_default_parties, ElectoralEngine, Co
 from app.engine.voter_model import VoterModel
 from app.engine.poll_engine import PollEngine, swing_analysis
 from app.engine.calibration_engine import historical_calibration
+from app.engine.government_engine import GovernmentEngine
 
 router = APIRouter()
 data_loader = DataLoader()
@@ -120,6 +122,19 @@ def simulate(request: SimulationRequest):
         coalition_a=coalition_a,
         coalition_b=coalition_b,
     )
+
+
+@router.post("/simulate/government")
+def simulate_government(request: GovernmentRequest):
+    """政府任期/寿命模拟：给定方案与执政联盟，模拟任期存活、政策绩效与倒阁风险"""
+    if not request.parties:
+        return JSONResponse(status_code=400, content={"error": "至少需要一个参选政党"})
+    city_data = data_loader.get_city_data(request.year)
+    engine = ElectoralEngine(city_data, request.parties, request.config, seed=42)
+    result = engine.run()
+    gov = GovernmentEngine(request.parties, seed=7)
+    return gov.run(result, ruling_parties=request.ruling_parties,
+                   term_months=request.term_months)
 
 
 @router.post("/simulate/robustness")

@@ -92,3 +92,11 @@ class CalibrationRequest(BaseModel):
     config: ElectoralConfig
     parties: list[Party]
     baseline_year: int = Field(default=0, ge=0, le=2024, description="0 = 自动取 year-4（上一届）")
+
+
+class GovernmentRequest(BaseModel):
+    year: int = Field(default=2023, ge=1949, le=2024)
+    config: ElectoralConfig
+    parties: list[Party]
+    ruling_parties: list[str] = Field(default_factory=list, description="指定执政联盟（空 = 自动推荐）")
+    term_months: int = Field(default=60, ge=24, le=120, description="法定最长任期（月）")

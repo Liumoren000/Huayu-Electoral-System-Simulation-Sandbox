@@ -97,3 +97,13 @@ export async function runCalibration(request) {
   if (!res.ok) throw new Error('Calibration failed');
   return res.json();
 }
+
+export async function runGovernment(request) {
+  const res = await fetch(`${API_BASE}/simulate/government`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  if (!res.ok) throw new Error('Government simulation failed');
+  return res.json();
+}

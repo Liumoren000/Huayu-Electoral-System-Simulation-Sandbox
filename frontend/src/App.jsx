@@ -25,6 +25,7 @@ import CoalitionNegotiationModal from './components/CoalitionNegotiationModal.js
 
 import CalibrationModal from './components/CalibrationModal.jsx';
 import EraModal from './components/EraModal.jsx';
+import GovernmentModal from './components/GovernmentModal.jsx';
 import { fetchParties, fetchCities, fetchEras, runSimulation, runRobustness } from './services/api.js';
 import { API_BASE } from './services/api.js';
 import { findCoalitions } from './utils/coalition.js';
@@ -159,6 +160,7 @@ export default function App() {
   const [showVoterModel, setShowVoterModel] = useState(false);
   const [showVoterStructure, setShowVoterStructure] = useState(false);
   const [showPoll, setShowPoll] = useState(false);
+  const [showGovernment, setShowGovernment] = useState(false);
   const [showSwing, setShowSwing] = useState(false);
   const [showNegotiation, setShowNegotiation] = useState(false);
   const [showCalibration, setShowCalibration] = useState(false);
@@ -776,6 +778,7 @@ body: JSON.stringify({
                     <button onClick={() => { if (robustnessData) setShowRobustnessModal(true); else runRobustnessAnalysis(); setShowTools(false); }}>稳健性</button>
                     <button onClick={() => { setShowSensitivity(true); setShowTools(false); }}>敏感性</button>
                     <button onClick={() => { setShowPoll(true); setShowTools(false); }}>竞选民调</button>
+                    <button onClick={() => { setShowGovernment(true); setShowTools(false); }}>政府任期模拟</button>
                     <button onClick={() => { setShowSwing(true); setShowTools(false); }}>摇摆/风向标选区</button>
                     <button onClick={() => { setShowNegotiation(true); setShowTools(false); }}>组阁谈判模拟</button>
                     <button onClick={() => { setShowBubble(true); setShowTools(false); }}>席位—选票偏差气泡</button>
@@ -1090,6 +1093,16 @@ body: JSON.stringify({
           minSeats={minSeats}
           parties={parties}
           onClose={() => setShowPoll(false)}
+        />
+      )}
+
+      {showGovernment && (
+        <GovernmentModal
+          config={activeScheme === 'B' ? configB : config}
+          totalSeats={totalSeats}
+          minSeats={minSeats}
+          parties={parties}
+          onClose={() => setShowGovernment(false)}
         />
       )}
 

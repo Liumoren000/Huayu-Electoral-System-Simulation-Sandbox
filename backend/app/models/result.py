@@ -345,3 +345,41 @@ class CalibrationResponse(BaseModel):
     gov_changed: bool = False     # 第一大党是否易主
     parties: list[CalibrationPartyRow] = []
     cities: list[CalibrationCityRow] = []
+
+
+# ========== 政府任期/寿命模拟 ==========
+
+
+class TermEvent(BaseModel):
+    month: int  # 0-120
+    month_label: str
+    type: str  # policy_pass / policy_fail / scandal / economic_shock / no_confidence / survived
+    title: str
+    description: str = ""
+
+
+class TermMonthSnapshot(BaseModel):
+    month: int
+    survival_prob: float  # 存活到该月（含）的累计概率
+    hazard: float  # 该月倒阁瞬时概率
+    approvals: float = 0.0  # 该月民众支持率（50 基线 ± 波动）
+
+
+class GovernmentTermResult(BaseModel):
+    ruling_parties: list[str] = []
+    ruling_party_names: list[str] = []
+    term_months: int = 0  # 法定最长任期（默认 60 个月，5 年）
+    expected_months: float = 0.0  # 预期存活月数
+    survival_prob_full_term: float = 0.0  # 走完全程概率
+    survival_curve: list[TermMonthSnapshot] = []
+    events: list[TermEvent] = []  # 代表性事件时间线
+    base_stability: float = 0.0  # 联盟内在稳定性 0-1
+    seat_margin: int = 0  # 超过多数门槛的冗余席位
+    policy_pass_rate: float = 0.0  # 平均政策通过率
+    passed_bills: int = 0
+    total_bills: int = 0
+    expected_passed_bills: float = 0.0
+    no_confidence_risk: float = 0.0  # 任期内倒阁累计概率
+    reason_breakdown: dict[str, float] = {}  # 各倒阁原因占比
+    single_party: bool = False  # 单党绝对多数执政
+    confidence_vote: float = 0.0  # 就职信任投票通过率
