@@ -114,14 +114,14 @@ export function generateReport(displayResult, resultA, resultB, activeScheme, co
   else if (gallagher < 8) lhItems.push(`Gallagher 指数 ${gallagher.toFixed(1)}%，属于轻度不比例，主流政党略占优势。`);
   else if (gallagher < 15) lhItems.push(`Gallagher 指数 ${gallagher.toFixed(1)}%，属于中度不比例，小党明显受损。`);
   else lhItems.push(`Gallagher 指数 ${gallagher.toFixed(1)}%，高度不比例，制度产生显著的胜者红利。`);
-  if (dec.total != null) {
+  if (dec.total != null && dec.total > 0.02) {
     const parts = [];
     if (dec.geographic > 0) parts.push(`选票地理分布 ${formatPct(dec.geographic, 2)}`);
     if (dec.malapportionment > 0) parts.push(`名额失衡 ${formatPct(dec.malapportionment, 2)}`);
     if (dec.mechanical > 0) parts.push(`制度机制 ${formatPct(dec.mechanical, 2)}`);
     const dominant = Math.max(dec.geographic || 0, dec.malapportionment || 0, dec.mechanical || 0);
     const domLabel = dominant === dec.geographic ? '选票地理分布' : dominant === dec.malapportionment ? '省际名额失衡' : '制度机械效应（胜者全得等）';
-    lhItems.push(`不比例性三源分解：总偏差 ${formatPct(dec.total ?? res.loosemore_hanby, 2)}，其中主导来源是「${domLabel}」（${parts.join('；')}）。`);
+    lhItems.push(`不比例性三源分解：总偏差 ${formatPct(dec.total ?? res.loosemore_hanby, 2)}，其中分量最大的是「${domLabel}」（${parts.join('；')}，各分量为上界估计，之和可能大于总偏差）。`);
   }
   sections.push({ title: '比例性与偏差来源', items: lhItems });
 

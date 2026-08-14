@@ -63,8 +63,6 @@ export default function PollModal({ config, totalSeats, minSeats, parties, onClo
       },
       series: partyIds.map(pid => {
         const points = data.series.filter(s => s.party_id === pid).map(s => [s.week, s.share]);
-        const finalShare = data.final_share[pid] ?? 0;
-        points.push([weeksCount, finalShare]);
         return {
           name: parties.find(p => p.id === pid)?.name || pid,
           type: 'line',
@@ -103,7 +101,7 @@ export default function PollModal({ config, totalSeats, minSeats, parties, onClo
             <>
               <div ref={chartRef} style={{ width: '100%', height: 300 }} />
               <div style={{ fontSize: 10, color: 'var(--text-muted)', margin: '4px 0 12px' }}>
-                {data.note} 虚线末点为实际选举得票率（确定性基准）。
+                {data.note} 民调曲线自第 1 周起向确定性基准结果收敛，末周值贴近实际得票率。
               </div>
 
               {data.events?.length > 0 && (

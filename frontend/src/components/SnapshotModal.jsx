@@ -23,7 +23,7 @@ export default function SnapshotModal({ snapshots, onRemove, onClear, onClose })
     { label: 'Loosemore', fn: s => s.result ? (s.result.loosemore_hanby * 100).toFixed(1) + '%' : '-' },
     { label: 'Rose指数', fn: s => s.result ? (s.result.rose_index * 100).toFixed(0) : '-' },
     { label: '有效政党数(席)', fn: s => s.result ? s.result.effective_parties_seats.toFixed(2) : '-' },
-    { label: '第一大党席位', fn: s => s.result ? Math.max(...s.result.party_results.map(p => p.seats)) : '-' },
+    { label: '第一大党席位', fn: s => s.result ? Math.max(0, ...s.result.party_results.map(p => p.seats)) : '-' },
     { label: '名额失衡', fn: s => s.result ? (s.result.malapportionment_index * 100).toFixed(1) + '%' : '-' },
     { label: '全国化指数', fn: s => s.result ? (s.result.party_nationalization_index * 100).toFixed(0) : '-' },
   ];

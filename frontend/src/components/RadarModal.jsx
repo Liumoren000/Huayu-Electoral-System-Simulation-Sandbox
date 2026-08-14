@@ -13,17 +13,20 @@ export default function RadarModal({ resultA, resultB, onClose }) {
     if (!chartRef.current || !activeIdx) return;
     const chart = echarts.init(chartRef.current);
     const dims = Object.keys(activeIdx.indices);
-    const series = [{
-      name: resultA?.system_type + ' (方案A)',
-      type: 'radar',
-      data: [{ value: Object.values(idxA.indices), name: '方案A' }],
-      areaStyle: { color: 'rgba(79, 195, 247, 0.25)' },
-      lineStyle: { color: '#4fc3f7', width: 2 },
-      itemStyle: { color: '#4fc3f7' },
-    }];
+    const series = [];
+    if (idxA) {
+      series.push({
+        name: (resultA?.system_type || '方案A') + ' (方案A)',
+        type: 'radar',
+        data: [{ value: Object.values(idxA.indices), name: '方案A' }],
+        areaStyle: { color: 'rgba(79, 195, 247, 0.25)' },
+        lineStyle: { color: '#4fc3f7', width: 2 },
+        itemStyle: { color: '#4fc3f7' },
+      });
+    }
     if (idxB) {
       series.push({
-        name: resultB?.system_type + ' (方案B)',
+        name: (resultB?.system_type || '方案B') + ' (方案B)',
         type: 'radar',
         data: [{ value: Object.values(idxB.indices), name: '方案B' }],
         areaStyle: { color: 'rgba(255, 112, 67, 0.25)' },
@@ -81,7 +84,7 @@ export default function RadarModal({ resultA, resultB, onClose }) {
   }
 
   const dims = Object.keys(activeIdx.indices);
-  const otherIdx = resultB ? idxA : null;
+  const compareArr = [idxA, idxB].filter(Boolean);
 
   return (
     <div className="analysis-overlay" onClick={onClose}>
@@ -93,10 +96,12 @@ export default function RadarModal({ resultA, resultB, onClose }) {
         <div className="analysis-body">
           <div ref={chartRef} style={{ width: '100%', height: 330 }} />
           <div className="robust-summary-row" style={{ marginTop: 12 }}>
-            <div className="robust-stat">
-              <div className="robust-stat-label">{resultA?.system_type} 综合指数</div>
-              <div className="robust-stat-val" style={{ color: 'var(--accent-blue)' }}>{idxA.composite.toFixed(0)}</div>
-            </div>
+            {idxA && (
+              <div className="robust-stat">
+                <div className="robust-stat-label">{resultA?.system_type || '方案A'} 综合指数</div>
+                <div className="robust-stat-val" style={{ color: 'var(--accent-blue)' }}>{idxA.composite.toFixed(0)}</div>
+              </div>
+            )}
             {idxB && (
               <div className="robust-stat">
                 <div className="robust-stat-label">{resultB.system_type} 综合指数</div>
@@ -105,18 +110,18 @@ export default function RadarModal({ resultA, resultB, onClose }) {
             )}
             <div className="robust-stat">
               <div className="robust-stat-label">六维均值（0-100）</div>
-              <div className="robust-stat-val">{(otherIdx ? [idxA, idxB] : [idxA]).reduce((s, x) => s + x.composite, 0) / (otherIdx ? 2 : 1)}</div>
+              <div className="robust-stat-val">{compareArr.reduce((s, x) => s + x.composite, 0) / Math.max(1, compareArr.length)}</div>
             </div>
           </div>
           <table className="analysis-table" style={{ marginTop: 12 }}>
             <thead>
-              <tr><th>维度</th><th>{resultA?.system_type || '-'}</th>{idxB && <th>{resultB.system_type}</th>}</tr>
+              <tr><th>维度</th>{idxA && <th>{resultA?.system_type || '方案A'}</th>}{idxB && <th>{resultB.system_type}</th>}</tr>
             </thead>
             <tbody>
               {dims.map(d => (
                 <tr key={d}>
                   <td>{d}</td>
-                  <td>{idxA.indices[d].toFixed(0)}</td>
+                  {idxA && <td>{idxA.indices[d].toFixed(0)}</td>}
                   {idxB && <td>{idxB.indices[d].toFixed(0)}</td>}
                 </tr>
               ))}

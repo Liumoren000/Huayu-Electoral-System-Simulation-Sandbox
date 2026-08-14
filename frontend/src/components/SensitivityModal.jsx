@@ -56,7 +56,7 @@ export default function SensitivityModal({ config, totalSeats, minSeats, parties
       const low = p.low[metric], high = p.high[metric];
       const lowD = low - base, highD = high - base;
       return {
-        name: PARAMS[p.param].label,
+        name: PARAMS[p.param]?.label || p.param,
         lowD, highD,
         lowV: low, highV: high, baseV: base,
       };

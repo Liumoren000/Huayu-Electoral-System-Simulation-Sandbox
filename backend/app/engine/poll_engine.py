@@ -73,7 +73,9 @@ class PollEngine:
             # 向基准收敛 + 随机波动
             for pid in cur:
                 target = final_share[pid]
-                cur[pid] += (target - cur[pid]) * 0.12 + self.rng.gauss(0, self.volatility)
+                # 收敛系数需显著大于周波动，否则民调会随机游走并偏离基准结果；
+                # 0.55/周的收敛 + 0.3×volatility 的周噪声，末周民调贴近实际得票率。
+                cur[pid] += (target - cur[pid]) * 0.55 + self.rng.gauss(0, self.volatility * 0.3)
 
             # 归一化
             total = sum(cur.values())
@@ -149,6 +151,9 @@ def swing_analysis(city_data, parties, config) -> SwingAnalysisResponse:
     national = max(result.party_results, key=lambda x: x.seats)
     total = result.total_seats
 
+    # 省级归属查询（CityResult 不含 province，需从城市数据映射）
+    province_map = {c.id: c.province for c in city_data.cities}
+
     # 全国平均胜差（加权）与分布分位数
     margins = []
     for cr in result.city_results:
@@ -192,16 +197,25 @@ def swing_analysis(city_data, parties, config) -> SwingAnalysisResponse:
         if is_bellwether:
             bellwether += 1
 
-        runnerup = sorted(cr.vote_shares.items(), key=lambda x: x[1], reverse=True)[1]
+        # 追赶者：按得票率取第二名，并跳过与胜者相同/并列的党（避免并列时出现
+        # 追赶者=胜者 的悖论，此时取第三名）
+        sorted_items = sorted(cr.vote_shares.items(), key=lambda x: x[1], reverse=True)
+        runnerup = None
+        for pid, _share in sorted_items:
+            if pid != cr.winner_party_id:
+                runnerup = (pid, _share)
+                break
+        if runnerup is None and sorted_items:
+            runnerup = sorted_items[1] if len(sorted_items) > 1 else sorted_items[0]
         party_name_lookup = {p.id: p.name for p in parties}
         districts.append(SwingDistrict(
             city_id=cr.city_id,
             city_name=cr.city_name,
-            province=cr.province if hasattr(cr, 'province') else "",
+            province=province_map.get(cr.city_id, ""),
             winner_party_id=cr.winner_party_id,
             winner_party_name=cr.winner_party_name,
-            runnerup_party_id=runnerup[0],
-            runnerup_party_name=party_name_lookup.get(runnerup[0], runnerup[0]),
+            runnerup_party_id=runnerup[0] if runnerup else "",
+            runnerup_party_name=party_name_lookup.get(runnerup[0], runnerup[0]) if runnerup else "",
             margin=round(margin, 4),
             seats=cr.seats,
             swing_level=level,
