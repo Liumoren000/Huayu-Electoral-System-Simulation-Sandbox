@@ -335,9 +335,11 @@ class VoterModel:
         edu = max(0.0, min(1.0, city.education_index))
         urban = max(0.0, min(1.0, city.urbanization_rate))
         gdp = city.gdp_per_capita
-        # 收入高低占比：与 gdp 相关（gdp 越高 → 高收入占比越高）
-        gmin, gmax = 30000.0, 200000.0
-        income_high = max(0.02, min(0.98, 0.15 + 0.7 * (gdp - gmin) / max(1e-9, gmax - gmin)))
+        # 收入高低占比：与 gdp 对数相关（gdp 分布高度右偏，用 log 映射覆盖
+        # 真实范围 1k~200k 元；避免固定线性阈值使多数城市高收入占比贴地板）
+        gmin, gmax = 2000.0, 200000.0
+        ln_ratio = (math.log(max(gdp, 1.0)) - math.log(gmin)) / max(1e-9, math.log(gmax) - math.log(gmin))
+        income_high = max(0.02, min(0.98, 0.08 + 0.8 * ln_ratio))
         return {
             'elder': aging,
             'youth': 1.0 - aging,

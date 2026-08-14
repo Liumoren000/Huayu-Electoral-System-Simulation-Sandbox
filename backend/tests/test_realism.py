@@ -173,6 +173,21 @@ class RealismFeatureTest(unittest.TestCase):
             self.assertEqual(vm_a.get_city_turnout(city, 1.0),
                              vm_b.get_city_turnout(city, 1.0))
 
+    def test_turnout_income_weight_covers_range(self):
+        """收入维度的差异化权重随 GDP 平滑分布，而非贴地板（修复固定阈值 bug）"""
+        from app.engine.voter_model import VoterModel
+        vm = VoterModel(seed=42, turnout_differential=1.0)
+        weights = []
+        for city in self.cd.cities:
+            w = vm._group_turnout_weights(city)
+            self.assertAlmostEqual(w['high_income'] + w['low_income'], 1.0, places=6)
+            weights.append(w['high_income'])
+        low = sum(1 for w in weights if w < 0.2)
+        # 绝大多数城市的高收入占比不应被压到地板（修复前 94/350 贴地板）
+        self.assertLess(low, 20)
+        self.assertGreater(max(weights), 0.7)
+        self.assertLess(min(weights), 0.15)
+
 
 if __name__ == '__main__':
     unittest.main()
