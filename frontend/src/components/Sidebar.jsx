@@ -342,7 +342,7 @@ function SchemePanel({ scheme, onChange, className, label, active, onActivate, e
           方案 {label}
           {active && <span className="scheme-active-tag">当前</span>}
         </span>
-        <label className="uh-toggle" onClick={e => e.stopPropagation()} title="启用上议院">
+        <label className="uh-toggle" onClick={e => { e.stopPropagation(); onActivate?.(); }} title="启用上议院">
           <input
             type="checkbox"
             checked={scheme.upper_house_enabled || false}
