@@ -260,6 +260,16 @@ class RealismFeatureTest(unittest.TestCase):
         self.assertGreater(top, 0.19)
         self.assertLess(top, 0.45)
 
+    def test_tactical_voting_default_enabled_differentiates(self):
+        """默认配置下 FPTP 与 PR 应呈现制度分化（Duverger）：多数制首党得票 > 比例制"""
+        fptp, _ = self._run()  # 默认 tactical_voting=0.4
+        pr_cfg = ElectoralConfig(system_type='PR', total_seats=450)
+        pr = ElectoralEngine(self.cd, self.parties, pr_cfg, seed=42).run()
+        fptp_top = max(p.vote_share for p in fptp.party_results)
+        pr_top = max(p.vote_share for p in pr.party_results)
+        # 多数制下弃保使首党份额高于比例制（真实 Duverger 分化）
+        self.assertGreater(fptp_top, pr_top)
+
     def test_tactical_voting_camp_aware(self):
         """弃保转投应主要流向同阵营，跨阵营仅折半"""
         cfg = ElectoralConfig(system_type='FPTP', total_seats=450, tactical_voting=1.0)

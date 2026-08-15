@@ -32,7 +32,7 @@ class ElectoralConfig(BaseModel):
     malapportionment: float = Field(default=0.0, ge=0.0, le=1.0, description="选区人口不均衡度（小城市/农村超代表）")
     party_effects: dict[str, float] = Field(default_factory=dict, description="政党特定亲和度扰动（丑闻/领袖魅力等事件，party_id->delta）")
     calibration: bool = Field(default=False, description="启用历史倾向锚点校准（每城基准政党）")
-    tactical_voting: float = Field(default=0.0, ge=0.0, le=1.0, description="策略性投票/弃保比例：小选区制下弱势候选人支持者转投可赢政党（Duverger 效应）")
+    tactical_voting: float = Field(default=0.4, ge=0.0, le=1.0, description="策略性投票/弃保比例：小选区制下弱势候选人支持者转投可赢政党（Duverger 效应），多数制默认启用")
     turnout_differential: float = Field(default=0.0, ge=0.0, le=1.0, description="群体差异化投票率：老年/高学历/高收入/城市选民投票率显著更高，城市投票率按人口结构加权（0=关闭，1=完全差异化）")
     affinity_power: float = Field(default=6.0, ge=1.0, le=8.0, description="得票率浓缩指数：对亲和度做幂次变换后归一化，放大政党间差距（1=线性均匀，6≈中国式高动员分化，首党约25%，越高越两极）")
     party_system_concentration: float = Field(default=0.0, ge=0.0, le=0.5, description="政党体系集中度：全国领先党（第一党+b、第二党+b/2）获声望加成，模拟主导党/两强对峙格局（0=关闭）")

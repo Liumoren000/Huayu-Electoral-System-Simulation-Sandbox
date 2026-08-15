@@ -46,7 +46,7 @@ const defaultConfig = {
   abstention_sensitivity: 0,
   malapportionment: 0,
   calibration: false,
-  tactical_voting: 0,
+  tactical_voting: 0.4,
   turnout_differential: 0,
   affinity_power: 6,
   party_system_concentration: 0,
