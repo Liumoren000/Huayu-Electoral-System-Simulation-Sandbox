@@ -4,6 +4,7 @@ from app.models.party import Party
 from app.models.config import ElectoralConfig
 from app.models.result import (
     CityResult, PartySeatResult, ElectionResult, ProvinceResult, DisproportionalityDecomposition,
+    RegionalBlock,
 )
 from .voter_model import VoterModel
 
@@ -848,6 +849,8 @@ class ElectoralEngine:
         lh, rose, mal, pns = self._compute_additional_indices(party_results, province_results)
         decomp = self._compute_disprop_decomposition(party_results, province_results)
         classification, classification_detail = self._classify_party_system(party_results, self.config.total_seats, env)
+        polarization = self._compute_polarization(party_results)
+        regional_blocks = self._compute_regional_blocks(province_results, party_results)
         return ElectionResult(
             config_name=self.config.name,
             system_type=self.config.system_type,
@@ -869,7 +872,78 @@ class ElectoralEngine:
             upper_house_total_seats=uh_total,
             party_system_classification=classification,
             party_system_classification_detail=classification_detail,
+            polarization_index=polarization,
+            regional_blocks=regional_blocks,
         )
+
+    def _compute_polarization(self, party_results: list[PartySeatResult]) -> float:
+        """议会极化度：席位加权意识形态标准差（economic + social 两轴 0-1 空间）。
+
+        衡量议会光谱的两极化程度——政党立场越分散、席位越向两极集中，极化度越高。
+        """
+        import math
+        total_seats = sum(p.seats for p in party_results)
+        if total_seats <= 0:
+            return 0.0
+        dims = ['economic_position', 'social_position']
+        sd_sum = 0.0
+        for d in dims:
+            mean = sum(getattr(p, d, 0.0) * p.seats for p in party_results) / total_seats
+            var = sum(p.seats * (getattr(p, d, 0.0) - mean) ** 2 for p in party_results) / total_seats
+            sd_sum += math.sqrt(var)
+        return round(sd_sum / len(dims), 4)
+
+    def _compute_regional_blocks(self, province_results: list[ProvinceResult],
+                                 party_results: list[PartySeatResult]) -> list[RegionalBlock]:
+        """区域政治集团：按各省赢家归纳政治地理版图，并打上地理标签。
+
+        真实政治地理分析中，同一政党赢得的相邻省份常构成稳定的"选区集团/带"
+        （如铁锈带、阳光地带）。按赢家聚合并标注人口/席位规模。
+        """
+        pname = {p.party_id: p.party_name for p in party_results}
+        pcolor = {p.party_id: p.color for p in party_results}
+        blocks = {}
+        for pr in province_results:
+            wid = pr.winner_party_id
+            blk = blocks.setdefault(wid, {
+                'party_id': wid, 'provinces': [], 'seats': 0, 'pop': 0,
+            })
+            blk['provinces'].append(pr.province_name)
+            blk['seats'] += pr.seats
+            blk['pop'] += pr.population
+        out = []
+        for wid, blk in blocks.items():
+            out.append(RegionalBlock(
+                party_id=wid,
+                party_name=pname.get(wid, wid),
+                color=pcolor.get(wid, ''),
+                province_count=len(blk['provinces']),
+                total_seats=blk['seats'],
+                total_population=blk['pop'],
+                provinces=blk['provinces'],
+                block_label=self._regional_block_label(blk['provinces']),
+            ))
+        out.sort(key=lambda b: b.total_seats, reverse=True)
+        return out
+
+    def _regional_block_label(self, provinces: list[str]) -> str:
+        """基于省份集合给出政治地理标签（启发式规则）"""
+        coastal = {'北京市', '上海市', '天津市', '广东省', '浙江省', '江苏省', '福建省',
+                   '山东省', '辽宁省', '河北省', '海南省', '广西壮族自治区'}
+        western = {'新疆维吾尔自治区', '西藏自治区', '青海省', '甘肃省', '宁夏回族自治区',
+                   '内蒙古自治区', '云南省', '贵州省', '四川省', '重庆市', '陕西省'}
+        n_coastal = sum(1 for p in provinces if p in coastal)
+        n_western = sum(1 for p in provinces if p in western)
+        n = len(provinces)
+        if n == 0:
+            return ''
+        if n_coastal >= n * 0.7:
+            return '沿海带'
+        if n_western >= n * 0.7:
+            return '边疆西部带'
+        if n_coastal >= 2 and n_western >= 2:
+            return '跨区域带'
+        return '区域混合'
 
     def _classify_party_system(self, party_results: list[PartySeatResult], total_seats: int,
                                effective_parties_vote: float) -> tuple[str, str]:

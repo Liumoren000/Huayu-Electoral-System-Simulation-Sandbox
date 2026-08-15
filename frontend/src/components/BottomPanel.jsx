@@ -73,6 +73,12 @@ export default function BottomPanel({ result }) {
         <span className="metric-label">政党国家化</span>
         <span className="metric-value">{isUpper ? '-' : (result.party_nationalization_index !== undefined ? (result.party_nationalization_index * 100).toFixed(0) + '%' : '-')}</span>
       </div>
+      <div className="metric-item">
+        <span className="metric-label">极化度</span>
+        <span className="metric-value" style={{ color: (result.polarization_index ?? 0) > 0.5 ? 'var(--accent-orange)' : 'var(--text-primary)' }}>
+          {isUpper ? '-' : (result.polarization_index !== undefined ? (result.polarization_index * 100).toFixed(0) : '-')}
+        </span>
+      </div>
     </div>
   ) : null;
 

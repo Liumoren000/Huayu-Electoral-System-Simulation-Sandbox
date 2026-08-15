@@ -40,6 +40,18 @@ class ProvinceResult(BaseModel):
     party_seats: dict[str, int] = {}  # party_id -> seats won in this province
 
 
+class RegionalBlock(BaseModel):
+    """区域政治集团：由同一政党赢得的省份集合（政治地理版图）"""
+    party_id: str
+    party_name: str
+    color: str = ""
+    province_count: int = 0
+    total_seats: int = 0
+    total_population: int = 0
+    provinces: list[str] = []
+    block_label: str = ""  # 集团政治地理标签（如"边疆民族区"）
+
+
 class DisproportionalityDecomposition(BaseModel):
     """
     不比例性三源分解（基于 Loosemore-Hanby 口径）：
@@ -75,6 +87,8 @@ class ElectionResult(BaseModel):
     upper_house_total_seats: int = 0
     party_system_classification: str = ""  # Sartori 类型学：一党主导制/两党制/温和多党制/碎片化多党制
     party_system_classification_detail: str = ""  # 分类依据（含关键指标）
+    polarization_index: float = 0.0  # 议会极化度：席位加权意识形态标准差（0-1，越高越两极化）
+    regional_blocks: list[RegionalBlock] = []  # 区域政治集团（按省份赢家归纳）
 
 
 class CoalitionOption(BaseModel):

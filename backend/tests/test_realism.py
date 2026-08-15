@@ -416,6 +416,19 @@ class RealismFeatureTest(unittest.TestCase):
             self.assertIn(r.party_system_classification,
                           ['主导党制', '两党制', '温和多党制'])
 
+    def test_polarization_index_range(self):
+        """极化度应处于合理范围（0-1）"""
+        r, _ = self._run()
+        self.assertGreaterEqual(r.polarization_index, 0.0)
+        self.assertLessEqual(r.polarization_index, 1.0)
+
+    def test_regional_blocks_present(self):
+        """区域政治集团应覆盖全部省份并给出地理标签"""
+        r, _ = self._run()
+        prov_total = sum(len(b.provinces) for b in r.regional_blocks)
+        self.assertEqual(prov_total, len(r.province_results))
+        self.assertTrue(all(b.block_label for b in r.regional_blocks))
+
 
 if __name__ == '__main__':
     unittest.main()

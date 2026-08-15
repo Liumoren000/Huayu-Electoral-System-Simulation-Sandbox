@@ -126,6 +126,15 @@ export function generateReport(displayResult, resultA, resultB, activeScheme, co
     sections.push({ title: '政党体系格局', items: classificationItems });
   }
 
+  // 0.75 区域政治集团
+  if (res.regional_blocks?.length) {
+    const blockItems = res.regional_blocks.map(b => {
+      const provs = (b.provinces || []).length;
+      return `「${b.party_name}」赢得 ${b.province_count} 省、${b.total_seats} 席（${b.block_label || '区域混合'}）：${(b.provinces || []).slice(0, 8).join('、')}${provs > 8 ? ` 等 ${provs} 省` : ''}。`;
+    });
+    sections.push({ title: '区域政治版图', items: blockItems });
+  }
+
   // 1. 总体态势
   const hasMajority = top && top.seats > total / 2;
   let gov = `在${res.system_type}制度下，第一大党「${top?.party_name}」获得 ${top?.seats} 席（占 ${formatPct(top?.seats / total, 1)}），${hasMajority ? `超过多数门槛 ${majorityThreshold} 席，可单独执政（${coalition?.majority_type === 'absolute' ? '绝对多数' : '简单多数'}）` : `未达多数门槛 ${majorityThreshold} 席，需要联合组阁`}。`;
