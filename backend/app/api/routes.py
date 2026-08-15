@@ -148,6 +148,10 @@ def simulate_robustness(request: RobustnessRequest):
 
     city_data = data_loader.get_city_data(request.year)
     n = request.iterations
+    # 排名/同意/波达等慢速制度（单次 ~0.4-0.6s）降低迭代数，避免
+    # 稳健性分析在多轮计票制度下卡顿；快速制度保持请求迭代数。
+    if request.config.system_type in RANKED_SYSTEMS:
+        n = min(n, 10)
 
     seats_hist = {p.id: [] for p in request.parties}
     win_count = {p.id: 0 for p in request.parties}
