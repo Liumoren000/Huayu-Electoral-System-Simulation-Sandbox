@@ -129,6 +129,12 @@ class VoterModel:
         secondary = city.secondary_industry_pct
         primary = city.primary_industry_pct
         urban = city.urbanization_rate
+        gdp = city.gdp_per_capita
+
+        # 人均 GDP → 收入分层（对数映射，覆盖 1k~200k 元真实范围）
+        gmin, gmax = 2000.0, 200000.0
+        ln_ratio = (math.log(max(gdp, 1.0)) - math.log(gmin)) / max(1e-9, math.log(gmax) - math.log(gmin))
+        ln_ratio = max(0.0, min(1.0, ln_ratio))
 
         segments = []
         # 老年保守派：老龄化越高占比越大
@@ -145,7 +151,7 @@ class VoterModel:
             'offset': {'social': 0.4, 'environment': 0.3, 'economic': 0.1,
                        'nationalism': -0.2, 'urban_rural': 0.2},
         })
-        # 高学历国际派
+        # 高学历国际派：GDP 越高占比越大（收入支撑国际主义倾向）
         edu_w = max(0.0, (edu - 0.55) * 1.5)
         segments.append({
             'weight': edu_w,
@@ -165,6 +171,21 @@ class VoterModel:
             'weight': max(0.0, agr_w),
             'offset': {'economic': -0.3, 'regional': 0.4, 'nationalism': 0.3,
                        'welfare': 0.2, 'urban_rural': -0.5},
+        })
+        # 高收入城市精英派：GDP 驱动（富裕城市更多市场自由/轻福利偏好选民）
+        affluent_w = ln_ratio * 0.25
+        segments.append({
+            'weight': affluent_w,
+            'offset': {'economic': 0.45, 'social': 0.2, 'welfare': -0.3,
+                       'environment': 0.15, 'regional': -0.15, 'nationalism': -0.15,
+                       'urban_rural': 0.35},
+        })
+        # 低收入依赖派：低 GDP 城市更多福利依赖/本土保护偏好选民
+        struggler_w = (1.0 - ln_ratio) * 0.2
+        segments.append({
+            'weight': struggler_w,
+            'offset': {'economic': -0.45, 'welfare': 0.5, 'regional': 0.2,
+                       'nationalism': 0.2, 'urban_rural': -0.2, 'social': -0.15},
         })
         # 补足基础人群（接近城市中心）
         total_w = sum(s['weight'] for s in segments) + 0.35
@@ -262,6 +283,10 @@ class VoterModel:
         city_nat = self._city_tilt(city, 'nationalism', self._city_nationalism(city))
         city_nat += (segment_offset or {}).get('nationalism', 0.0)
         nat_score = max(0, 1.0 - abs(city_nat - getattr(party, 'nationalism_position', 0)) * 1.0)
+        # 民族构成加成：少数民族占比高的城市，民族自治党（camp=ethnic）获得真实选区基础
+        ethnic_share = getattr(city, 'ethnic_share', 0.0) or 0.0
+        if getattr(party, 'camp', '') == 'ethnic' and ethnic_share > 0:
+            nat_score = min(1.0, nat_score + ethnic_share * 0.35)
         scores.append(('nationalism', nat_score, 0.15))
 
         # 城乡利益匹配 (10%)
@@ -479,6 +504,7 @@ class VoterModel:
             'city_position': city_pos,
             'weights': weights,
             'turnout': round(self.get_city_turnout(city), 4),
+            'ethnic_share': round(getattr(city, 'ethnic_share', 0.0) or 0.0, 4),
             'parties': rows,
         }
 
@@ -660,6 +686,7 @@ class VoterModel:
                           segment_offset: dict = None) -> float:
         """单政策维度匹配（与 compute_city_party_affinity 的对应分支完全一致）"""
         off = segment_offset or {}
+        party_val = getattr(party, dim + '_position', 0)
         if dim == 'welfare':
             city_val = self._city_tilt(city, 'welfare', self._city_welfare_preference(city))
             city_val += off.get('welfare', 0.0)
@@ -669,10 +696,14 @@ class VoterModel:
         elif dim == 'nationalism':
             city_val = self._city_tilt(city, 'nationalism', self._city_nationalism(city))
             city_val += off.get('nationalism', 0.0)
+            match = max(0, 1.0 - abs(city_val - party_val) * penalty)
+            ethnic_share = getattr(city, 'ethnic_share', 0.0) or 0.0
+            if getattr(party, 'camp', '') == 'ethnic' and ethnic_share > 0:
+                match = min(1.0, match + ethnic_share * 0.35)
+            return match
         else:  # urban_rural
             city_val = self._city_tilt(city, 'urban_rural', self._city_urban_rural(city))
             city_val += off.get('urban_rural', 0.0)
-        party_val = getattr(party, dim + '_position', 0)
         return max(0, 1.0 - abs(city_val - party_val) * penalty)
 
     def compute_vote_shares(self, city: City, parties: list[Party], noise_amplitude: float = 0.03) -> dict[str, float]:

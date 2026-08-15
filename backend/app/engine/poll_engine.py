@@ -13,14 +13,30 @@ from app.models.result import (
     SwingDistrict, SwingAnalysisResponse,
 )
 
-# 民调舆论事件模板（week 为相对竞选期中的触发周）
+# 民调舆论事件模板（week 为相对竞选期中的触发周）。
+# 不再写死冲击对象：事件的作用对象与方向由竞选期当周政治格局动态决定
+# （领先党承受负面冲击、挑战者获得动量、优势党小幅回稳等），
+# 同一竞选期在不同政治格局下会呈现不同的舆论走势。
 POLL_EVENTS_TEMPLATE = [
-    (2, "首场电视辩论", "在任党表现稳定，民调小幅回稳", 0.015),
+    (2, "首场电视辩论", "领先党表现稳定，民调小幅回稳", 0.015),
     (4, "经济数据意外走弱", "就业与增长数据不及预期，冲击执政联盟", -0.03),
     (6, "地方选举风向标", "关键省地方选举结果带来动量波动", 0.02),
-    (8, "候选人丑闻传闻", "针对最大党的负面舆情发酵", -0.025),
+    (8, "候选人丑闻传闻", "针对领先党的负面舆情发酵", -0.025),
     (10, "终场辩论", "最后一场辩论，摇摆选民加速决定", 0.02),
 ]
+
+
+def _select_event_target(cur: dict, mag: float) -> str:
+    """按当周民调格局动态选择事件冲击对象：
+    - 负面事件 → 冲击当前领先党（执政联盟代表）
+    - 正面事件 → 利好当前追赶者（挑战者获得动量），若无明显第二则仍给领先党
+    """
+    ranking = sorted(cur, key=cur.get, reverse=True)
+    if mag < 0:
+        return ranking[0]
+    if len(ranking) > 1 and cur.get(ranking[1], 0.0) > cur.get(ranking[0], 0.0) - 0.05:
+        return ranking[1]
+    return ranking[0]
 
 
 class PollEngine:
@@ -53,13 +69,13 @@ class PollEngine:
 
         # 竞选期演化：每周向基准得票率收敛 + 随机波动 + 事件冲击
         for week in range(1, self.weeks + 1):
-            # 事件冲击：作用于最大的党（"在任党"）
+            # 事件冲击：作用对象与方向跟随当周政治格局动态选择
             ev = event_by_week.get(week)
             if ev:
                 label, desc, mag = ev
-                target_id = max(final_share, key=final_share.get)
+                target_id = _select_event_target(cur, mag)
                 direction = 1.0 if mag > 0 else -1.0
-                # 对在任党冲击；若为负面，分给其它党
+                # 对目标党冲击；若为负面，分给其它党
                 if mag > 0:
                     cur[target_id] += mag
                 else:
@@ -99,7 +115,7 @@ class PollEngine:
             series=series,
             events=events,
             forecasts=forecasts,
-            note="民调曲线由确定性选举结果回退生成，竞选期向基准收敛并叠加随机波动与舆论事件冲击。",
+            note="民调曲线由确定性选举结果回退生成，竞选期向基准收敛并叠加随机波动与舆论事件冲击；事件冲击对象随当周政治格局动态变化（领先党承压、挑战者获利）。",
         )
 
     def _forecast(self, result, last_poll: dict, final_share: dict) -> list[PollForecast]:

@@ -82,6 +82,10 @@ export default function VoterModelModal({ year, config, totalSeats, minSeats, pa
                   <div className="robust-stat-label">估算投票率</div>
                   <div className="robust-stat-val">{(data.turnout * 100).toFixed(0)}%</div>
                 </div>
+                <div className="robust-stat">
+                  <div className="robust-stat-label">少数民族占比</div>
+                  <div className="robust-stat-val">{(data.ethnic_share * 100).toFixed(0)}%</div>
+                </div>
               </div>
 
               <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent-blue)', margin: '12px 0 6px' }}>

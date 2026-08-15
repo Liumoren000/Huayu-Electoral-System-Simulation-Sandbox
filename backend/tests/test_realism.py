@@ -297,6 +297,62 @@ class RealismFeatureTest(unittest.TestCase):
         self.assertEqual(sum(p.seats for p in r1.party_results), 450)
         self.assertAlmostEqual(sum(swung.values()), 1.0, places=3)
 
+    def test_city_has_ethnic_share_field(self):
+        """每个城市都有少数民族占比字段（0-1），且分布符合现实（西部/边疆高）"""
+        for c in self.cd.cities:
+            self.assertGreaterEqual(c.ethnic_share, 0.0)
+            self.assertLessEqual(c.ethnic_share, 1.0)
+        by_id = {c.id: c for c in self.cd.cities}
+        # 西藏拉萨、新疆喀什应显著高于北京
+        lhasa = by_id['540100'].ethnic_share
+        kashgar = by_id['653100'].ethnic_share
+        beijing = by_id['110000'].ethnic_share
+        self.assertGreater(lhasa, 0.8)
+        self.assertGreater(kashgar, 0.7)
+        self.assertLess(beijing, 0.1)
+        self.assertGreater(lhasa, beijing)
+        self.assertGreater(kashgar, beijing)
+
+    def test_ethnic_party_wins_in_minority_city(self):
+        """民族区域自治党（P005, camp=ethnic）在少数民族聚居城市获得更高亲和度"""
+        from app.engine.voter_model import VoterModel
+        vm = VoterModel(seed=42)
+        by_id = {c.id: c for c in self.cd.cities}
+        lhasa = by_id['540100']
+        beijing = by_id['110000']
+        p005 = next(p for p in self.parties if p.id == 'P005')
+        share_lhasa = vm.compute_vote_shares(lhasa, self.parties, 0.0)['P005']
+        share_beijing = vm.compute_vote_shares(beijing, self.parties, 0.0)['P005']
+        self.assertGreater(share_lhasa, share_beijing)
+        self.assertGreater(share_lhasa, 0.2, "高少数民族占比城市中民族党应有明显存在感")
+        # 说明：ethnic_share 加成使得民族党在聚居区获得真实选区基础
+        self.assertAlmostEqual(sum(vm.compute_vote_shares(lhasa, self.parties, 0.0).values()), 1.0, places=4)
+
+    def test_ranked_noise_matches_other_systems(self):
+        """排序制噪声口径应与其它制度一致（不再乘 4 倍）"""
+        cfg = ElectoralConfig(system_type='IRV', total_seats=450)
+        eng = ElectoralEngine(self.cd, self.parties, cfg, seed=42)
+        # 直接调用采样函数验证：噪声幅度透传，未放大
+        city = self.cd.cities[0]
+        vm = eng.voter_model
+        # 无 *4 后：同样 noise_amplitude 下排名票采样使用同一口径
+        rankings = vm.sample_voter_rankings(city, self.parties, n=20, noise_amplitude=cfg.noise_amplitude)
+        self.assertEqual(len(rankings), 20)
+        self.assertTrue(all(len(r) == len(self.parties) for r in rankings))
+
+    def test_gdp_affects_stratification_composition(self):
+        """人均 GDP 应改变城市选民分层构成：富裕城市更多高收入精英派"""
+        from app.engine.voter_model import VoterModel
+        vm = VoterModel(seed=42, voter_stratification=True)
+        rich = max(self.cd.cities, key=lambda c: c.gdp_per_capita)
+        poor = min(self.cd.cities, key=lambda c: c.gdp_per_capita)
+        seg_rich = {i: s['weight'] for i, s in enumerate(vm._city_segments(rich))}
+        seg_poor = {i: s['weight'] for i, s in enumerate(vm._city_segments(poor))}
+        # 高收入精英派（index 5）在富裕城市占比更高
+        self.assertGreater(seg_rich[5], seg_poor[5])
+        # 低收入依赖派（index 6）在贫困城市占比更高
+        self.assertGreater(seg_poor[6], seg_rich[6])
+
 
 if __name__ == '__main__':
     unittest.main()

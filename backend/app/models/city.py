@@ -16,6 +16,7 @@ class City(BaseModel):
     secondary_industry_pct: float
     tertiary_industry_pct: float
     region_type: str  # "coastal", "inland", "western", "northeast"
+    ethnic_share: float = 0.0  # 少数民族人口占比（0-1），民族党的真实选区基础
 
 
 class CityData(BaseModel):

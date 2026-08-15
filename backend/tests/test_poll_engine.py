@@ -65,6 +65,27 @@ class PollEngineTest(unittest.TestCase):
             if d.bellwether:
                 self.assertEqual(d.winner_party_id, sa.national_leader)
 
+    def test_events_target_follows_landscape(self):
+        """舆论事件冲击对象随当周政治格局动态选择（负面冲击领先党）"""
+        cfg = ElectoralConfig(system_type='PR', total_seats=450)
+        pe = PollEngine(self.cd, self.parties, cfg, weeks=12, seed=7)
+        pr = pe.run()
+        # 冲击对象必须是存在的政党
+        party_ids = {p.id for p in self.parties}
+        for e in pr.events:
+            self.assertIn(e.party_id, party_ids)
+        # 负面事件（direction=-1）目标应为当周领先党：解析周内领先者
+        from collections import defaultdict
+        weekly_leader = {}
+        for pt in pr.series:
+            if pt.share > weekly_leader.get(pt.week, (None, -1))[1]:
+                weekly_leader[pt.week] = (pt.party_id, pt.share)
+        neg_events = [e for e in pr.events if e.direction == -1.0]
+        if neg_events:
+            e = neg_events[0]
+            leader, _ = weekly_leader.get(e.week, (None, -1))
+            self.assertEqual(e.party_id, leader)
+
 
 if __name__ == '__main__':
     unittest.main()

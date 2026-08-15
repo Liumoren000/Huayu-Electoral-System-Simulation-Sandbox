@@ -483,7 +483,7 @@ class ElectoralEngine:
 
         city_winners = {}
         for cid, info in city_info.items():
-            rankings = self.voter_model.sample_voter_rankings(info['city'], self.parties, n=self.config.voter_samples, noise_amplitude=self.config.noise_amplitude * 4.0)
+            rankings = self.voter_model.sample_voter_rankings(info['city'], self.parties, n=self.config.voter_samples, noise_amplitude=self.config.noise_amplitude)
             city_winners[cid] = winner_fn(rankings)
 
         party_seats = self._count_city_seats(city_seats, city_winners)
@@ -563,7 +563,7 @@ class ElectoralEngine:
             ballots = []
             first_prefs = {p.id: 0 for p in self.parties}
             for c in cities:
-                rankings = self.voter_model.sample_voter_rankings(c, self.parties, n=self.config.voter_samples, noise_amplitude=self.config.noise_amplitude * 4.0)
+                rankings = self.voter_model.sample_voter_rankings(c, self.parties, n=self.config.voter_samples, noise_amplitude=self.config.noise_amplitude)
                 ballots.extend(rankings)
                 for ranking in rankings:
                     if ranking:

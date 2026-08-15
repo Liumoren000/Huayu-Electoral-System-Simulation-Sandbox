@@ -438,6 +438,7 @@ def explain_voter_model(request: VoterExplainRequest):
         city_name=city.name,
         province=city.province,
         turnout=expl['turnout'],
+        ethnic_share=expl.get('ethnic_share', 0.0),
         weights=expl['weights'],
         city_position=city_position,
         parties=parties,

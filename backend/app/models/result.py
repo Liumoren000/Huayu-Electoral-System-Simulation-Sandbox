@@ -249,6 +249,7 @@ class VoterExplainResponse(BaseModel):
     city_name: str
     province: str
     turnout: float = 0.0
+    ethnic_share: float = 0.0
     weights: dict[str, float] = {}  # {'economic': 0.3, ...}
     city_position: list[DimensionExplain] = []
     parties: list[PartyAffinityExplain] = []
