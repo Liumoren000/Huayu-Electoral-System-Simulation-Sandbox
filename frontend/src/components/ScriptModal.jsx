@@ -41,8 +41,8 @@ export const SCRIPT_LIBRARY = [
     id: 'trust',
     name: '社会动荡与信任危机',
     description: '政治极化与信任崩塌，选民高度分裂，小党与极端立场政党崛起。',
-    effects: ['投票率 -8%', '不确定性大幅上升', '进入门槛提高（碎片化）', '社会分歧最大化'],
-    config: { turnout_shift: -0.08, noise_amplitude: 0.10, threshold: 0.06, dim_tilt: { social: -0.2, regional: 0.1 } },
+    effects: ['投票率 -8%', '不确定性大幅上升', '门槛效果弱化（碎片化加剧）', '社会分歧最大化'],
+    config: { turnout_shift: -0.08, noise_amplitude: 0.10, threshold: 0.0, dim_tilt: { social: -0.2, regional: 0.1 } },
   },
   {
     id: 'aging',

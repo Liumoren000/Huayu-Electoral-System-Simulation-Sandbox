@@ -223,14 +223,6 @@ class VoterModel:
                 out[pid] = max(0.001, out[pid] + delta)
         return out
 
-    def sample_first_preferences(self, city: City, parties: list[Party], n: int = 80) -> dict[str, int]:
-        """各政党在该市的（排名票）首偏好票数"""
-        counts = {p.id: 0 for p in parties}
-        for ranking in self.sample_voter_rankings(city, parties, n):
-            if ranking:
-                counts[ranking[0]] += 1
-        return counts
-
     def compute_city_party_affinity(self, city: City, party: Party, noise_amplitude: float = 0.03,
                                     segment_offset: dict = None) -> float:
         """
@@ -647,43 +639,6 @@ class VoterModel:
         city_pos += (segment_offset or {}).get('regional', 0.0)
         diff = abs(city_pos - party.regional_position)
         return max(0, 1.0 - diff * 1.2)
-
-    def _policy_match(self, city: City, party: Party, segment_offset: dict = None) -> float:
-        """
-        政策偏好匹配
-
-        考虑多个政策维度的综合匹配。
-
-        segment_offset：亚群政策偏好偏移（如老年→福利/传统，青年→环保/进步）。
-        偏移直接作用于城市在对应维度上的位置，使不同人群对同一政党产生不同亲和度。
-        """
-        off = segment_offset or {}
-        # 福利偏好匹配
-        city_welfare = self._city_tilt(city, 'welfare', self._city_welfare_preference(city))
-        city_welfare += off.get('welfare', 0.0)
-        party_welfare = getattr(party, 'welfare_position', 0)
-        welfare_match = max(0, 1.0 - abs(city_welfare - party_welfare) * 0.8)
-
-        # 环保偏好匹配
-        city_env = self._city_tilt(city, 'environment', self._city_environment_preference(city))
-        city_env += off.get('environment', 0.0)
-        party_env = getattr(party, 'environment_position', 0)
-        env_match = max(0, 1.0 - abs(city_env - party_env) * 0.8)
-
-        # 民族主义匹配
-        city_nat = self._city_tilt(city, 'nationalism', self._city_nationalism(city))
-        city_nat += off.get('nationalism', 0.0)
-        party_nat = getattr(party, 'nationalism_position', 0)
-        nat_match = max(0, 1.0 - abs(city_nat - party_nat) * 1.0)
-
-        # 城乡利益匹配
-        city_ur = self._city_tilt(city, 'urban_rural', self._city_urban_rural(city))
-        city_ur += off.get('urban_rural', 0.0)
-        party_ur = getattr(party, 'urban_rural_position', 0)
-        ur_match = max(0, 1.0 - abs(city_ur - party_ur) * 0.9)
-
-        # 政策维度综合（等权重）
-        return (welfare_match + env_match + nat_match + ur_match) / 4
 
     def _policy_dim_match(self, city: City, party: Party, dim: str, penalty: float,
                           segment_offset: dict = None) -> float:
