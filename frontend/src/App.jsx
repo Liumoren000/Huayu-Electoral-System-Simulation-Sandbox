@@ -142,6 +142,7 @@ export default function App() {
   const [robustnessData, setRobustnessData] = useState(null);
   const [showRobustnessModal, setShowRobustnessModal] = useState(false);
   const [showUncertainty, setShowUncertainty] = useState(false);
+  const [robustLoading, setRobustLoading] = useState(false);
   const [attackInitialMode, setAttackInitialMode] = useState('coalition');
   const [showCompare, setShowCompare] = useState(false);
   const [showSensitivity, setShowSensitivity] = useState(false);
@@ -234,11 +235,12 @@ export default function App() {
       alert('至少需要启用一个政党');
       return;
     }
-    setLoading(true);
+    if (robustLoading) return;
+    setRobustLoading(true);
     try {
       const enabledParties = parties.filter(p => p.enabled !== false).map(({ enabled, ...rest }) => rest);
       const simConfig = { ...config, total_seats: totalSeats, min_seats_per_city: minSeats };
-      const data = await runRobustness({ year, config: simConfig, parties: enabledParties, iterations: 30 });
+      const data = await runRobustness({ year, config: simConfig, parties: enabledParties, iterations: 20 });
       setRobustnessData(data);
       setShowRobustnessModal(true);
       setShowUncertainty(true);
@@ -246,7 +248,7 @@ export default function App() {
       console.error('Robustness error:', e);
       alert('稳健性分析失败：' + e.message);
     } finally {
-      setLoading(false);
+      setRobustLoading(false);
     }
   };
 
@@ -952,9 +954,11 @@ body: JSON.stringify({
             uncertainty={robustnessData ? buildUncertaintyMaps(robustnessData) : null}
             showUncertainty={showUncertainty}
             onToggleUncertainty={() => {
+              if (robustLoading) return;
               if (!robustnessData) runRobustnessAnalysis();
               else setShowUncertainty(v => !v);
             }}
+            uncertaintyLoading={robustLoading}
           />
 
           {replay && (

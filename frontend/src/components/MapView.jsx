@@ -35,7 +35,7 @@ const PROVINCE_ADCODES = {
   '台湾省': '710000',
 };
 
-export default function MapView({ result, cities, mapLabel, accentColor, onProvinceClick, manualMode, manualSeats, viewMode, onViewModeChange, onDrillDown, compareResult, tippingCityIds, uncertainty, showUncertainty, onToggleUncertainty }) {
+export default function MapView({ result, cities, mapLabel, accentColor, onProvinceClick, manualMode, manualSeats, viewMode, onViewModeChange, onDrillDown, compareResult, tippingCityIds, uncertainty, showUncertainty, onToggleUncertainty, uncertaintyLoading }) {
   const containerRef = useRef(null);
   const chartRef = useRef(null);
   const clickHandlerRef = useRef(null);
@@ -253,12 +253,13 @@ renderMap(chartRef.current, result, manualSeats, currentProvince, viewMode, citi
             marginLeft: 12, padding: '2px 10px', fontSize: 10,
             background: showUncertainty ? 'var(--accent-green)' : 'var(--bg-tertiary)',
             border: '1px solid var(--border-color)',
-            borderRadius: 4, color: showUncertainty ? '#fff' : 'var(--accent-blue)', cursor: 'pointer',
+            borderRadius: 4, color: showUncertainty ? '#fff' : 'var(--accent-blue)', cursor: uncertaintyLoading ? 'wait' : 'pointer',
           }}
           onClick={onToggleUncertainty}
           title="以蒙特卡洛稳健性结果着色：绿=稳定，红=胶着。未分析时自动运行稳健性。"
+          disabled={uncertaintyLoading}
         >
-          {showUncertainty ? '确定性视图' : '不确定度'}
+          {uncertaintyLoading ? '计算中...' : (showUncertainty ? '确定性视图' : '不确定度')}
         </button>
         {viewMode !== 'city' && (
           <button
