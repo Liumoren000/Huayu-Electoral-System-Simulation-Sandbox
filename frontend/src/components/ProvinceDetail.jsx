@@ -25,7 +25,7 @@ export default function ProvinceDetail({ province, result, cities, onClose, manu
   }
 
   const partyMap = {};
-  result.party_results.forEach(p => { partyMap[p.party_id] = p; });
+  result.party_results.forEach(p => { partyMap[p.party_id] = { ...p, name: p.name || p.party_name || p.party_id }; });
 
   const winnerParty = provinceCities[0] ? partyMap[provinceCities[0].winner_party_id] : null;
   const provResult = result.province_results.find(p => p.province_name === province);

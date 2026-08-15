@@ -1,5 +1,12 @@
 export function computeTippingSeats(result, partyMap) {
   if (!result?.city_results) return [];
+  const nameOf = (pid) => {
+    const p = partyMap?.[pid];
+    if (p?.name) return p.name;
+    if (p?.party_name) return p.party_name;
+    const inResult = result?.party_results?.find(x => x.party_id === pid);
+    return inResult?.party_name || inResult?.name || pid;
+  };
   const list = [];
   for (const cr of result.city_results) {
     const sorted = Object.entries(cr.vote_shares || {}).sort((a, b) => b[1] - a[1]);
@@ -7,12 +14,12 @@ export function computeTippingSeats(result, partyMap) {
     const top = sorted[0];
     const second = sorted[1];
     const margin = Math.max(0, top[1] - second[1]);
-    const runnerName = partyMap?.[second[0]]?.name || second[0];
+    const runnerName = nameOf(second[0]);
     list.push({
       city_id: cr.city_id,
       city_name: cr.city_name,
       winner_party_id: cr.winner_party_id,
-      winner_party_name: cr.winner_party_name,
+      winner_party_name: cr.winner_party_name || nameOf(cr.winner_party_id),
       runnerup_party_id: second[0],
       runnerup_party_name: runnerName,
       margin,

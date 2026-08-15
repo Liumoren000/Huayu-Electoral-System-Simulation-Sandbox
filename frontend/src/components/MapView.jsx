@@ -459,11 +459,14 @@ function renderMap(chart, result, manualSeatsData, currentProvince, viewMode, ci
   }
 
   const partyMap = {};
+  const addParty = (p) => {
+    partyMap[p.party_id] = { ...p, name: p.name || p.party_name || p.party_id };
+  };
   if (result?.party_results) {
-    result.party_results.forEach(p => { partyMap[p.party_id] = p; });
+    result.party_results.forEach(addParty);
   }
   if (compareResult?.party_results) {
-    compareResult.party_results.forEach(p => { if (!partyMap[p.party_id]) partyMap[p.party_id] = p; });
+    compareResult.party_results.forEach(addParty);
   }
 
   // 省级少数民族占比（按城市人口加权），供民族分布图层使用
