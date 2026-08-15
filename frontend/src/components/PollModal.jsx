@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import * as echarts from 'echarts';
 import { runPoll } from '../services/api.js';
 
-export default function PollModal({ config, totalSeats, minSeats, parties, onClose }) {
+export default function PollModal({ year, config, totalSeats, minSeats, parties, onClose }) {
   const chartRef = useRef(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -15,7 +15,7 @@ export default function PollModal({ config, totalSeats, minSeats, parties, onClo
     try {
       const simConfig = { ...config, total_seats: totalSeats, min_seats_per_city: minSeats };
       const enabled = parties.filter(p => p.enabled !== false).map(({ enabled, ...rest }) => rest);
-      const d = await runPoll({ config: simConfig, parties: enabled, weeks: w });
+      const d = await runPoll({ year, config: simConfig, parties: enabled, weeks: w });
       setData(d);
     } catch (e) {
       setError(e.message);

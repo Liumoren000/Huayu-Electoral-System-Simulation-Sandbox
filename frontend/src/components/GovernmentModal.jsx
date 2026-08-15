@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import * as echarts from 'echarts';
 import { runGovernment } from '../services/api.js';
 
-export default function GovernmentModal({ config, totalSeats, minSeats, parties, onClose }) {
+export default function GovernmentModal({ year, config, totalSeats, minSeats, parties, coalition, onClose }) {
   const chartRef = useRef(null);
   const pieRef = useRef(null);
   const [loading, setLoading] = useState(true);
@@ -28,6 +28,7 @@ export default function GovernmentModal({ config, totalSeats, minSeats, parties,
       const simConfig = { ...config, total_seats: totalSeats, min_seats_per_city: minSeats };
       const enabled = (parties || []).filter(p => p.enabled !== false).map(({ enabled, ...rest }) => rest);
       const d = await runGovernment({
+        year,
         config: simConfig,
         parties: enabled,
         ruling_parties: rulingSel,
@@ -40,7 +41,13 @@ export default function GovernmentModal({ config, totalSeats, minSeats, parties,
     }
   };
 
-  useEffect(() => { run([]); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
+  useEffect(() => {
+    // 与主界面"推荐联盟"对齐：默认采用 CoalitionEngine 推荐的执政联盟
+    const recommended = coalition?.recommended_coalition?.parties || [];
+    setRuling(recommended);
+    run(recommended);
+    /* eslint-disable-next-line react-hooks/exhaustive-deps */
+  }, []);
 
   useEffect(() => {
     if (!data || !chartRef.current) return;

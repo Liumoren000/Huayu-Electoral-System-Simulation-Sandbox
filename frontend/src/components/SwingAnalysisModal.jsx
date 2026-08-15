@@ -4,7 +4,7 @@ import { runSwingAnalysis } from '../services/api.js';
 const LEVEL_LABEL = { tossup: '胶着', lean: '偏倾', safe: '稳固' };
 const LEVEL_COLOR = { tossup: '#ff9800', lean: '#ffc107', safe: '#4caf50' };
 
-export default function SwingAnalysisModal({ config, totalSeats, minSeats, parties, onClose }) {
+export default function SwingAnalysisModal({ year, config, totalSeats, minSeats, parties, onClose }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [data, setData] = useState(null);
@@ -18,7 +18,7 @@ export default function SwingAnalysisModal({ config, totalSeats, minSeats, parti
       try {
         const simConfig = { ...config, total_seats: totalSeats, min_seats_per_city: minSeats };
         const enabled = parties.filter(p => p.enabled !== false).map(({ enabled, ...rest }) => rest);
-        const d = await runSwingAnalysis({ config: simConfig, parties: enabled });
+        const d = await runSwingAnalysis({ year, config: simConfig, parties: enabled });
         setData(d);
       } catch (e) {
         setError(e.message);

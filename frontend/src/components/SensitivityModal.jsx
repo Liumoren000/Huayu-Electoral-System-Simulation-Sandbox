@@ -17,7 +17,7 @@ const METRICS = [
   { key: 'largest_party_seats', label: '最大党席位', fmt: v => v.toFixed(1) },
 ];
 
-export default function SensitivityModal({ config, totalSeats, minSeats, parties, onClose }) {
+export default function SensitivityModal({ year, config, totalSeats, minSeats, parties, onClose }) {
   const chartRef = useRef(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -32,6 +32,7 @@ export default function SensitivityModal({ config, totalSeats, minSeats, parties
       const simConfig = { ...config, total_seats: totalSeats, min_seats_per_city: minSeats };
       const enabled = parties.filter(p => p.enabled !== false).map(({ enabled, ...rest }) => rest);
       const d = await runSensitivity({
+        year,
         config: simConfig,
         parties: enabled,
         delta,

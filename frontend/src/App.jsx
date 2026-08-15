@@ -659,10 +659,23 @@ body: JSON.stringify({
       effective_parties_seats: effectiveSeats,
       gallagher_index: gallagher,
       party_results: partyResults,
-      province_results: res.province_results.map(pr => ({
-        ...pr,
-        seats: provinceSeats[pr.province_name] ?? pr.seats,
-      })),
+      province_results: res.province_results.map(pr => {
+        const newSeats = provinceSeats[pr.province_name] ?? pr.seats;
+        let partySeats = pr.party_seats;
+        // 手动席位覆盖时，按比例缩放省内各党席位，保证 Sankey 流向与省席位一致
+        if (partySeats && Object.keys(partySeats).length && pr.seats > 0 && newSeats !== pr.seats) {
+          const scale = newSeats / pr.seats;
+          partySeats = {};
+          for (const [pid, n] of Object.entries(pr.party_seats)) {
+            partySeats[pid] = Math.round(n * scale);
+          }
+        }
+        return {
+          ...pr,
+          seats: newSeats,
+          party_seats: partySeats,
+        };
+      }),
     };
   };
 
@@ -673,6 +686,12 @@ body: JSON.stringify({
     : null;
   const displayResult = scriptDisplay
     || (displayResultB && activeScheme === 'B' ? displayResultB : displayResultA);
+
+  // API 工具应跟随当前展示口径：选中剧本时叠加剧本 config，否则用活动方案 config
+  const activeBaseConfig = activeScheme === 'B' ? configB : config;
+  const effectiveConfig = scriptIdx >= 0 && scriptItems[scriptIdx]
+    ? { ...activeBaseConfig, ...scriptItems[scriptIdx].scriptConfig }
+    : activeBaseConfig;
 
   const buildUncertaintyMaps = (rob) => ({
     iterations: rob?.summary?.iterations || 0,
@@ -962,7 +981,8 @@ body: JSON.stringify({
 
       {showSensitivity && (
         <SensitivityModal
-          config={activeScheme === 'B' ? configB : config}
+          year={year}
+          config={effectiveConfig}
           totalSeats={totalSeats}
           minSeats={minSeats}
           parties={parties}
@@ -972,11 +992,11 @@ body: JSON.stringify({
       {showScript && (
         <ScriptModal
           year={year}
-          config={activeScheme === 'B' ? configB : config}
+          config={effectiveConfig}
           totalSeats={totalSeats}
           minSeats={minSeats}
           parties={parties}
-          baseline={displayResultA}
+          baseline={activeScheme === 'B' && displayResultB ? displayResultB : displayResultA}
           addedNames={scriptItems.map(s => s.name)}
           onAdd={(name, scriptConfig, ra, coal) => {
             setScriptItems(prev => [...prev, { name, scriptConfig, result: ra, coalition: coal }]);
@@ -996,6 +1016,10 @@ body: JSON.stringify({
             setConfig(merged);
             setConfigB({ ...defaultConfig, ...configB, ...eraConfig });
             setShowEra(false);
+            // 应用年代后自动重跑主推演，使地图/分析/剧本随新年代生效
+            setScriptItems([]);
+            setScriptIdx(-1);
+            setTimeout(() => { handleRun(); }, 50);
           }}
           onClose={() => setShowEra(false)}
         />
@@ -1039,6 +1063,7 @@ body: JSON.stringify({
         <RadarModal
           resultA={displayResultA}
           resultB={displayResultB}
+          activeScheme={activeScheme}
           onClose={() => setShowRadar(false)}
         />
       )}
@@ -1066,7 +1091,7 @@ body: JSON.stringify({
       {showVoterModel && (
         <VoterModelModal
           year={year}
-          config={activeScheme === 'B' ? configB : config}
+          config={effectiveConfig}
           totalSeats={totalSeats}
           minSeats={minSeats}
           parties={parties}
@@ -1078,7 +1103,7 @@ body: JSON.stringify({
       {showVoterStructure && (
         <VoterStructureModal
           year={year}
-          config={activeScheme === 'B' ? configB : config}
+          config={effectiveConfig}
           totalSeats={totalSeats}
           minSeats={minSeats}
           parties={parties}
@@ -1090,7 +1115,8 @@ body: JSON.stringify({
 
       {showPoll && (
         <PollModal
-          config={activeScheme === 'B' ? configB : config}
+          year={year}
+          config={effectiveConfig}
           totalSeats={totalSeats}
           minSeats={minSeats}
           parties={parties}
@@ -1100,17 +1126,20 @@ body: JSON.stringify({
 
       {showGovernment && (
         <GovernmentModal
-          config={activeScheme === 'B' ? configB : config}
+          year={year}
+          config={effectiveConfig}
           totalSeats={totalSeats}
           minSeats={minSeats}
           parties={parties}
+          coalition={scriptIdx >= 0 ? scriptItems[scriptIdx]?.coalition : (activeScheme === 'B' ? coalitionB : coalition)}
           onClose={() => setShowGovernment(false)}
         />
       )}
 
       {showSwing && (
         <SwingAnalysisModal
-          config={activeScheme === 'B' ? configB : config}
+          year={year}
+          config={effectiveConfig}
           totalSeats={totalSeats}
           minSeats={minSeats}
           parties={parties}
@@ -1128,7 +1157,7 @@ body: JSON.stringify({
 
       {showCalibration && (
         <CalibrationModal
-          config={activeScheme === 'B' ? configB : config}
+          config={effectiveConfig}
           totalSeats={totalSeats}
           minSeats={minSeats}
           parties={parties}

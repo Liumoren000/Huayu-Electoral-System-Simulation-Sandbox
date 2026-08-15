@@ -229,10 +229,13 @@ class PartyAffinityExplain(BaseModel):
     party_id: str
     party_name: str
     color: str
-    economic: float = 0.0   # 经济匹配 (权重30%)
-    social: float = 0.0     # 社会匹配 (权重20%)
-    regional: float = 0.0   # 区域匹配 (权重20%)
-    policy: float = 0.0     # 政策匹配 (权重30%)
+    economic: float = 0.0   # 经济匹配 (权重25%)
+    social: float = 0.0     # 社会匹配 (权重15%)
+    regional: float = 0.0   # 区域匹配 (权重15%)
+    welfare: float = 0.0    # 福利匹配 (权重10%)
+    environment: float = 0.0  # 环保匹配 (权重10%)
+    nationalism: float = 0.0  # 民族匹配 (权重15%)
+    urban_rural: float = 0.0  # 城乡匹配 (权重10%)
     weighted_affinity: float = 0.0  # 加权原始亲和度
     noise: float = 0.0      # 随机扰动
     affinity: float = 0.0   # 最终亲和度（含噪声）

@@ -2,10 +2,13 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { explainVoterModel } from '../services/api.js';
 
 const WEIGHT_META = [
-  { key: 'economic', label: '经济匹配', weight: 0.30 },
-  { key: 'social', label: '社会匹配', weight: 0.20 },
-  { key: 'regional', label: '区域匹配', weight: 0.20 },
-  { key: 'policy', label: '政策匹配', weight: 0.30 },
+  { key: 'economic', label: '经济匹配' },
+  { key: 'social', label: '社会匹配' },
+  { key: 'regional', label: '区域匹配' },
+  { key: 'welfare', label: '福利匹配' },
+  { key: 'environment', label: '环保匹配' },
+  { key: 'nationalism', label: '民族匹配' },
+  { key: 'urban_rural', label: '城乡匹配' },
 ];
 
 export default function VoterModelModal({ year, config, totalSeats, minSeats, parties, cities, onClose }) {
@@ -36,7 +39,10 @@ export default function VoterModelModal({ year, config, totalSeats, minSeats, pa
     /* eslint-disable-next-line react-hooks/exhaustive-deps */
   }, [cityId]);
 
-  const totalWeight = WEIGHT_META.reduce((s, m) => s + m.weight, 0);
+  const weights = data?.weights || {};
+  const weightMeta = WEIGHT_META.map(m => ({ ...m, weight: weights[m.key] ?? 0 }));
+  const totalWeight = weightMeta.reduce((s, m) => s + m.weight, 0);
+  const formula = weightMeta.map(m => `${(m.weight * 100).toFixed(0)}%×${m.label.replace('匹配', '')}`).join(' + ');
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -97,14 +103,14 @@ export default function VoterModelModal({ year, config, totalSeats, minSeats, pa
 
               <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent-blue)', margin: '12px 0 6px' }}>
                 ② 亲和度加权公式 <span style={{ fontWeight: 400, color: 'var(--text-muted)', fontSize: 10 }}>
-                  亲和度 = 0.30×经济 + 0.20×社会 + 0.20×区域 + 0.30×政策 + 噪声
+                  亲和度 = {formula} + 噪声
                 </span>
               </div>
               <table className="result-table voter-table">
                 <thead>
                   <tr>
                     <th style={{ textAlign: 'left' }}>政党</th>
-                    {WEIGHT_META.map(m => (
+                    {weightMeta.map(m => (
                       <th key={m.key} title={`权重 ${Math.round(m.weight * 100)}%`}>
                         {m.label}<br /><span style={{ fontSize: 9, color: 'var(--text-muted)' }}>{Math.round(m.weight * 100)}%</span>
                       </th>
@@ -122,10 +128,9 @@ export default function VoterModelModal({ year, config, totalSeats, minSeats, pa
                       <td style={{ textAlign: 'left' }}>
                         <span className="city-winner-dot" style={{ background: p.color }} />{p.party_name}
                       </td>
-                      <td>{(p.economic * 100).toFixed(0)}</td>
-                      <td>{(p.social * 100).toFixed(0)}</td>
-                      <td>{(p.regional * 100).toFixed(0)}</td>
-                      <td>{(p.policy * 100).toFixed(0)}</td>
+                      {weightMeta.map(m => (
+                        <td key={m.key}>{(p[m.key] * 100).toFixed(0)}</td>
+                      ))}
                       <td>{p.distance.toFixed(2)}</td>
                       <td style={{ fontWeight: 600 }}>{(p.weighted_affinity * 100).toFixed(1)}</td>
                       <td style={{ color: 'var(--text-muted)' }}>{p.noise >= 0 ? '+' : ''}{(p.noise * 100).toFixed(1)}</td>
@@ -138,8 +143,8 @@ export default function VoterModelModal({ year, config, totalSeats, minSeats, pa
                 </tbody>
               </table>
               <div style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 6, lineHeight: 1.6 }}>
-                注：各分项为「1 − 权重系数 × |城市位置 − 政党位置|」的匹配度（0-1）；7维距离为城市位置与政党位置间的欧氏距离；
-                噪声为每次模拟独立的高斯扰动（幅度 noise_amplitude），反映现实不确定性；得票率 = 各党最终亲和度归一化。
+                注：各分项为「1 − 惩罚系数 × |城市位置 − 政党位置|」的匹配度（0-1）；7维距离为城市位置与政党位置间的欧氏距离；
+                噪声为每次模拟独立的高斯扰动（幅度 noise_amplitude），反映现实不确定性；得票率 = 各党最终亲和度按浓缩指数（affinity_power）浓缩后归一化，与主推演同口径。
               </div>
             </>
           )}

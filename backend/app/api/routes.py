@@ -397,7 +397,14 @@ def explain_voter_model(request: VoterExplainRequest):
         return JSONResponse(status_code=404, content={"error": "city not found"})
 
     vm = VoterModel(seed=42, turnout_shift=request.config.turnout_shift,
-                    dim_tilt=request.config.dim_tilt or {})
+                    dim_tilt=request.config.dim_tilt or {},
+                    party_effects=request.config.party_effects or {},
+                    party_loyalty=request.config.party_loyalty or 0.0,
+                    swing_voter_pct=request.config.swing_voter_pct or 0.0,
+                    voter_stratification=request.config.voter_stratification,
+                    calibration=request.config.calibration,
+                    turnout_differential=request.config.turnout_differential or 0.0,
+                    affinity_power=request.config.affinity_power or 4.0)
     expl = vm.explain_city(city, request.parties, request.config.noise_amplitude)
 
     city_position = [
@@ -415,7 +422,10 @@ def explain_voter_model(request: VoterExplainRequest):
             economic=r['economic'],
             social=r['social'],
             regional=r['regional'],
-            policy=r['policy'],
+            welfare=r['welfare'],
+            environment=r['environment'],
+            nationalism=r['nationalism'],
+            urban_rural=r['urban_rural'],
             weighted_affinity=r['weighted_affinity'],
             noise=r['noise'],
             affinity=r['affinity'],

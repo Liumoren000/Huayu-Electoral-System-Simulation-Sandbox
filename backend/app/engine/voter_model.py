@@ -420,7 +420,10 @@ class VoterModel:
           噪声、最终亲和度、归一化得票率，以及与城市位置的 7 维欧氏距离
         """
         city_pos = self.get_city_dimensions(city)
-        weights = {'economic': 0.30, 'social': 0.20, 'regional': 0.20, 'policy': 0.30}
+        # 与 compute_city_party_affinity 完全一致的 7 维权重
+        weights = {'economic': 0.25, 'social': 0.15, 'regional': 0.15,
+                   'welfare': 0.10, 'environment': 0.10, 'nationalism': 0.15,
+                   'urban_rural': 0.10}
 
         rows = []
         raw = {}
@@ -428,9 +431,14 @@ class VoterModel:
             econ = self._economic_match(city, p)
             social = self._social_match(city, p)
             regional = self._regional_match(city, p)
-            policy = self._policy_match(city, p)
+            welfare = self._policy_dim_match(city, p, 'welfare', 0.8)
+            environment = self._policy_dim_match(city, p, 'environment', 0.8)
+            nationalism = self._policy_dim_match(city, p, 'nationalism', 1.0)
+            urban_rural = self._policy_dim_match(city, p, 'urban_rural', 0.9)
             weighted = econ * weights['economic'] + social * weights['social'] \
-                + regional * weights['regional'] + policy * weights['policy']
+                + regional * weights['regional'] + welfare * weights['welfare'] \
+                + environment * weights['environment'] + nationalism * weights['nationalism'] \
+                + urban_rural * weights['urban_rural']
             noise = self.rng.gauss(0, noise_amplitude)
             affinity = max(0.01, weighted + noise)
             raw[p.id] = affinity
@@ -441,7 +449,10 @@ class VoterModel:
                 'economic': round(econ, 4),
                 'social': round(social, 4),
                 'regional': round(regional, 4),
-                'policy': round(policy, 4),
+                'welfare': round(welfare, 4),
+                'environment': round(environment, 4),
+                'nationalism': round(nationalism, 4),
+                'urban_rural': round(urban_rural, 4),
                 'weighted_affinity': round(weighted, 4),
                 'noise': round(noise, 4),
                 'affinity': round(affinity, 4),
@@ -450,9 +461,11 @@ class VoterModel:
                 }), 4),
             })
 
-        total = sum(raw.values())
+        # 得票率与引擎同口径：浓缩后归一化（而非线性归一化）
+        conc = self._concentrate({pid: max(0.0, v) for pid, v in raw.items()})
+        total = sum(conc.values())
         for r in rows:
-            r['vote_share'] = round(raw[r['party_id']] / total, 4) if total > 0 else 0.0
+            r['vote_share'] = round(conc[r['party_id']] / total, 4) if total > 0 else 0.0
 
         return {
             'city_position': city_pos,
@@ -671,6 +684,25 @@ class VoterModel:
 
         # 政策维度综合（等权重）
         return (welfare_match + env_match + nat_match + ur_match) / 4
+
+    def _policy_dim_match(self, city: City, party: Party, dim: str, penalty: float,
+                          segment_offset: dict = None) -> float:
+        """单政策维度匹配（与 compute_city_party_affinity 的对应分支完全一致）"""
+        off = segment_offset or {}
+        if dim == 'welfare':
+            city_val = self._city_tilt(city, 'welfare', self._city_welfare_preference(city))
+            city_val += off.get('welfare', 0.0)
+        elif dim == 'environment':
+            city_val = self._city_tilt(city, 'environment', self._city_environment_preference(city))
+            city_val += off.get('environment', 0.0)
+        elif dim == 'nationalism':
+            city_val = self._city_tilt(city, 'nationalism', self._city_nationalism(city))
+            city_val += off.get('nationalism', 0.0)
+        else:  # urban_rural
+            city_val = self._city_tilt(city, 'urban_rural', self._city_urban_rural(city))
+            city_val += off.get('urban_rural', 0.0)
+        party_val = getattr(party, dim + '_position', 0)
+        return max(0, 1.0 - abs(city_val - party_val) * penalty)
 
     def compute_vote_shares(self, city: City, parties: list[Party], noise_amplitude: float = 0.03) -> dict[str, float]:
         """计算各政党得票率（含真实感机制：分层/忠诚/摇摆/事件/校准）"""

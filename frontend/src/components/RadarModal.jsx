@@ -2,12 +2,11 @@ import React, { useEffect, useRef, useMemo } from 'react';
 import * as echarts from 'echarts';
 import { computeCompositeIndex } from '../utils/analysis.js';
 
-export default function RadarModal({ resultA, resultB, onClose }) {
+export default function RadarModal({ resultA, resultB, activeScheme = 'A', onClose }) {
   const chartRef = useRef(null);
-  const active = resultB ? resultB : resultA;
   const idxA = useMemo(() => computeCompositeIndex(resultA), [resultA]);
   const idxB = useMemo(() => computeCompositeIndex(resultB), [resultB]);
-  const activeIdx = resultB ? idxB : idxA;
+  const activeIdx = activeScheme === 'B' && idxB ? idxB : idxA;
 
   useEffect(() => {
     if (!chartRef.current || !activeIdx) return;
