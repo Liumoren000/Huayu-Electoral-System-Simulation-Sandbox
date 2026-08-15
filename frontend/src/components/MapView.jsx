@@ -44,6 +44,7 @@ export default function MapView({ result, cities, mapLabel, accentColor, onProvi
   const [cityGeoLoaded, setCityGeoLoaded] = useState(false);
   const [showTurnout, setShowTurnout] = useState(false);
   const [showEthnic, setShowEthnic] = useState(false);
+  const [showTurnoutProvince, setShowTurnoutProvince] = useState(false);
   const cityGeoCache = useRef({});
   const viewModeRef = useRef(viewMode);
   const currentProvinceRef = useRef(currentProvince);
@@ -74,7 +75,7 @@ export default function MapView({ result, cities, mapLabel, accentColor, onProvi
 
         setupClickHandler(chart);
 
-        renderMap(chart, result, manualSeats, currentProvince, viewMode, cities, showTurnout, compareResult, tippingCityIds, uncertainty, showUncertainty, showEthnic);
+        renderMap(chart, result, manualSeats, currentProvince, viewMode, cities, showTurnout, compareResult, tippingCityIds, uncertainty, showUncertainty, showEthnic, showTurnoutProvince);
         setStatus('ready');
 
         const onResize = () => chart.resize();
@@ -101,7 +102,7 @@ export default function MapView({ result, cities, mapLabel, accentColor, onProvi
 
     if (currentProvince === '台湾省') {
       setCityGeoLoaded(true);
-      renderMap(chartRef.current, result, manualSeats, currentProvince, viewMode, cities, showTurnout, compareResult, tippingCityIds, uncertainty, showUncertainty, showEthnic);
+      renderMap(chartRef.current, result, manualSeats, currentProvince, viewMode, cities, showTurnout, compareResult, tippingCityIds, uncertainty, showUncertainty, showEthnic, showTurnoutProvince);
       setStatus('ready');
       return;
     }
@@ -123,7 +124,7 @@ export default function MapView({ result, cities, mapLabel, accentColor, onProvi
         }
         echarts.registerMap('province', geo);
         setCityGeoLoaded(true);
-renderMap(chartRef.current, result, manualSeats, currentProvince, viewMode, cities, showTurnout, compareResult, tippingCityIds, uncertainty, showUncertainty, showEthnic);
+renderMap(chartRef.current, result, manualSeats, currentProvince, viewMode, cities, showTurnout, compareResult, tippingCityIds, uncertainty, showUncertainty, showEthnic, showTurnoutProvince);
         setStatus('ready');
       } catch (e) {
         console.error('City geo error:', e);
@@ -137,8 +138,8 @@ renderMap(chartRef.current, result, manualSeats, currentProvince, viewMode, citi
   useEffect(() => {
     if (!chartRef.current) return;
     if (viewMode === 'city' && currentProvince && !cityGeoLoaded && currentProvince !== '台湾省') return;
-    renderMap(chartRef.current, result, manualSeats, currentProvince, viewMode, cities, showTurnout, compareResult, tippingCityIds, uncertainty, showUncertainty, showEthnic);
-  }, [result, manualSeats, viewMode, cityGeoLoaded, currentProvince, showTurnout, compareResult, uncertainty, showUncertainty, showEthnic]);
+    renderMap(chartRef.current, result, manualSeats, currentProvince, viewMode, cities, showTurnout, compareResult, tippingCityIds, uncertainty, showUncertainty, showEthnic, showTurnoutProvince);
+  }, [result, manualSeats, viewMode, cityGeoLoaded, currentProvince, showTurnout, compareResult, uncertainty, showUncertainty, showEthnic, showTurnoutProvince]);
 
   useEffect(() => {
     const handler = () => chartRef.current?.resize();
@@ -263,6 +264,20 @@ renderMap(chartRef.current, result, manualSeats, currentProvince, viewMode, citi
           <button
             style={{
               marginLeft: 12, padding: '2px 10px', fontSize: 10,
+              background: showTurnoutProvince ? 'var(--accent-orange)' : 'var(--bg-tertiary)',
+              border: '1px solid var(--border-color)',
+              borderRadius: 4, color: showTurnoutProvince ? '#fff' : 'var(--accent-blue)', cursor: 'pointer',
+            }}
+            onClick={() => setShowTurnoutProvince(!showTurnoutProvince)}
+            title="以各省平均投票率着色（橙=高参与，深红=低参与）"
+          >
+            {showTurnoutProvince ? '政党视图' : '投票率'}
+          </button>
+        )}
+        {viewMode !== 'city' && (
+          <button
+            style={{
+              marginLeft: 12, padding: '2px 10px', fontSize: 10,
               background: showEthnic ? 'var(--accent-purple, #8e24aa)' : 'var(--bg-tertiary)',
               border: '1px solid var(--border-color)',
               borderRadius: 4, color: showEthnic ? '#fff' : 'var(--accent-blue)', cursor: 'pointer',
@@ -290,6 +305,22 @@ renderMap(chartRef.current, result, manualSeats, currentProvince, viewMode, citi
           </div>
           <div style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 4, lineHeight: 1.5 }}>
             民族区域自治党在深紫色省份获得真实选区基础
+          </div>
+        </div>
+      )}
+      {showTurnoutProvince && viewMode !== 'city' && (
+        <div style={{
+          position: 'absolute', bottom: 10, right: 16, zIndex: 20,
+          background: 'rgba(10,14,20,0.85)', border: '1px solid var(--border-color)',
+          borderRadius: 6, padding: '8px 12px', backdropFilter: 'blur(6px)',
+        }}>
+          <div style={{ fontSize: 11, color: '#ffb74d', fontWeight: 700, marginBottom: 6 }}>
+            各省平均投票率
+          </div>
+          <div style={{ fontSize: 10, color: 'var(--text-secondary)', lineHeight: 1.9 }}>
+            {[[0.78, '≥78%'], [0.72, '72–78%'], [0.65, '65–72%'], [0.58, '58–65%'], [0.5, '50–58%'], [0.42, '42–50%'], [0, '<42%']].map(([v, label]) => (
+              <div key={label}><span style={{ display: 'inline-block', width: 10, height: 10, background: getTurnoutColor(v), marginRight: 6, borderRadius: 2 }} />{label}</div>
+            ))}
           </div>
         </div>
       )}
@@ -416,7 +447,7 @@ function getUncertaintyColor(winRate) {
   return '#e53935';
 }
 
-function renderMap(chart, result, manualSeatsData, currentProvince, viewMode, citiesData, showTurnout = false, compareResult = null, tippingCityIds = null, uncertainty = null, showUncertainty = false, showEthnic = false) {
+function renderMap(chart, result, manualSeatsData, currentProvince, viewMode, citiesData, showTurnout = false, compareResult = null, tippingCityIds = null, uncertainty = null, showUncertainty = false, showEthnic = false, showTurnoutProvince = false) {
   if (!chart) return;
   if (viewMode === 'city' && currentProvince && currentProvince !== '台湾省' && !echarts.getMap('province')) return;
 
@@ -655,7 +686,9 @@ function renderMap(chart, result, manualSeatsData, currentProvince, viewMode, ci
       const flipped = compareResult ? (pr && cpr && pr.winner_party_id !== cpr.winner_party_id) : false;
       let color = DEFAULT_COLOR;
       let unc = null;
-      if (showEthnic) {
+      if (showTurnoutProvince) {
+        color = getTurnoutColor(pr?.avg_turnout ?? 0.6);
+      } else if (showEthnic) {
         color = getEthnicColor(provinceEthnic[name] || 0);
       } else if (showUncertainty && uncertainty?.province) {
         unc = uncertainty.province[name];
