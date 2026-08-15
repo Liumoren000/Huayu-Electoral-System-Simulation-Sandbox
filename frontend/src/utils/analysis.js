@@ -153,6 +153,18 @@ export function generateReport(displayResult, resultA, resultB, activeScheme, co
   let gov = `在${res.system_type}制度下，第一大党「${top?.party_name}」获得 ${top?.seats} 席（占 ${formatPct(top?.seats / total, 1)}），${hasMajority ? `超过多数门槛 ${majorityThreshold} 席，可单独执政（${coalition?.majority_type === 'absolute' ? '绝对多数' : '简单多数'}）` : `未达多数门槛 ${majorityThreshold} 席，需要联合组阁`}。`;
   sections.push({ title: '总体态势', items: [gov] });
 
+  // 1.1 胜者红利
+  const wb = res.winner_bonus;
+  if (wb !== undefined) {
+    const bonusPct = wb * 100;
+    const wbItems = [];
+    if (bonusPct > 10) wbItems.push(`胜者红利 ${bonusPct.toFixed(1)}%——第一大党得票 ${((top?.vote_share || 0) * 100).toFixed(1)}% 却握有 ${formatPct(top?.seats / total, 1)} 议席，制度显著放大胜者优势（典型多数制特征）。`);
+    else if (bonusPct > 3) wbItems.push(`胜者红利 ${bonusPct.toFixed(1)}%——制度对第一大党有中度放大效应。`);
+    else if (bonusPct > -3) wbItems.push(`胜者红利 ${bonusPct.toFixed(1)}%——首党席位与得票几乎一致，制度接近比例代表。`);
+    else wbItems.push(`胜者红利 ${bonusPct.toFixed(1)}%——首党议席少于其得票份额，制度对首党不利。`);
+    sections.push({ title: '胜者红利', items: wbItems });
+  }
+
   // 1.25 中间选民分析
   const mv = res.median_voter_alignment;
   if (mv && mv.median_economic !== undefined) {
@@ -204,6 +216,25 @@ export function generateReport(displayResult, resultA, resultB, activeScheme, co
     }
   }
   if (effItems.length) sections.push({ title: '选举效率', items: effItems });
+
+  // 3.5 政党生态位
+  const niches = res.party_niches || [];
+  if (niches.length) {
+    const nicheItems = [];
+    const byVote = [...niches].sort((a, b) => b.vote_share - a.vote_share);
+    const wide = byVote.reduce((a, b) => (b.niche_width > a.niche_width ? b : a));
+    const narrow = byVote.reduce((a, b) => (b.niche_width < a.niche_width ? b : a));
+    const crowded = byVote.map(n => ({ n, top: Object.entries(n.overlaps || {}).sort((a, b) => b[1] - a[1])[0] }))
+      .filter(x => x.top && x.top[1] > 0.5)
+      .sort((a, b) => b.top[1] - a.top[1]);
+    nicheItems.push(`政党生态位：${wide.party_name} 覆盖最广（生态位宽 ${wide.niche_width.toFixed(3)}），${narrow.party_name} 最聚焦（宽 ${narrow.niche_width.toFixed(3)}）。`);
+    if (crowded.length) {
+      const [first] = crowded;
+      const oppName = (res.party_results || []).find(p => p.party_id === first.top[0])?.party_name || '';
+      nicheItems.push(`竞争最激烈的生态位重叠：${first.n.party_name} 与 ${oppName} 重叠度 ${first.top[1].toFixed(2)}——两党争夺高度重合的选民基础。`);
+    }
+    sections.push({ title: '政党生态位', items: nicheItems });
+  }
 
   // 4. 区域/民族版图
   const regionItems = [];

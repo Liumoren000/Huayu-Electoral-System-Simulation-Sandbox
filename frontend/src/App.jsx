@@ -25,6 +25,7 @@ import CoalitionNegotiationModal from './components/CoalitionNegotiationModal.js
 import CalibrationModal from './components/CalibrationModal.jsx';
 import RegionalBlockModal from './components/RegionalBlockModal.jsx';
 import SystemComparisonModal from './components/SystemComparisonModal.jsx';
+import NicheModal from './components/NicheModal.jsx';
 import EraModal from './components/EraModal.jsx';
 import GovernmentModal from './components/GovernmentModal.jsx';
 import { fetchParties, fetchCities, fetchEras, runSimulation, runRobustness } from './services/api.js';
@@ -170,6 +171,7 @@ export default function App() {
   const [showCalibration, setShowCalibration] = useState(false);
   const [showRegionalBlock, setShowRegionalBlock] = useState(false);
   const [showSystemComparison, setShowSystemComparison] = useState(false);
+  const [showNiche, setShowNiche] = useState(false);
   const [snapshots, setSnapshots] = useState([]);  // { id, label, result }
   const [eras, setEras] = useState([]);
   const [showEra, setShowEra] = useState(false);
@@ -884,6 +886,7 @@ body: JSON.stringify({
                     <button onClick={() => { setShowCalibration(true); setShowTools(false); }}>历史选举校准</button>
                     <button onClick={() => { setShowRegionalBlock(true); setShowTools(false); }}>区域政治版图</button>
                     <button onClick={() => { setShowSystemComparison(true); setShowTools(false); }}>制度全景对比</button>
+                    <button onClick={() => { setShowNiche(true); setShowTools(false); }}>政党生态位空间</button>
                     <button onClick={() => { setShowSnap(true); setShowTools(false); }}>多快照对比</button>
                   </div>
                 )}
@@ -1246,6 +1249,13 @@ body: JSON.stringify({
           parties={parties}
           year={year}
           onClose={() => setShowSystemComparison(false)}
+        />
+      )}
+
+      {showNiche && (
+        <NicheModal
+          result={displayResult}
+          onClose={() => setShowNiche(false)}
         />
       )}
     </div>

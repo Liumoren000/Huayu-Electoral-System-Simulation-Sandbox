@@ -53,6 +53,19 @@ class RegionalBlock(BaseModel):
     block_label: str = ""  # 集团政治地理标签（如"边疆民族区"）
 
 
+class PartyNiche(BaseModel):
+    """政党生态位：意识形态位置、选民覆盖宽度、与其他党的竞争重叠"""
+    party_id: str
+    party_name: str
+    color: str = ""
+    economic_position: float = 0.0
+    social_position: float = 0.0
+    vote_share: float = 0.0
+    niche_width: float = 0.0       # 生态位宽度（城市间得票的离散度，越大覆盖越广）
+    coverage: float = 0.0          # 选民覆盖度：在多少比例城市中得票超过均值（0-1）
+    overlaps: dict[str, float] = {}  # 与其他党的生态位重叠度（0-1）
+
+
 class DisproportionalityDecomposition(BaseModel):
     """
     不比例性三源分解（基于 Loosemore-Hanby 口径）：
@@ -94,6 +107,8 @@ class ElectionResult(BaseModel):
     overhang_by_party: dict[str, int] = {}  # MMP 各党超额席位数（party_id -> n）
     median_voter_alignment: dict = {}  # 中间选民分析：赢家/各党与选民中位立场的距离
     split_ticket: dict[str, float] = {}  # 分裂选票：各党名单票-选区票差（pp）
+    winner_bonus: float = 0.0  # 胜者红利：首党席位%-得票%（越正=制度越放大胜者，PR≈0）
+    party_niches: list[PartyNiche] = []  # 政党生态位分析
 
 
 class CoalitionOption(BaseModel):

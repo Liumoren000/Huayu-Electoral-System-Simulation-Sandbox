@@ -4,7 +4,7 @@ from app.models.party import Party
 from app.models.config import ElectoralConfig
 from app.models.result import (
     CityResult, PartySeatResult, ElectionResult, ProvinceResult, DisproportionalityDecomposition,
-    RegionalBlock,
+    RegionalBlock, PartyNiche,
 )
 from .voter_model import VoterModel
 
@@ -53,6 +53,52 @@ class ElectoralEngine:
             t = sum(adj.values())
             city_shares[cid] = {pid: v / t for pid, v in adj.items()} if t > 0 else shares
         return party_votes
+
+    def _compute_party_niches(self, party_results: list[PartySeatResult],
+                              city_results: list[CityResult]) -> list[PartyNiche]:
+        """
+        政党生态位（政治生态学）：各党在意识形态空间的位置与选民覆盖。
+
+        - 位置：经济/社会双轴（政党纲领固有立场）
+        - 宽度：该党在城市间得票率的标准差（越大覆盖越广、生态位越宽）
+        - 覆盖：得票超过城市均值的城市比例（0-1）
+        - 重叠：两党在城市级得票向量的余弦相似度（越接近 1 竞争越直接）
+        """
+        if not city_results or not party_results:
+            return []
+        shares_by_city = {cr.city_id: cr.vote_shares for cr in city_results}
+        city_ids = [cr.city_id for cr in city_results]
+        n = max(1, len(city_ids))
+        mean_share = {p.party_id: sum(shares_by_city[cid].get(p.party_id, 0.0) for cid in city_ids) / n
+                      for p in party_results}
+        niches = []
+        for p in party_results:
+            vals = [shares_by_city[cid].get(p.party_id, 0.0) for cid in city_ids]
+            avg = mean_share[p.party_id]
+            var = sum((v - avg) ** 2 for v in vals) / n
+            width = round(math.sqrt(var), 4)
+            coverage = round(sum(1 for v in vals if v > avg) / n, 3)
+            niches.append(PartyNiche(
+                party_id=p.party_id,
+                party_name=p.party_name,
+                color=p.color,
+                economic_position=p.economic_position,
+                social_position=p.social_position,
+                vote_share=p.vote_share,
+                niche_width=width,
+                coverage=coverage,
+            ))
+        # 重叠：城市得票向量余弦相似度
+        for a in niches:
+            va = [shares_by_city[cid].get(a.party_id, 0.0) for cid in city_ids]
+            for b in niches:
+                if b.party_id == a.party_id:
+                    continue
+                vb = [shares_by_city[cid].get(b.party_id, 0.0) for cid in city_ids]
+                num = sum(x * y for x, y in zip(va, vb))
+                den = math.sqrt(sum(x * x for x in va)) * math.sqrt(sum(y * y for y in vb))
+                a.overlaps[b.party_id] = round(num / den, 3) if den > 0 else 0.0
+        return niches
 
     def _compute_split_ticket(self, party_results: list[PartySeatResult]) -> dict[str, float]:
         """分裂选票：各党名单票-选区票差异（pp），正=名单票更多（弃保受益），负=选区票更多"""
@@ -904,6 +950,12 @@ class ElectoralEngine:
         for pr in party_results:
             seat_share = (pr.seats / eff_total) if eff_total > 0 else 0.0
             pr.vote_efficiency = round(pr.vote_share / seat_share, 3) if seat_share > 0 else 99.0
+        # 胜者红利：首党席位%-得票%（政治学经典制度指标）
+        if party_results:
+            top = max(party_results, key=lambda p: p.seats)
+            winner_bonus = round((top.seats / eff_total) - top.vote_share, 3) if eff_total > 0 else 0.0
+        else:
+            winner_bonus = 0.0
         # 分裂选票：名单票（真实偏好 = party_results.vote_share）vs 选区票（弃保后聚合）
         split_ticket = self._compute_split_ticket(party_results)
         province_results = self._aggregate_provinces(city_results)
@@ -942,6 +994,7 @@ class ElectoralEngine:
         polarization = self._compute_polarization(party_results)
         regional_blocks = self._compute_regional_blocks(province_results, party_results)
         median_voter = self._compute_median_voter(party_results)
+        party_niches = self._compute_party_niches(party_results, city_results)
         return ElectionResult(
             config_name=self.config.name,
             system_type=self.config.system_type,
@@ -969,6 +1022,8 @@ class ElectoralEngine:
             overhang_by_party=overhang_by_party or {},
             split_ticket=split_ticket,
             median_voter_alignment=median_voter,
+            winner_bonus=winner_bonus,
+            party_niches=party_niches,
         )
 
     def _compute_polarization(self, party_results: list[PartySeatResult]) -> float:

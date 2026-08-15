@@ -492,6 +492,25 @@ class RealismFeatureTest(unittest.TestCase):
         pr = next(s for s in resp.systems if s.system_type == 'PR')
         self.assertLess(pr.gallagher, 0.05)
 
+    def test_winner_bonus(self):
+        """胜者红利：FPTP 首党大幅受益，PR 接近 0"""
+        fptp, _ = self._run()
+        self.assertGreater(fptp.winner_bonus, 0.05)
+        pr_cfg = ElectoralConfig(system_type='PR', total_seats=450)
+        pr = ElectoralEngine(self.cd, self.parties, pr_cfg, seed=42).run()
+        self.assertAlmostEqual(pr.winner_bonus, 0.0, delta=0.02)
+
+    def test_party_niches(self):
+        """政党生态位应含全部政党，且每个有覆盖度/宽度/重叠"""
+        r, _ = self._run()
+        self.assertEqual(len(r.party_niches), len(r.party_results))
+        for n in r.party_niches:
+            self.assertGreaterEqual(n.coverage, 0.0)
+            self.assertLessEqual(n.coverage, 1.0)
+            self.assertGreaterEqual(n.niche_width, 0.0)
+            if n.overlaps:
+                self.assertLessEqual(max(n.overlaps.values()), 1.0)
+
 
 if __name__ == '__main__':
     unittest.main()

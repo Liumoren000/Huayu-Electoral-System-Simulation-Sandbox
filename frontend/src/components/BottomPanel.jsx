@@ -79,6 +79,12 @@ export default function BottomPanel({ result }) {
           {isUpper ? '-' : (result.polarization_index !== undefined ? (result.polarization_index * 100).toFixed(0) : '-')}
         </span>
       </div>
+      <div className="metric-item">
+        <span className="metric-label">胜者红利</span>
+        <span className="metric-value" style={{ color: (result.winner_bonus ?? 0) > 0.05 ? 'var(--accent-orange)' : 'var(--accent-green)' }}>
+          {isUpper ? '-' : (result.winner_bonus !== undefined ? (result.winner_bonus * 100).toFixed(1) + '%' : '-')}
+        </span>
+      </div>
       {!isUpper && (result.overhang_seats ?? 0) > 0 && (
         <div className="metric-item">
           <span className="metric-label">超额席位</span>
