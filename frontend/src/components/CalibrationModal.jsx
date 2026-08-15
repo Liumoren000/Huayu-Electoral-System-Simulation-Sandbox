@@ -146,6 +146,25 @@ export default function CalibrationModal({ config, totalSeats, minSeats, parties
               <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 6 }}>
                 基准年（{data.baseline_year}）城市数据经研究年代库（era）与本届同口径加载，配以不同随机种子，对比本届（{data.current_year}）以衡量模型稳定性与人口结构漂移效应。
               </div>
+
+              {data.flow_matrix?.length > 0 && (
+                <>
+                  <div className="attack-section-title" style={{ marginTop: 14 }}>选区赢家转移（{data.baseline_year} → {data.current_year}）</div>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    {data.flow_matrix.slice(0, 18).map((f, i) => (
+                      <span key={i} className="poll-event-chip" style={{ borderColor: 'var(--accent-orange)', color: 'var(--accent-orange)' }}>
+                        <span style={{ color: partyMap[f.prev_party_id]?.color || '#888' }}>{f.prev_party_name}</span>
+                        <span style={{ margin: '0 3px' }}>→</span>
+                        <span style={{ color: partyMap[f.cur_party_id]?.color || '#888' }}>{f.cur_party_name}</span>
+                        <b> {f.count}城</b>
+                      </span>
+                    ))}
+                  </div>
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>
+                    上届由某党赢下的城市，本届改投他党——展示选区层面"选票转移"的主流方向与规模。
+                  </div>
+                </>
+              )}
             </>
           )}
         </div>

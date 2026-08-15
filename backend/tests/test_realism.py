@@ -429,6 +429,18 @@ class RealismFeatureTest(unittest.TestCase):
         self.assertEqual(prov_total, len(r.province_results))
         self.assertTrue(all(b.block_label for b in r.regional_blocks))
 
+    def test_calibration_flow_matrix(self):
+        """历史校准应返回选区赢家转移矩阵（翻盘城市可归纳）"""
+        from app.engine.calibration_engine import historical_calibration
+        from app.engine.data_loader import generate_default_parties
+        parties = generate_default_parties()
+        cfg = ElectoralConfig(system_type='FPTP', total_seats=450)
+        resp = historical_calibration(parties, cfg, current_year=2023)
+        flow_total = sum(f.count for f in resp.flow_matrix)
+        self.assertEqual(flow_total, resp.flipped_cities)
+        if resp.flipped_cities:
+            self.assertTrue(all(f.prev_party_id != f.cur_party_id for f in resp.flow_matrix))
+
 
 if __name__ == '__main__':
     unittest.main()

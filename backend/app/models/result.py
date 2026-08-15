@@ -355,6 +355,15 @@ class CalibrationCityRow(BaseModel):
     margin: float = 0.0           # 本届胜差
 
 
+class FlowCell(BaseModel):
+    """选票流转移单元：上届赢家 party_id → 本届赢家 party_id 的翻盘城市数"""
+    prev_party_id: str
+    prev_party_name: str
+    cur_party_id: str
+    cur_party_name: str
+    count: int = 0
+
+
 class CalibrationResponse(BaseModel):
     baseline_year: int = 0
     current_year: int = 0
@@ -369,6 +378,7 @@ class CalibrationResponse(BaseModel):
     gov_changed: bool = False     # 第一大党是否易主
     parties: list[CalibrationPartyRow] = []
     cities: list[CalibrationCityRow] = []
+    flow_matrix: list[FlowCell] = []  # 选区赢家转移矩阵（上届赢家→本届赢家）
 
 
 # ========== 政府任期/寿命模拟 ==========

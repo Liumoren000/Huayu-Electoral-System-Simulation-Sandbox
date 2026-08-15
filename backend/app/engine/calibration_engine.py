@@ -9,7 +9,9 @@
 不再用手工 GDP 线性近似。
 """
 from app.engine import ElectoralEngine, DataLoader
-from app.models.result import CalibrationResponse, CalibrationPartyRow, CalibrationCityRow
+from app.models.result import (
+    CalibrationResponse, CalibrationPartyRow, CalibrationCityRow, FlowCell,
+)
 
 
 def historical_calibration(parties, config, current_year: int,
@@ -84,6 +86,19 @@ def historical_calibration(parties, config, current_year: int,
     cur_leader = max(cur_result.party_results, key=lambda x: x.seats)
 
     pname = {p.id: p.name for p in parties}
+    flow_counts = {}
+    for cr in city_rows:
+        if cr.prev_winner and cr.cur_winner and cr.prev_winner != cr.cur_winner:
+            key = (cr.prev_winner, cr.cur_winner)
+            flow_counts[key] = flow_counts.get(key, 0) + 1
+    flow_matrix = [
+        FlowCell(
+            prev_party_id=pw, prev_party_name=pname.get(pw, pw),
+            cur_party_id=cw, cur_party_name=pname.get(cw, cw),
+            count=cnt,
+        )
+        for (pw, cw), cnt in sorted(flow_counts.items(), key=lambda kv: -kv[1])
+    ]
     return CalibrationResponse(
         baseline_year=baseline_year,
         current_year=current_year,
@@ -98,4 +113,5 @@ def historical_calibration(parties, config, current_year: int,
         gov_changed=prev_leader.party_id != cur_leader.party_id,
         parties=party_rows,
         cities=city_rows,
+        flow_matrix=flow_matrix,
     )
