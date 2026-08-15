@@ -3,35 +3,30 @@
 
 以「上一届」（默认 year-4）与不同随机种子为基准，对比本届结果的席位变化、
 城市翻盘与第一大党易主，衡量模型稳定性/波动性。
+
+基准年份的城市数据统一走数据加载器的年代库（era），与沙盒其它面板
+（1949/1966/1978/1992/2001/2008/2013/2020/2024）完全一致，
+不再用手工 GDP 线性近似。
 """
-from app.engine import ElectoralEngine
+from app.engine import ElectoralEngine, DataLoader
 from app.models.result import CalibrationResponse, CalibrationPartyRow, CalibrationCityRow
 
 
-def historical_calibration(city_data, parties, config, current_year: int,
-                           baseline_year: int = 0, seed: int = 42):
-    """对比本届与上一届选举结果（默认 baseline_year = current_year - 4）"""
+def historical_calibration(parties, config, current_year: int,
+                           baseline_year: int = 0, seed: int = 42,
+                           data_loader: DataLoader = None):
+    """对比本届与上一届选举结果（默认 baseline_year = current_year - 4）
+
+    城市数据通过 DataLoader.get_city_data 加载，内部自动应用年代库；
+    非年代收录年份回退为线性折算，与主推演同口径。
+    """
+    dl = data_loader or DataLoader()
     if baseline_year <= 0:
         baseline_year = max(2010, current_year - 4)
     baseline_year = min(baseline_year, current_year - 1)
 
-    base_data = city_data  # 本届数据
-    # 上一届数据：用更早年份的人口/GDP缩放近似（DataLoader 之外手工近似）
-    from app.models.city import CityData
-
-    def _scale_year(cd, year):
-        if year == current_year:
-            return cd
-        factor = 1.0 + (year - current_year) * 0.01
-        cities = []
-        for c in cd.cities:
-            adj = c.model_copy()
-            adj.gdp_per_capita *= factor
-            adj.population = int(adj.population * (1 + (year - current_year) * 0.001))
-            cities.append(adj)
-        return CityData(year=year, cities=cities, total_population=sum(c.population for c in cities))
-
-    prev_data = _scale_year(base_data, baseline_year)
+    base_data = dl.get_city_data(current_year)
+    prev_data = dl.get_city_data(baseline_year)
 
     # 上届用不同随机种子（"历史"的另一种实现）
     prev_engine = ElectoralEngine(prev_data, parties, config, seed=2020)

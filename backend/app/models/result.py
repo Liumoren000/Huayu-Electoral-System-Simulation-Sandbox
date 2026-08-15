@@ -24,6 +24,7 @@ class PartySeatResult(BaseModel):
     color: str
     economic_position: float = 0.0
     social_position: float = 0.0
+    camp: str = ""
 
 
 class ProvinceResult(BaseModel):

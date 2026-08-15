@@ -43,6 +43,7 @@ export default function MapView({ result, cities, mapLabel, accentColor, onProvi
   const [currentProvince, setCurrentProvince] = useState(null);
   const [cityGeoLoaded, setCityGeoLoaded] = useState(false);
   const [showTurnout, setShowTurnout] = useState(false);
+  const [showEthnic, setShowEthnic] = useState(false);
   const cityGeoCache = useRef({});
   const viewModeRef = useRef(viewMode);
   const currentProvinceRef = useRef(currentProvince);
@@ -73,7 +74,7 @@ export default function MapView({ result, cities, mapLabel, accentColor, onProvi
 
         setupClickHandler(chart);
 
-        renderMap(chart, result, manualSeats, currentProvince, viewMode, cities, showTurnout, compareResult, tippingCityIds, uncertainty, showUncertainty);
+        renderMap(chart, result, manualSeats, currentProvince, viewMode, cities, showTurnout, compareResult, tippingCityIds, uncertainty, showUncertainty, showEthnic);
         setStatus('ready');
 
         const onResize = () => chart.resize();
@@ -100,7 +101,7 @@ export default function MapView({ result, cities, mapLabel, accentColor, onProvi
 
     if (currentProvince === '台湾省') {
       setCityGeoLoaded(true);
-      renderMap(chartRef.current, result, manualSeats, currentProvince, viewMode, cities, showTurnout, compareResult, tippingCityIds, uncertainty, showUncertainty);
+      renderMap(chartRef.current, result, manualSeats, currentProvince, viewMode, cities, showTurnout, compareResult, tippingCityIds, uncertainty, showUncertainty, showEthnic);
       setStatus('ready');
       return;
     }
@@ -137,7 +138,7 @@ renderMap(chartRef.current, result, manualSeats, currentProvince, viewMode, citi
     if (!chartRef.current) return;
     if (viewMode === 'city' && currentProvince && !cityGeoLoaded && currentProvince !== '台湾省') return;
     renderMap(chartRef.current, result, manualSeats, currentProvince, viewMode, cities, showTurnout, compareResult, tippingCityIds, uncertainty, showUncertainty);
-  }, [result, manualSeats, viewMode, cityGeoLoaded, currentProvince, showTurnout, compareResult, uncertainty, showUncertainty]);
+  }, [result, manualSeats, viewMode, cityGeoLoaded, currentProvince, showTurnout, compareResult, uncertainty, showUncertainty, showEthnic]);
 
   useEffect(() => {
     const handler = () => chartRef.current?.resize();
@@ -258,7 +259,40 @@ renderMap(chartRef.current, result, manualSeats, currentProvince, viewMode, citi
         >
           {showUncertainty ? '确定性视图' : '不确定度'}
         </button>
+        {viewMode !== 'city' && (
+          <button
+            style={{
+              marginLeft: 12, padding: '2px 10px', fontSize: 10,
+              background: showEthnic ? 'var(--accent-purple, #8e24aa)' : 'var(--bg-tertiary)',
+              border: '1px solid var(--border-color)',
+              borderRadius: 4, color: showEthnic ? '#fff' : 'var(--accent-blue)', cursor: 'pointer',
+            }}
+            onClick={() => setShowEthnic(!showEthnic)}
+            title="以各省少数民族人口占比着色：深紫=高占比（民族党堡垒），可解释民族区域自治党的选区基础"
+          >
+            {showEthnic ? '政党视图' : '民族分布'}
+          </button>
+        )}
       </div>
+      {showEthnic && viewMode !== 'city' && (
+        <div style={{
+          position: 'absolute', bottom: 10, right: 16, zIndex: 20,
+          background: 'rgba(10,14,20,0.85)', border: '1px solid var(--border-color)',
+          borderRadius: 6, padding: '8px 12px', backdropFilter: 'blur(6px)',
+        }}>
+          <div style={{ fontSize: 11, color: '#ce93d8', fontWeight: 700, marginBottom: 6 }}>
+            少数民族人口占比
+          </div>
+          <div style={{ fontSize: 10, color: 'var(--text-secondary)', lineHeight: 1.9 }}>
+            {[[0.7, '≥70%'], [0.5, '50–70%'], [0.3, '30–50%'], [0.15, '15–30%'], [0.07, '7–15%'], [0.03, '3–7%'], [0, '<3%']].map(([v, label]) => (
+              <div key={label}><span style={{ display: 'inline-block', width: 10, height: 10, background: getEthnicLegendColor(v), marginRight: 6, borderRadius: 2 }} />{label}</div>
+            ))}
+          </div>
+          <div style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 4, lineHeight: 1.5 }}>
+            民族区域自治党在深紫色省份获得真实选区基础
+          </div>
+        </div>
+      )}
       <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
       {showUncertainty && uncertainty && (
         <div style={{
@@ -359,6 +393,21 @@ function getTurnoutColor(turnout) {
   return '#ff8a65';
 }
 
+function getEthnicColor(share) {
+  // 少数民族占比色阶：深紫 = 高占比（民族党堡垒），深灰 = 接近 0
+  if (share >= 0.7) return '#6a1b9a';
+  if (share >= 0.5) return '#8e24aa';
+  if (share >= 0.3) return '#ab47bc';
+  if (share >= 0.15) return '#ba68c8';
+  if (share >= 0.07) return '#ce93d8';
+  if (share >= 0.03) return '#e1bee7';
+  return '#3a4048';
+}
+
+function getEthnicLegendColor(share) {
+  return getEthnicColor(share);
+}
+
 function getUncertaintyColor(winRate) {
   if (winRate >= 0.9) return '#66bb6a';
   if (winRate >= 0.75) return '#aed581';
@@ -367,7 +416,7 @@ function getUncertaintyColor(winRate) {
   return '#e53935';
 }
 
-function renderMap(chart, result, manualSeatsData, currentProvince, viewMode, citiesData, showTurnout = false, compareResult = null, tippingCityIds = null, uncertainty = null, showUncertainty = false) {
+function renderMap(chart, result, manualSeatsData, currentProvince, viewMode, citiesData, showTurnout = false, compareResult = null, tippingCityIds = null, uncertainty = null, showUncertainty = false, showEthnic = false) {
   if (!chart) return;
   if (viewMode === 'city' && currentProvince && currentProvince !== '台湾省' && !echarts.getMap('province')) return;
 
@@ -384,6 +433,20 @@ function renderMap(chart, result, manualSeatsData, currentProvince, viewMode, ci
   }
   if (compareResult?.party_results) {
     compareResult.party_results.forEach(p => { if (!partyMap[p.party_id]) partyMap[p.party_id] = p; });
+  }
+
+  // 省级少数民族占比（按城市人口加权），供民族分布图层使用
+  const provinceEthnic = {};
+  if (citiesData?.cities) {
+    const popAgg = {};
+    for (const c of citiesData.cities) {
+      const es = c.ethnic_share || 0;
+      provinceEthnic[c.province] = (provinceEthnic[c.province] || 0) + es * c.population;
+      popAgg[c.province] = (popAgg[c.province] || 0) + c.population;
+    }
+    for (const p in provinceEthnic) {
+      if (popAgg[p]) provinceEthnic[p] /= popAgg[p];
+    }
   }
 
   if (viewMode === 'city' && currentProvince) {
@@ -592,7 +655,9 @@ function renderMap(chart, result, manualSeatsData, currentProvince, viewMode, ci
       const flipped = compareResult ? (pr && cpr && pr.winner_party_id !== cpr.winner_party_id) : false;
       let color = DEFAULT_COLOR;
       let unc = null;
-      if (showUncertainty && uncertainty?.province) {
+      if (showEthnic) {
+        color = getEthnicColor(provinceEthnic[name] || 0);
+      } else if (showUncertainty && uncertainty?.province) {
         unc = uncertainty.province[name];
         if (unc && unc.winner_party_id) {
           color = getUncertaintyColor(unc.win_rate);
@@ -622,6 +687,7 @@ function renderMap(chart, result, manualSeatsData, currentProvince, viewMode, ci
         _flipped: flipped,
         _manualSeats: hasManual ? ms : null,
         _uncertainty: showUncertainty ? unc : null,
+        _ethnicShare: showEthnic ? (provinceEthnic[name] || 0) : null,
       };
     });
 
@@ -658,6 +724,18 @@ function renderMap(chart, result, manualSeatsData, currentProvince, viewMode, ci
               h += `<div style="display:flex;justify-content:space-between;gap:12px;font-size:11px">
                 <span>● ${partyMap[pid]?.name || pid}</span><span><b>${seats}席</b></span></div>`;
             });
+          } else if (d._ethnicShare != null) {
+            const share = d._ethnicShare;
+            h += `<div style="font-weight:700;margin-bottom:4px">${params.name}</div>`;
+            h += `<div style="color:#ce93d8;font-weight:700;margin-bottom:2px">少数民族占比 ${(share * 100).toFixed(1)}%</div>`;
+            const ethnicParty = result?.party_results?.find(p => p.camp === 'ethnic');
+            if (ethnicParty && pr) {
+              const es = pr.vote_shares?.[ethnicParty.party_id];
+              if (es != null) {
+                h += `<div style="color:#9aa0a6;margin-bottom:2px">民族党本省得票 ${(es * 100).toFixed(1)}%</div>`;
+              }
+            }
+            if (pr) h += `<div style="color:#66bb6a;margin-top:2px">● ${pr.winner_party_name} | ${pr.seats}席</div>`;
           } else if (d._provinceResult) {
             const pr = d._provinceResult;
             const sorted = Object.entries(pr.vote_shares).sort((a, b) => b[1] - a[1]);

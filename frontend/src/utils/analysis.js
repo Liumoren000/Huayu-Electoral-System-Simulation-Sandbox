@@ -135,7 +135,34 @@ export function generateReport(displayResult, resultA, resultB, activeScheme, co
   if (mal > 5) structItems.push(`省际名额失衡 ${mal.toFixed(1)}%，省际席-人口错配是值得关注的问题。`);
   sections.push({ title: '政治结构与碎片化', items: structItems });
 
-  // 4. 翻转临界
+  // 4. 区域/民族版图
+  const regionItems = [];
+  const provResults = res.province_results || [];
+  const cityResults = res.city_results || [];
+  // 民族党（camp=ethnic）的据点：统计其赢下的省份/城市
+  const ethnicParty = (res.party_results || []).find(p => p.camp === 'ethnic');
+  if (ethnicParty) {
+    const ethnicWonCities = cityResults.filter(cr => cr.winner_party_id === ethnicParty.party_id);
+    if (ethnicWonCities.length) {
+      const byProv = {};
+      ethnicWonCities.forEach(cr => { byProv[cr.province || ''] = (byProv[cr.province || ''] || 0) + 1; });
+      const provs = Object.entries(byProv).sort((a, b) => b[1] - a[1]).slice(0, 3);
+      regionItems.push(`${ethnicParty.party_name}（民族阵营）在 ${ethnicWonCities.length} 个城市获胜，集中在：${provs.map(([p, n]) => `${p}（${n}城）`).join('、')}——其选票基础与少数民族聚居区高度重合。`);
+    } else {
+      regionItems.push(`${ethnicParty.party_name} 未在单一城市胜出，民族议题在全国层面处于分散状态。`);
+    }
+  }
+  // 第一大党的地理集中度
+  const topParty = sorted[0];
+  if (topParty && provResults.length) {
+    const provWins = provResults.filter(pr => pr.winner_party_id === topParty.party_id);
+    if (provWins.length) {
+      regionItems.push(`${topParty.party_name} 在 ${provWins.length}/${provResults.length} 个省份胜出，${provWins.length >= provResults.length * 0.8 ? '呈全国性优势' : provWins.length >= provResults.length * 0.5 ? '在多数省份领先' : '高度依赖特定区域'}。`);
+    }
+  }
+  if (regionItems.length) sections.push({ title: '区域与民族版图', items: regionItems });
+
+  // 5. 翻转临界
   const tipping = computeTippingSeats(res);
   const t = tipping.filter(x => x.margin < 0.10).slice(0, 10);
   if (t.length) {

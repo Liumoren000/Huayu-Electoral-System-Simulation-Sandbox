@@ -13,10 +13,10 @@ class GovernmentTermTest(unittest.TestCase):
         cls.cd = cls.dl.get_city_data(2023)
         cls.parties = generate_default_parties()
 
-    def _run(self, system_type='FPTP', ruling=None, **cfg_kw):
+    def _run(self, system_type='FPTP', ruling=None, term_months=60, **cfg_kw):
         cfg = ElectoralConfig(system_type=system_type, total_seats=450, **cfg_kw)
         r = ElectoralEngine(self.cd, self.parties, cfg, seed=42).run()
-        return GovernmentEngine(self.parties, seed=7).run(r, ruling_parties=ruling)
+        return GovernmentEngine(self.parties, seed=7).run(r, ruling_parties=ruling, term_months=term_months)
 
     def test_curve_monotonic_decreasing(self):
         """存活概率曲线单调不增"""
@@ -67,6 +67,22 @@ class GovernmentTermTest(unittest.TestCase):
         b = self._run()
         self.assertEqual(a.expected_months, b.expected_months)
         self.assertEqual(a.survival_prob_full_term, b.survival_prob_full_term)
+
+    def test_bills_scale_with_term_length(self):
+        """法案提交数应随任期长度增长"""
+        short = self._run(term_months=36)
+        long_ = self._run(term_months=72)
+        self.assertGreater(long_.total_bills, short.total_bills)
+        self.assertGreaterEqual(long_.total_bills, 1)
+
+    def test_coalition_reduces_bills(self):
+        """多党联盟法案数应不高于单党多数（议程协调成本更高）"""
+        single = self._run('RUNOFF', term_months=60)  # 单党 450 席
+        coalition = self._run('PR', term_months=60)    # 通常为多党联盟
+        if not coalition.single_party and single.single_party:
+            self.assertLessEqual(coalition.total_bills, single.total_bills)
+        # 单党任期：法案数≈任期月数
+        self.assertEqual(single.total_bills, 60)
 
 
 if __name__ == '__main__':

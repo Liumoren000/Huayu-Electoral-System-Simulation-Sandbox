@@ -226,6 +226,7 @@ class ElectoralEngine:
                 color=p.color,
                 economic_position=p.economic_position,
                 social_position=p.social_position,
+                camp=p.camp,
             )
             party_results.append(psr)
 
@@ -303,6 +304,7 @@ class ElectoralEngine:
                 color=p.color,
                 economic_position=p.economic_position,
                 social_position=p.social_position,
+                camp=p.camp,
             ))
 
         for pr in party_results:
@@ -365,6 +367,7 @@ class ElectoralEngine:
                 color=p.color,
                 economic_position=p.economic_position,
                 social_position=p.social_position,
+                camp=p.camp,
             ))
 
         return self._build_result(city_results, party_results, total_votes,
@@ -409,6 +412,7 @@ class ElectoralEngine:
                 color=p.color,
                 economic_position=p.economic_position,
                 social_position=p.social_position,
+                camp=p.camp,
             )
             for p in self.parties
         ]
@@ -440,6 +444,7 @@ class ElectoralEngine:
                 color=p.color,
                 economic_position=p.economic_position,
                 social_position=p.social_position,
+                camp=p.camp,
             )
             for p in self.parties
         ]
@@ -496,6 +501,7 @@ class ElectoralEngine:
                 color=p.color,
                 economic_position=p.economic_position,
                 social_position=p.social_position,
+                camp=p.camp,
             )
             for p in self.parties
         ]
@@ -611,6 +617,7 @@ class ElectoralEngine:
                 color=p.color,
                 economic_position=p.economic_position,
                 social_position=p.social_position,
+                camp=p.camp,
             ))
 
         return self._build_result(city_results, party_results, 0,
@@ -1105,6 +1112,7 @@ class ElectoralEngine:
                 color=p.color,
                 economic_position=p.economic_position,
                 social_position=p.social_position,
+                camp=p.camp,
             ))
 
         return uh_party_results, uh_province_results, uh_seats

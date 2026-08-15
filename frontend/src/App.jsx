@@ -400,6 +400,42 @@ export default function App() {
     downloadFile(csv, 'election_results.csv', 'text/csv');
   }
 
+  function exportFullCSV(res) {
+    // 完整导出：政党 + 省级 + 城市级
+    const lines = [];
+    lines.push('# 政党席位');
+    lines.push(['政党', '席位', '得票率', '席位占比'].join(','));
+    for (const p of res.party_results) {
+      lines.push([p.party_name, p.seats, (p.vote_share * 100).toFixed(2) + '%',
+        ((p.seats / res.total_seats) * 100).toFixed(2) + '%'].join(','));
+    }
+    lines.push('');
+    lines.push('# 省级结果');
+    lines.push(['省份', '席位', '获胜政党', '投票率'].join(','));
+    for (const pr of res.province_results || []) {
+      lines.push([pr.province_name, pr.seats, pr.winner_party_name,
+        (pr.avg_turnout != null ? (pr.avg_turnout * 100).toFixed(1) + '%' : '-')].join(','));
+    }
+    lines.push('');
+    lines.push('# 城市级结果');
+    lines.push(['城市', '省份', '席位', '获胜政党', '投票率', '胜差'].join(','));
+    for (const cr of res.city_results || []) {
+      const sorted = Object.entries(cr.vote_shares || {}).sort((a, b) => b[1] - a[1]);
+      const margin = sorted.length > 1 ? ((sorted[0][1] - sorted[1][1]) * 100).toFixed(1) + '%' : '-';
+      lines.push([cr.city_name, cr.province || '', cr.seats || 0, cr.winner_party_name,
+        (cr.turnout != null ? (cr.turnout * 100).toFixed(1) + '%' : '-'), margin].join(','));
+    }
+    if (res.upper_house_party_results?.length) {
+      lines.push('');
+      lines.push('# 上议院结果');
+      lines.push(['政党', '席位'].join(','));
+      for (const p of res.upper_house_party_results) {
+        lines.push([p.party_name, p.seats].join(','));
+      }
+    }
+    downloadFile(lines.join('\n'), `election_full_${res.system_type}_${year}.csv`, 'text/csv');
+  }
+
   function exportJSON(res) {
     const data = {
       exported_at: new Date().toISOString(),
@@ -433,7 +469,35 @@ export default function App() {
         seats: pr.seats,
         party_seats: pr.party_seats,
         winner: pr.winner_party_name,
+        avg_turnout: pr.avg_turnout,
       })),
+      cities: res.city_results.map(cr => ({
+        city_id: cr.city_id,
+        city_name: cr.city_name,
+        province: cr.province || '',
+        seats: cr.seats,
+        winner_party_id: cr.winner_party_id,
+        winner_party_name: cr.winner_party_name,
+        turnout: cr.turnout,
+        eligible_voter_ratio: cr.eligible_voter_ratio,
+        vote_shares: cr.vote_shares,
+      })),
+      upper_house: res.upper_house_party_results?.length
+        ? {
+            seats: res.upper_house_total_seats,
+            parties: res.upper_house_party_results.map(p => ({
+              party_id: p.party_id,
+              name: p.party_name,
+              seats: p.seats,
+              vote_share: p.vote_share,
+            })),
+            provinces: res.upper_house_province_results?.map(pr => ({
+              name: pr.province_name,
+              seats: pr.seats,
+              party_seats: pr.party_seats,
+            })),
+          }
+        : null,
       coalition: res.coalition
         ? {
             has_majority: res.coalition.has_majority,
@@ -827,7 +891,7 @@ body: JSON.stringify({
               <button className="header-btn" onClick={() => { setAttackInitialMode('legislation'); setShowAttack(true); }} title="先在组阁推演中搭建执政联盟，再按纪律/反对党模型模拟法案通过">
                 立法推演
               </button>
-              <button className="header-btn" onClick={() => exportCSV(displayResult)} title="导出CSV">
+              <button className="header-btn" onClick={() => exportFullCSV(displayResult)} title="导出完整 CSV（政党+省级+城市级+上议院）">
                 CSV
               </button>
               <button className="header-btn" onClick={() => exportJSON(displayResult)} title="导出JSON">

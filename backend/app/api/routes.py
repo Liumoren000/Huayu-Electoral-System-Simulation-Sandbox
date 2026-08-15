@@ -377,10 +377,10 @@ def simulate_calibrate(request: CalibrationRequest):
     """
     if not request.parties:
         return JSONResponse(status_code=400, content={"error": "至少需要一个参选政党"})
-    city_data = data_loader.get_city_data(request.year)
-    return historical_calibration(city_data, request.parties, request.config,
+    return historical_calibration(request.parties, request.config,
                                   current_year=request.year,
-                                  baseline_year=request.baseline_year)
+                                  baseline_year=request.baseline_year,
+                                  data_loader=data_loader)
 
 
 @router.post("/voter-model/explain")

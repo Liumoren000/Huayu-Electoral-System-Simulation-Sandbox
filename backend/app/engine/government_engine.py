@@ -35,6 +35,7 @@ class GovernmentEngine:
         single_party, ruling = self._resolve_ruling(result, ruling_parties)
         base_stability = self._base_stability(result, ruling)
         seat_margin = self._seat_margin(result, ruling)
+        total_bills = self._total_bills(result, ruling, term_months)
 
         months = self._simulate(result, ruling, base_stability, seat_margin, term_months)
         return GovernmentTermResult(
@@ -48,9 +49,9 @@ class GovernmentEngine:
             base_stability=round(base_stability, 4),
             seat_margin=seat_margin,
             policy_pass_rate=round(self._policy_pass_rate(result, ruling), 4),
-            passed_bills=self._passed_bills_count(result, ruling),
-            total_bills=self._total_bills(),
-            expected_passed_bills=round(self._policy_pass_rate(result, ruling) * self._total_bills(), 2),
+            passed_bills=self._passed_bills_count(result, ruling, term_months, total_bills),
+            total_bills=total_bills,
+            expected_passed_bills=round(self._policy_pass_rate(result, ruling) * total_bills, 2),
             no_confidence_risk=round(1.0 - months[-1].survival_prob if months else 0.0, 4),
             reason_breakdown=self._reason_breakdown(months, ruling),
             single_party=single_party,
@@ -165,12 +166,30 @@ class GovernmentEngine:
         base = 0.5 + stability * 0.25 + max(-0.15, min(0.2, margin * 0.004))
         return max(0.15, min(0.95, base))
 
-    def _total_bills(self) -> int:
-        """任期内提交法案数（简化为每年 12 项 × 5 年）"""
-        return 60
+    def _total_bills(self, result: ElectionResult, ruling: list[str], term_months: int = 60) -> int:
+        """任期内提交法案数：随任期长度、联盟成员数、政策兼容度驱动。
 
-    def _passed_bills_count(self, result: ElectionResult, ruling: list[str]) -> int:
-        return int(self._policy_pass_rate(result, ruling) * self._total_bills())
+        基准为「每月 1 项」；联盟越庞大/越不兼容，立法议程越难启动
+        （内部协调成本高、法案推进慢），提交数相应减少。
+        """
+        months = max(1, term_months)
+        # 单党或小联盟：接近每月 1 项
+        base = months * 1.0
+        # 联盟规模惩罚：成员越多，议程协调成本越高
+        size_penalty = max(0.0, (len(ruling) - 1) * 0.08)
+        # 政策兼容度惩罚：越不兼容，法案推进越难
+        if len(ruling) >= 2:
+            ids = [p for p in ruling if p in self.party_map]
+            compat = self._policy_compat(ids) if len(ids) >= 2 else 1.0
+            compat_penalty = (1.0 - compat) * 0.25
+        else:
+            compat_penalty = 0.0
+        return max(1, int(round(base * (1.0 - size_penalty - compat_penalty))))
+
+    def _passed_bills_count(self, result: ElectionResult, ruling: list[str],
+                            term_months: int = 60, total_bills: int = None) -> int:
+        total = total_bills if total_bills is not None else self._total_bills(result, ruling, term_months)
+        return int(self._policy_pass_rate(result, ruling) * total)
 
     def _confidence_vote(self, result: ElectionResult, ruling: list[str]) -> float:
         """就职信任投票通过率：过半冗余席 → 高通过"""
