@@ -847,6 +847,7 @@ class ElectoralEngine:
         env, ens, gallagher = self._compute_diversity_metrics(party_results)
         lh, rose, mal, pns = self._compute_additional_indices(party_results, province_results)
         decomp = self._compute_disprop_decomposition(party_results, province_results)
+        classification, classification_detail = self._classify_party_system(party_results, self.config.total_seats, env)
         return ElectionResult(
             config_name=self.config.name,
             system_type=self.config.system_type,
@@ -866,7 +867,44 @@ class ElectoralEngine:
             upper_house_party_results=uh_party_results,
             upper_house_province_results=uh_province_results,
             upper_house_total_seats=uh_total,
+            party_system_classification=classification,
+            party_system_classification_detail=classification_detail,
         )
+
+    def _classify_party_system(self, party_results: list[PartySeatResult], total_seats: int,
+                               effective_parties_vote: float) -> tuple[str, str]:
+        """
+        Sartori 政党体系类型学分类：基于第一大党席位主导性、得票集中度与有效政党数。
+
+        - 一党主导制：首党独立过半席位（≥50%）
+        - 主导党制：首党得票 ≥40% 且远抛次党（首/次党得票比 ≥2）
+        - 两党制：有效政党数 <3.5 且次党有竞争性（次党得票 ≥20%）
+        - 温和多党制：有效政党数 <5
+        - 碎片化多党制：有效政党数 ≥5
+        """
+        if not party_results:
+            return "无有效结果", "无政党数据"
+        ranked = sorted(party_results, key=lambda p: p.vote_share, reverse=True)
+        top = ranked[0]
+        second = ranked[1] if len(ranked) > 1 else None
+        top_seat_share = (top.seats / total_seats) if total_seats else 0
+        top_vote = top.vote_share
+        second_vote = second.vote_share if second else 0
+        n_eff = effective_parties_vote
+        ratio = (top_vote / second_vote) if second_vote > 0 else 99
+
+        detail = (f"首党{top.party_name}席位{top_seat_share * 100:.0f}%（{top.seats}/{total_seats}）、"
+                  f"得票{top_vote * 100:.0f}%；次党得票{second_vote * 100:.0f}%；有效政党数{n_eff:.1f}")
+
+        if top_seat_share >= 0.5:
+            return "一党主导制", detail
+        if top_vote >= 0.40 and ratio >= 2.0:
+            return "主导党制", detail
+        if n_eff < 3.5 and second_vote >= 0.20:
+            return "两党制", detail
+        if n_eff < 5.0:
+            return "温和多党制", detail
+        return "碎片化多党制", detail
 
     def _compute_disprop_decomposition(self, party_results: list[PartySeatResult],
                                        province_results: list[ProvinceResult]) -> DisproportionalityDecomposition:

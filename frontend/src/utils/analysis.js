@@ -113,6 +113,19 @@ export function generateReport(displayResult, resultA, resultB, activeScheme, co
   const sysItems = systemFeatureTags(res, activeScheme === 'B' ? configB : configA);
   if (sysItems.length) sections.push({ title: `制度特征 · ${res.system_type}`, items: sysItems });
 
+  // 0.5 政党体系格局（Sartori 类型学）
+  if (res.party_system_classification) {
+    const classificationItems = [];
+    classificationItems.push(`本轮推演形成「${res.party_system_classification}」格局——${res.party_system_classification_detail || ''}。`);
+    const cls = res.party_system_classification;
+    if (cls === '一党主导制') classificationItems.push('首党独立过半，可单独执政，政府高度稳定但政党轮替空间有限。');
+    else if (cls === '主导党制') classificationItems.push('首党显著领先但未过半，次党有组阁制衡空间，呈现强势一极格局。');
+    else if (cls === '两党制') classificationItems.push('两大党交替执政，第三党被挤压，政府相对稳定、政策争议高度两极化。');
+    else if (cls === '温和多党制') classificationItems.push('多个中等政党共存，联合组阁常见，政策温和且需多方妥协。');
+    else if (cls === '碎片化多党制') classificationItems.push('政党高度碎片化，单一多数难觅，组阁谈判复杂、政府可能短命。');
+    sections.push({ title: '政党体系格局', items: classificationItems });
+  }
+
   // 1. 总体态势
   const hasMajority = top && top.seats > total / 2;
   let gov = `在${res.system_type}制度下，第一大党「${top?.party_name}」获得 ${top?.seats} 席（占 ${formatPct(top?.seats / total, 1)}），${hasMajority ? `超过多数门槛 ${majorityThreshold} 席，可单独执政（${coalition?.majority_type === 'absolute' ? '绝对多数' : '简单多数'}）` : `未达多数门槛 ${majorityThreshold} 席，需要联合组阁`}。`;

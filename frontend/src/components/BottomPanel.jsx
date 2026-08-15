@@ -38,6 +38,12 @@ export default function BottomPanel({ result }) {
   const metricsBar = result ? (
     <div className="metrics-bar">
       <div className="metric-item">
+        <span className="metric-label">格局类型</span>
+        <span className="metric-value" style={{ color: 'var(--accent-blue)' }}>
+          {isUpper ? '-' : (result.party_system_classification || '-')}
+        </span>
+      </div>
+      <div className="metric-item">
         <span className="metric-label">有效政党数(票)</span>
         <span className="metric-value">{isUpper ? (upperEffVote ? upperEffVote.toFixed(1) : '-') : (result.effective_parties_vote?.toFixed(1) || '-')}</span>
       </div>

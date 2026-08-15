@@ -399,6 +399,23 @@ class RealismFeatureTest(unittest.TestCase):
                     for pid in resp.final_share)
         self.assertLess(worst, 0.06, "无系统偏差时末周民调应与实际得票率较接近")
 
+    def test_party_system_classification_present(self):
+        """结果应包含 Sartori 政党体系分类"""
+        r, _ = self._run()
+        self.assertTrue(r.party_system_classification)
+        self.assertIn(r.party_system_classification,
+                      ['一党主导制', '主导党制', '两党制', '温和多党制', '碎片化多党制'])
+
+    def test_party_system_classification_dominant(self):
+        """高集中化下 FPTP 应分类为一党主导制（首党席位过半）"""
+        r, _ = self._run(party_system_concentration=0.5)
+        top = max(r.party_results, key=lambda p: p.seats)
+        if top.seats > r.total_seats / 2:
+            self.assertEqual(r.party_system_classification, '一党主导制')
+        else:
+            self.assertIn(r.party_system_classification,
+                          ['主导党制', '两党制', '温和多党制'])
+
 
 if __name__ == '__main__':
     unittest.main()

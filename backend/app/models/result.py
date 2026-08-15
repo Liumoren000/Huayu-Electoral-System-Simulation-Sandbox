@@ -73,6 +73,8 @@ class ElectionResult(BaseModel):
     upper_house_party_results: list[PartySeatResult] = []
     upper_house_province_results: list[ProvinceResult] = []
     upper_house_total_seats: int = 0
+    party_system_classification: str = ""  # Sartori 类型学：一党主导制/两党制/温和多党制/碎片化多党制
+    party_system_classification_detail: str = ""  # 分类依据（含关键指标）
 
 
 class CoalitionOption(BaseModel):
