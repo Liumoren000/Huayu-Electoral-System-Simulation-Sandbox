@@ -109,6 +109,10 @@ export function generateReport(displayResult, resultA, resultB, activeScheme, co
   const majorityThreshold = Math.floor(total / 2) + 1;
   const dec = res.disproportionality_decomposition || {};
 
+  // 0. 制度特征标签
+  const sysItems = systemFeatureTags(res, activeScheme === 'B' ? configB : configA);
+  if (sysItems.length) sections.push({ title: `制度特征 · ${res.system_type}`, items: sysItems });
+
   // 1. 总体态势
   const hasMajority = top && top.seats > total / 2;
   let gov = `在${res.system_type}制度下，第一大党「${top?.party_name}」获得 ${top?.seats} 席（占 ${formatPct(top?.seats / total, 1)}），${hasMajority ? `超过多数门槛 ${majorityThreshold} 席，可单独执政（${coalition?.majority_type === 'absolute' ? '绝对多数' : '简单多数'}）` : `未达多数门槛 ${majorityThreshold} 席，需要联合组阁`}。`;
@@ -221,4 +225,65 @@ export function generateReport(displayResult, resultA, resultB, activeScheme, co
   }
 
   return sections;
+}
+
+export function systemFeatureTags(res, config) {
+  if (!res) return [];
+  const total = Math.max(1, res.total_seats);
+  const sorted = [...res.party_results].sort((a, b) => b.seats - a.seats);
+  const top = sorted[0];
+  const gallagher = (res.gallagher_index || 0) * 100;
+  const effSeats = (res.effective_parties_seats || 0).toFixed(2);
+  const topShare = (top?.seats / total) * 100;
+  const sys = res.system_type;
+  const cfg = config || {};
+  const items = [];
+
+  const tag = (label, desc) => items.push(`【${label}】${desc}`);
+  const verdict = (cond, yes, no) => (cond ? yes : no);
+
+  if (sys === 'FPTP') {
+    tag('单轮决胜', '每个选区仅一席，得票最多者胜出，无需多数门槛——非比例性制度的代表。');
+    tag('胜者红利', `第一大党席占 ${topShare.toFixed(1)}%（得票 ${(top?.vote_share || 0) * 100}%），Gallagher ${gallagher.toFixed(1)}%${gallagher > 8 ? '，明显放大领先党的议席优势' : '，放大程度有限'}。`);
+    tag('Duverger 收敛', `有效政党数(席) ${effSeats}${effSeats < 3 ? '，接近两党格局，符合杜韦尔热定律预期' : effSeats < 4 ? '，呈轻度多党但趋两极化' : '，未收敛到两党，说明地区性政党仍存'},可配合「策略性弃保」滑块观察收敛强度。`);
+  } else if (sys === 'PR') {
+    const thr = (cfg.threshold ?? 0) * 100;
+    tag('比例转化', `Gallagher ${gallagher.toFixed(1)}%${gallagher < 3 ? '，席位分配接近完全比例' : '，与纯比例基准存在偏差'}，有效政党数(席) ${effSeats}。`);
+    if (thr > 0) tag('选举门槛', `门槛设为 ${thr.toFixed(0)}%${sorted.some(p => p.seats === 0 && (p.vote_share || 0) * 100 < thr) ? '，确实有小党被门槛挡下' : '，本轮无政党被门槛排除'}——高门槛可压缩碎片化并放大有效政党结构。`);
+    else tag('零门槛', '未设门槛，极左/极右等微型政党也可获席，碎片化风险与组阁复杂度随之上升。');
+  } else if (sys === 'RUNOFF') {
+    const rt = (cfg.runoff_threshold ?? 0.5) * 100;
+    const round1 = res.city_results?.map(cr => Object.entries(cr.vote_shares).sort((a, b) => b[1] - a[1])).filter(s => s.length >= 2);
+    const runoffs = round1?.filter(s => s[0][1] < rt / 100).length || 0;
+    tag('两轮博弈', `阈值 ${rt.toFixed(0)}%，${runoffs} 个选区需进入第二轮——首轮领先后在次轮吸收落选者选票。`);
+    tag('弃保与整合', `Gallagher ${gallagher.toFixed(1)}%，两轮制通常压缩第三党空间，第一大党席占 ${topShare.toFixed(1)}%。`);
+  } else if (sys === 'MMP' || sys === 'PARALLEL') {
+    const mr = (cfg.mixed_ratio ?? 0.5) * 100;
+    tag(sys === 'MMP' ? '补偿机制' : '并立机制', sys === 'MMP'
+      ? `名单席按 ${mr.toFixed(0)}% 混合比例补偿选区失真的席位——结果整体接近比例制。`
+      : `名单席 ${mr.toFixed(0)}% 与选区席彼此独立，不补偿选区失真——比例性与 FPTP 之间折中。`);
+    tag('结构性失真', `Gallagher ${gallagher.toFixed(1)}%${sys === 'MMP' ? '（MMP 通常 ≤8%）' : '（并立制通常显著高于 MMP）'}。`);
+  } else if (sys === 'IRV') {
+    const avCities = res.city_results?.filter(cr => (cr.party_seats && Object.values(cr.party_seats).reduce((s, n) => s + n, 0)) > 0).length || 0;
+    tag('多数偏好', '选民按偏好顺序排名，末位者票源依序转移，直到产生过半者——避免"得票多反被边缘化"的废票。');
+    tag('转移修正', `${avCities}/${res.city_results?.length || 0} 个城市完成计票，Gallagher ${gallagher.toFixed(1)}%，有效政党数(席) ${effSeats}。`);
+  } else if (sys === 'STV') {
+    tag('多人比例', '单一可转移投票：选民排名，选票按当选配额(Droop)转移，兼顾选区制与比例性。');
+    tag('配额转移', `Gallagher ${gallagher.toFixed(1)}%，有效政党数(席) ${effSeats}，通常优于 FPTP、弱于纯 PR。`);
+  } else if (sys === 'APPROVAL') {
+    tag('同意门槛', '选民对可接受的全部候选人投同意票，各候选人得票率按同意识别——包容性强，偏好表达粗粒化。');
+    tag('温和极化', `Gallagher ${gallagher.toFixed(1)}%，同意制倾向选出温和、跨阵营可接受者。`);
+  } else if (sys === 'BORDA') {
+    tag('计分排序', '波达计分：按排名给分加权，兼顾偏好强度但易受"乱序策略"操纵。');
+    tag('偏好强度', `Gallagher ${gallagher.toFixed(1)}%，有效政党数(席) ${effSeats}，计分制对中间偏好较敏感。`);
+  } else {
+    tag('自定义制度', `当前制度 ${sys}，Gallagher ${gallagher.toFixed(1)}%，有效政党数(席) ${effSeats}。`);
+  }
+
+  // 通用观察
+  const noSeatParty = sorted.filter(p => p.seats === 0);
+  if (noSeatParty.length) {
+    tag('无席政党', `${noSeatParty.length} 个政党有得票但未获席${sys !== 'PR' ? '——非比例性制度下小党的"浪费票"' : '（PR 下多为门槛排除）'}。`);
+  }
+  return items;
 }

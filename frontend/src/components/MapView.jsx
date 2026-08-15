@@ -45,12 +45,15 @@ export default function MapView({ result, cities, mapLabel, accentColor, onProvi
   const [showTurnout, setShowTurnout] = useState(false);
   const [showEthnic, setShowEthnic] = useState(false);
   const [showTurnoutProvince, setShowTurnoutProvince] = useState(false);
+  const [selectedName, setSelectedName] = useState(null);
+  const selectedNameRef = useRef(null);
   const cityGeoCache = useRef({});
   const viewModeRef = useRef(viewMode);
   const currentProvinceRef = useRef(currentProvince);
 
   viewModeRef.current = viewMode;
   currentProvinceRef.current = currentProvince;
+  selectedNameRef.current = selectedName;
 
   useEffect(() => {
     clickHandlerRef.current = onProvinceClick;
@@ -75,7 +78,7 @@ export default function MapView({ result, cities, mapLabel, accentColor, onProvi
 
         setupClickHandler(chart);
 
-        renderMap(chart, result, manualSeats, currentProvince, viewMode, cities, showTurnout, compareResult, tippingCityIds, uncertainty, showUncertainty, showEthnic, showTurnoutProvince);
+        renderMap(chart, result, manualSeats, currentProvince, viewMode, cities, showTurnout, compareResult, tippingCityIds, uncertainty, showUncertainty, showEthnic, showTurnoutProvince, selectedNameRef.current);
         setStatus('ready');
 
         const onResize = () => chart.resize();
@@ -102,7 +105,7 @@ export default function MapView({ result, cities, mapLabel, accentColor, onProvi
 
     if (currentProvince === '台湾省') {
       setCityGeoLoaded(true);
-      renderMap(chartRef.current, result, manualSeats, currentProvince, viewMode, cities, showTurnout, compareResult, tippingCityIds, uncertainty, showUncertainty, showEthnic, showTurnoutProvince);
+      renderMap(chartRef.current, result, manualSeats, currentProvince, viewMode, cities, showTurnout, compareResult, tippingCityIds, uncertainty, showUncertainty, showEthnic, showTurnoutProvince, selectedNameRef.current);
       setStatus('ready');
       return;
     }
@@ -124,7 +127,7 @@ export default function MapView({ result, cities, mapLabel, accentColor, onProvi
         }
         echarts.registerMap('province', geo);
         setCityGeoLoaded(true);
-renderMap(chartRef.current, result, manualSeats, currentProvince, viewMode, cities, showTurnout, compareResult, tippingCityIds, uncertainty, showUncertainty, showEthnic, showTurnoutProvince);
+renderMap(chartRef.current, result, manualSeats, currentProvince, viewMode, cities, showTurnout, compareResult, tippingCityIds, uncertainty, showUncertainty, showEthnic, showTurnoutProvince, selectedNameRef.current);
         setStatus('ready');
       } catch (e) {
         console.error('City geo error:', e);
@@ -138,7 +141,7 @@ renderMap(chartRef.current, result, manualSeats, currentProvince, viewMode, citi
   useEffect(() => {
     if (!chartRef.current) return;
     if (viewMode === 'city' && currentProvince && !cityGeoLoaded && currentProvince !== '台湾省') return;
-    renderMap(chartRef.current, result, manualSeats, currentProvince, viewMode, cities, showTurnout, compareResult, tippingCityIds, uncertainty, showUncertainty, showEthnic, showTurnoutProvince);
+    renderMap(chartRef.current, result, manualSeats, currentProvince, viewMode, cities, showTurnout, compareResult, tippingCityIds, uncertainty, showUncertainty, showEthnic, showTurnoutProvince, selectedNameRef.current);
   }, [result, manualSeats, viewMode, cityGeoLoaded, currentProvince, showTurnout, compareResult, uncertainty, showUncertainty, showEthnic, showTurnoutProvince]);
 
   useEffect(() => {
@@ -158,6 +161,7 @@ renderMap(chartRef.current, result, manualSeats, currentProvince, viewMode, citi
       if (vm === 'city' && cp) {
         if (clickHandlerRef.current) {
           const cityName = params.data?._cityName || params.name;
+          setSelectedName(cityName);
           clickHandlerRef.current(cityName);
         }
         return;
@@ -166,16 +170,19 @@ renderMap(chartRef.current, result, manualSeats, currentProvince, viewMode, citi
       if (vm === 'province' && params.name) {
         if (MUNICIPALITIES.has(params.name) || NO_DRILLDOWN.has(params.name)) {
           if (clickHandlerRef.current) {
+            setSelectedName(params.name);
             clickHandlerRef.current(params.name);
           }
         } else {
           const adcode = PROVINCE_ADCODES[params.name];
           if (adcode && onViewModeChange) {
+            setSelectedName(params.name);
             setCityGeoLoaded(false);
             setCurrentProvince(params.name);
             onViewModeChange('city');
             if (onDrillDown) onDrillDown(params.name);
           } else if (clickHandlerRef.current) {
+            setSelectedName(params.name);
             clickHandlerRef.current(params.name);
           }
         }
@@ -186,6 +193,7 @@ renderMap(chartRef.current, result, manualSeats, currentProvince, viewMode, citi
   const handleBack = () => {
     setCurrentProvince(null);
     setCityGeoLoaded(false);
+    setSelectedName(null);
     if (onViewModeChange) onViewModeChange('province');
   };
 
@@ -464,7 +472,7 @@ function getUncertaintyColor(winRate) {
   return '#e53935';
 }
 
-function renderMap(chart, result, manualSeatsData, currentProvince, viewMode, citiesData, showTurnout = false, compareResult = null, tippingCityIds = null, uncertainty = null, showUncertainty = false, showEthnic = false, showTurnoutProvince = false) {
+function renderMap(chart, result, manualSeatsData, currentProvince, viewMode, citiesData, showTurnout = false, compareResult = null, tippingCityIds = null, uncertainty = null, showUncertainty = false, showEthnic = false, showTurnoutProvince = false, selectedName = null) {
   if (!chart) return;
   if (viewMode === 'city' && currentProvince && currentProvince !== '台湾省' && !echarts.getMap('province')) return;
 
@@ -662,6 +670,7 @@ function renderMap(chart, result, manualSeatsData, currentProvince, viewMode, ci
         type: 'map',
         map: 'province',
         roam: true,
+        selectedMode: 'single',
         label: {
           show: true,
           fontSize: 8,
@@ -679,10 +688,16 @@ function renderMap(chart, result, manualSeatsData, currentProvince, viewMode, ci
           label: { show: true, fontSize: 10 },
           itemStyle: { areaColor: '#555', borderColor: '#fff', borderWidth: 1 },
         },
+        select: {
+          label: { show: true, fontSize: 10, color: '#fff' },
+          itemStyle: { areaColor: '#6a7a8f', borderColor: '#fff', borderWidth: 2 },
+        },
         scaleLimit: { min: 0.5, max: 10 },
-        select: { disabled: true },
       }],
     }, { replaceMerge: ['series'] });
+    if (selectedName) {
+      chart.dispatchAction({ type: 'select', name: selectedName });
+    }
     }
   } else {
     const provMap = {};
@@ -741,6 +756,7 @@ function renderMap(chart, result, manualSeatsData, currentProvince, viewMode, ci
         _manualSeats: hasManual ? ms : null,
         _uncertainty: showUncertainty ? unc : null,
         _ethnicShare: showEthnic ? (provinceEthnic[name] || 0) : null,
+        _turnoutProv: showTurnoutProvince ? (pr?.avg_turnout ?? null) : null,
       };
     });
 
@@ -777,6 +793,14 @@ function renderMap(chart, result, manualSeatsData, currentProvince, viewMode, ci
               h += `<div style="display:flex;justify-content:space-between;gap:12px;font-size:11px">
                 <span>● ${partyMap[pid]?.name || pid}</span><span><b>${seats}席</b></span></div>`;
             });
+          } else if (d._turnoutProv != null) {
+            const tv = d._turnoutProv;
+            const pr = d._provinceResult;
+            const tColor = tv >= 0.7 ? '#66bb6a' : tv >= 0.55 ? '#ffd54f' : '#e53935';
+            h += `<div style="font-weight:700;margin-bottom:4px">${params.name}</div>`;
+            h += `<div style="color:${tColor};font-weight:700;margin-bottom:2px">平均投票率 ${(tv * 100).toFixed(0)}%</div>`;
+            h += `<div style="color:#9aa0a6;margin-bottom:2px">参与度 ${tv >= 0.7 ? '高涨' : tv >= 0.55 ? '平稳' : '低迷'}</div>`;
+            if (pr) h += `<div style="color:#66bb6a;margin-top:2px">● ${pr.winner_party_name} | ${pr.seats}席 | ${pr.num_cities}城市</div>`;
           } else if (d._ethnicShare != null) {
             const share = d._ethnicShare;
             const pr = d._provinceResult;
@@ -829,7 +853,7 @@ function renderMap(chart, result, manualSeatsData, currentProvince, viewMode, ci
         map: 'china',
         roam: true,
         zoom: 1.2,
-        selectedMode: false,
+        selectedMode: 'single',
         label: { show: false },
         data,
         itemStyle: { areaColor: DEFAULT_COLOR, borderColor: '#2a3344', borderWidth: 0.8 },
@@ -837,9 +861,15 @@ function renderMap(chart, result, manualSeatsData, currentProvince, viewMode, ci
           label: { show: true, fontSize: 10 },
           itemStyle: { areaColor: '#555', borderColor: '#fff', borderWidth: 1 },
         },
+        select: {
+          label: { show: true, fontSize: 10, color: '#fff' },
+          itemStyle: { areaColor: '#6a7a8f', borderColor: '#fff', borderWidth: 2 },
+        },
         scaleLimit: { min: 0.8, max: 8 },
-        select: { disabled: true },
       }],
     }, { replaceMerge: ['series'] });
+    if (selectedName) {
+      chart.dispatchAction({ type: 'select', name: selectedName });
+    }
   }
 }
