@@ -408,7 +408,8 @@ def explain_voter_model(request: VoterExplainRequest):
                     voter_stratification=request.config.voter_stratification,
                     calibration=request.config.calibration,
                     turnout_differential=request.config.turnout_differential or 0.0,
-                    affinity_power=request.config.affinity_power)
+                    affinity_power=request.config.affinity_power,
+                    party_system_concentration=request.config.party_system_concentration or 0.0)
     expl = vm.explain_city(city, request.parties, request.config.noise_amplitude)
 
     city_position = [
@@ -471,6 +472,7 @@ def voter_structure(request: VoterStructureRequest):
                     swing_voter_pct=request.config.swing_voter_pct or 0.0,
                     voter_stratification=request.config.voter_stratification,
                     calibration=request.config.calibration,
+                    party_system_concentration=request.config.party_system_concentration or 0.0,
                     )
     # 用与主推演完全一致的引擎跑一遍，拿到真实城市级得票率，
     # 保证结构分解的总体与赢家始终等于界面主表结果。

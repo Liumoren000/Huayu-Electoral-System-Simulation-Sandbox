@@ -22,8 +22,35 @@ class ElectoralEngine:
             calibration=config.calibration,
             turnout_differential=config.turnout_differential or 0.0,
             affinity_power=config.affinity_power,
+            party_system_concentration=config.party_system_concentration or 0.0,
         )
         self.party_map = {p.id: p for p in parties}
+
+    def _concentration_bonus(self, party_votes: dict[str, float]) -> dict[str, float]:
+        """政党体系集中化加成：全国领先党（第一党+b、第二党+b/2）获得声望加成，
+        模拟主导党/两强对峙格局；返回 party_id -> 份额加成。"""
+        b = self.config.party_system_concentration or 0.0
+        if b <= 0 or not party_votes:
+            return {}
+        top_two = sorted(party_votes.items(), key=lambda kv: kv[1], reverse=True)[:2]
+        if len(top_two) >= 2:
+            return {top_two[0][0]: b, top_two[1][0]: b * 0.5}
+        return {top_two[0][0]: b}
+
+    def _apply_national_concentration(self, party_votes: dict[str, float],
+                                      city_shares: dict[str, dict[str, float]],
+                                      total_votes: float) -> dict[str, float]:
+        """对全国得票率与各城市份额应用集中化加成，返回修正后的 party_votes。"""
+        bonus = self._concentration_bonus(party_votes)
+        if not bonus:
+            return party_votes
+        for pid in bonus:
+            party_votes[pid] += bonus[pid] * total_votes
+        for cid, shares in city_shares.items():
+            adj = {pid: s + bonus.get(pid, 0.0) for pid, s in shares.items()}
+            t = sum(adj.values())
+            city_shares[cid] = {pid: v / t for pid, v in adj.items()} if t > 0 else shares
+        return party_votes
 
     def _effective_population(self, city: City) -> float:
         """应用 malapportionment：小城市/农业城市超代表"""
@@ -205,6 +232,14 @@ class ElectoralEngine:
         min_seats = min(self.config.min_seats_per_city, self.config.total_seats // max(1, len(eff_pops)))
         city_seats = self._largest_remainder_seats(eff_pops, self.config.total_seats, min_seats=min_seats)
 
+        # 政党体系集中化：全国领先党获得声望加成（第一党+b、第二党+b/2，作用于
+        # 所有城市份额后重算），模拟主导党/两强对峙格局，但保留城市内部竞争悬念。
+        city_shares = {cid: info['shares'] for cid, info in city_info.items()}
+        party_votes = self._apply_national_concentration(party_votes, city_shares, total_votes)
+        total_votes = sum(party_votes.values())
+        for cid, shares in city_shares.items():
+            city_info[cid]['shares'] = shares
+
         # 每市席位全部归于该市得票最高的政党（胜者全得）
         city_winners = {cid: max(info['shares'], key=info['shares'].get) for cid, info in city_info.items()}
         for cid, n in city_seats.items():
@@ -265,6 +300,14 @@ class ElectoralEngine:
                 affinities=self.voter_model.get_city_affinities(city, self.parties, self.config.noise_amplitude),
                 dimensions=self.voter_model.get_city_dimensions(city),
             ))
+
+        # 政党体系集中化（第一轮得票与进入第二轮的对象受影响）
+        city_shares_r1 = {cr.city_id: cr.vote_shares for cr in city_results_round1}
+        party_votes_round1 = self._apply_national_concentration(party_votes_round1, city_shares_r1, total_votes_round1)
+        total_votes_round1 = sum(party_votes_round1.values())
+        for cr in city_results_round1:
+            if cr.city_id in city_shares_r1:
+                cr.vote_shares = {pid: round(s, 4) for pid, s in city_shares_r1[cr.city_id].items()}
 
         max_share = max(party_votes_round1.values()) / total_votes_round1 if total_votes_round1 > 0 else 0
         sorted_parties = sorted(party_votes_round1.items(), key=lambda x: x[1], reverse=True)
@@ -346,6 +389,14 @@ class ElectoralEngine:
                 affinities=self.voter_model.get_city_affinities(city, self.parties, self.config.noise_amplitude),
                 dimensions=self.voter_model.get_city_dimensions(city),
             ))
+
+        # 政党体系集中化（全国领先党声望加成，作用于各市份额）
+        city_shares = {cr.city_id: cr.vote_shares for cr in city_results}
+        party_votes = self._apply_national_concentration(party_votes, city_shares, total_votes)
+        total_votes = sum(party_votes.values())
+        for cr in city_results:
+            if cr.city_id in city_shares:
+                cr.vote_shares = {pid: round(s, 4) for pid, s in city_shares[cr.city_id].items()}
 
         party_seats = self._allocate_pr(party_votes, self.config.total_seats, threshold=self.config.threshold)
 
@@ -714,6 +765,13 @@ class ElectoralEngine:
                 'turnout': turnout,
                 'eligible_voter_ratio': eligible,
             }
+
+        # 政党体系集中化：全国领先党声望加成，作用于"真实偏好"得票与各市份额
+        city_shares = {cid: info['shares'] for cid, info in city_info.items()}
+        party_votes = self._apply_national_concentration(party_votes, city_shares, total_votes)
+        total_votes = sum(party_votes.values())
+        for cid, shares in city_shares.items():
+            city_info[cid]['shares'] = shares
 
         min_seats = min(self.config.min_seats_per_city, district_total // max(1, len(city_info)))
         city_seats = self._largest_remainder_seats(

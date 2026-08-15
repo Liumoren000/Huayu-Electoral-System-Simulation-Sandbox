@@ -8,12 +8,13 @@ export default function PollModal({ year, config, totalSeats, minSeats, parties,
   const [error, setError] = useState(null);
   const [data, setData] = useState(null);
   const [weeks, setWeeks] = useState(12);
+  const [bias, setBias] = useState(config.poll_systematic_bias ?? 0);
 
-  const run = async (w) => {
+  const run = async (w, biasV = config.poll_systematic_bias ?? 0) => {
     setLoading(true);
     setError(null);
     try {
-      const simConfig = { ...config, total_seats: totalSeats, min_seats_per_city: minSeats };
+      const simConfig = { ...config, total_seats: totalSeats, min_seats_per_city: minSeats, poll_systematic_bias: biasV };
       const enabled = parties.filter(p => p.enabled !== false).map(({ enabled, ...rest }) => rest);
       const d = await runPoll({ year, config: simConfig, parties: enabled, weeks: w });
       setData(d);
@@ -83,6 +84,23 @@ export default function PollModal({ year, config, totalSeats, minSeats, parties,
         <div className="analysis-header">
           <h3>竞选民调 · 舆论推演</h3>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--text-muted)' }}>
+              系统偏差
+              <input
+                type="range"
+                min="0"
+                max="0.08"
+                step="0.01"
+                value={bias}
+                onChange={e => {
+                  const v = parseFloat(e.target.value);
+                  setBias(v);
+                  run(weeks, v);
+                }}
+                style={{ width: 80, verticalAlign: 'middle' }}
+              />
+              <span>{Math.round(bias * 100)}%</span>
+            </label>
             <select
               className="year-select"
               value={weeks}
@@ -101,7 +119,7 @@ export default function PollModal({ year, config, totalSeats, minSeats, parties,
             <>
               <div ref={chartRef} style={{ width: '100%', height: 300 }} />
               <div style={{ fontSize: 10, color: 'var(--text-muted)', margin: '4px 0 12px' }}>
-                {data.note} 民调曲线自第 1 周起向确定性基准结果收敛，末周值贴近实际得票率。
+                {data.note} 若开启系统偏差，民调曲线向'偏差化基准'收敛，末周民调与实际得票率存在结构性差距（模拟真实民调失准）。
               </div>
 
               {data.events?.length > 0 && (

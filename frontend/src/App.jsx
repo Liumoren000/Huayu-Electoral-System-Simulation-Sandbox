@@ -49,6 +49,8 @@ const defaultConfig = {
   tactical_voting: 0,
   turnout_differential: 0,
   affinity_power: 6,
+  party_system_concentration: 0,
+  poll_systematic_bias: 0,
 };
 
 function largestRemainderAllocation(pops, totalSeats, minSeats) {

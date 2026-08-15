@@ -64,7 +64,7 @@ class VoterModel:
                  party_effects: dict = None, party_loyalty: float = 0.0,
                  swing_voter_pct: float = 0.0, voter_stratification: bool = False,
                  calibration: bool = False, turnout_differential: float = 0.0,
-                 affinity_power: float = 6.0):
+                 affinity_power: float = 6.0, party_system_concentration: float = 0.0):
         self.rng = random.Random(seed)
         self.seed = seed
         self.turnout_shift = turnout_shift
@@ -76,6 +76,7 @@ class VoterModel:
         self.calibration = calibration
         self.turnout_differential = turnout_differential
         self.affinity_power = affinity_power
+        self.party_system_concentration = party_system_concentration
         self._national_swing = {}
 
     def reset_run(self, seed: int = None) -> None:

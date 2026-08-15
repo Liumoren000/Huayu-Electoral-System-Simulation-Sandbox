@@ -353,6 +353,52 @@ class RealismFeatureTest(unittest.TestCase):
         # 低收入依赖派（index 6）在贫困城市占比更高
         self.assertGreater(seg_poor[6], seg_rich[6])
 
+    def test_party_system_concentration_dominant_party(self):
+        """政党体系集中化应放大全国首党得票（主导党格局），且默认关闭时结果不变"""
+        base, _ = self._run()
+        base_top = max(base.party_results, key=lambda p: p.vote_share)
+        conc_r, _ = self._run(party_system_concentration=0.1)
+        conc_top = max(conc_r.party_results, key=lambda p: p.vote_share)
+        self.assertEqual(base_top.party_id, conc_top.party_id)
+        self.assertGreater(conc_top.vote_share, base_top.vote_share + 0.02,
+                           "集中化后首党得票率应明显上升")
+
+    def test_party_system_concentration_default_off(self):
+        """集中化默认 0 时结果与基线逐位一致（向后兼容）"""
+        a, _ = self._run()
+        b, _ = self._run(party_system_concentration=0.0)
+        self.assertEqual([(p.party_id, p.seats, p.vote_share) for p in a.party_results],
+                         [(p.party_id, p.seats, p.vote_share) for p in b.party_results])
+
+    def test_poll_systematic_bias_diverges_final(self):
+        """民调系统偏差开启后，末周民调与实际得票率存在结构性差距"""
+        from app.engine.poll_engine import PollEngine
+        cfg = ElectoralConfig(system_type='FPTP', total_seats=450, poll_systematic_bias=0.04)
+        pe = PollEngine(self.cd, self.parties, cfg, seed=7, weeks=12, volatility=0.04)
+        resp = pe.run()
+        last = {}
+        for pt in resp.series:
+            if pt.week == 12:
+                last[pt.party_id] = pt.share
+        # 至少一个党末周民调与实际得票率差 > 2pp（结构性偏差的体现）
+        diverged = any(abs(last.get(pid, 0) - resp.final_share.get(pid, 0)) > 0.02
+                       for pid in resp.final_share)
+        self.assertTrue(diverged, "系统偏差下民调与实际结果应有 >2pp 的差距")
+
+    def test_poll_no_bias_close_to_final(self):
+        """民调系统偏差关闭时，末周民调接近实际得票率"""
+        from app.engine.poll_engine import PollEngine
+        cfg = ElectoralConfig(system_type='FPTP', total_seats=450)
+        pe = PollEngine(self.cd, self.parties, cfg, seed=7, weeks=12, volatility=0.04)
+        resp = pe.run()
+        last = {}
+        for pt in resp.series:
+            if pt.week == 12:
+                last[pt.party_id] = pt.share
+        worst = max(abs(last.get(pid, 0) - resp.final_share.get(pid, 0))
+                    for pid in resp.final_share)
+        self.assertLess(worst, 0.06, "无系统偏差时末周民调应与实际得票率较接近")
+
 
 if __name__ == '__main__':
     unittest.main()

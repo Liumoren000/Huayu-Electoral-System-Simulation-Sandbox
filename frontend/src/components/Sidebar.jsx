@@ -230,6 +230,20 @@ export default function Sidebar({
             onChange={e => setBothConfigs('affinity_power', parseFloat(e.target.value))}
           />
         </div>
+        <div className="slider-row">
+          <label>
+            <span>政党体系集中化</span>
+            <span>{Math.round((config.party_system_concentration ?? 0) * 100)}%</span>
+          </label>
+          <input
+            type="range"
+            min="0"
+            max="0.5"
+            step="0.05"
+            value={config.party_system_concentration ?? 0}
+            onChange={e => setBothConfigs('party_system_concentration', parseFloat(e.target.value))}
+          />
+        </div>
         </div>
         )}
       </div>

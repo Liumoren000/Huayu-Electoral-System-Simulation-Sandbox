@@ -56,10 +56,28 @@ class PollEngine:
         result = engine.run()
         final_share = {p.party_id: p.vote_share for p in result.party_results}
 
+        # 民调系统偏差：现实中民调存在结构性抽样/加权偏差（如 2015 英国低估
+        # 保守党、2016 美国低估农村选民），故民调支持率≠实际得票率。
+        # 生成各党固定偏差（确定性种子），民调向"偏差化基准"收敛，
+        # 使末周民调与最终结果存在真实差距。
+        bias = getattr(self.config, 'poll_systematic_bias', 0.0) or 0.0
+        if bias > 0:
+            biased_target = {}
+            for pid, share in final_share.items():
+                # 偏向大盘：抽样对主要政党系统性高估/低估，长尾党方向随机
+                drift = self.rng.gauss(0, bias)
+                biased_target[pid] = max(0.005, share + drift)
+            t = sum(biased_target.values())
+            if t > 0:
+                for pid in biased_target:
+                    biased_target[pid] /= t
+        else:
+            biased_target = dict(final_share)
+
         series = []
         events = []
 
-        # 各党当前民调支持率，从最终结果回退到起点（起点略分散）
+        # 各党当前民调支持率，从偏差化基准回退到起点（起点略分散）
         cur = {}
         for pid, share in final_share.items():
             start = max(0.01, share + self.rng.gauss(0, self.volatility * 1.5))
@@ -86,11 +104,11 @@ class PollEngine:
                 events.append(PollEvent(week=week, label=label, description=desc,
                                         party_id=target_id, direction=direction))
 
-            # 向基准收敛 + 随机波动
+            # 向（偏差化）基准收敛 + 随机波动
             for pid in cur:
-                target = final_share[pid]
+                target = biased_target[pid]
                 # 收敛系数需显著大于周波动，否则民调会随机游走并偏离基准结果；
-                # 0.55/周的收敛 + 0.3×volatility 的周噪声，末周民调贴近实际得票率。
+                # 0.55/周的收敛 + 0.3×volatility 的周噪声，末周民调贴近（偏差化）实际得票率。
                 cur[pid] += (target - cur[pid]) * 0.55 + self.rng.gauss(0, self.volatility * 0.3)
 
             # 归一化
@@ -116,7 +134,9 @@ class PollEngine:
             events=events,
             forecasts=forecasts,
             iterations=iter_count,
-            note="民调曲线由确定性选举结果回退生成，竞选期向基准收敛并叠加随机波动与舆论事件冲击；事件冲击对象随当周政治格局动态变化（领先党承压、挑战者获利）。",
+            note=("民调曲线由确定性选举结果回退生成，竞选期向基准收敛并叠加随机波动与舆论事件冲击；事件冲击对象随当周政治格局动态变化（领先党承压、挑战者获利）。"
+                  if bias <= 0 else
+                  "民调存在系统抽样偏差（poll_systematic_bias）：民调曲线向'偏差化基准'收敛，末周民调与实际得票率存在结构性差距，反映现实中民调失准的现象。"),
         )
 
     def _forecast(self, result, last_poll: dict, final_share: dict) -> list[PollForecast]:
