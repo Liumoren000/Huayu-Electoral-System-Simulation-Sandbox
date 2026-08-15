@@ -287,6 +287,7 @@ class PollResponse(BaseModel):
     series: list[PollPoint] = []           # 各周民调曲线
     events: list[PollEvent] = []           # 舆论事件
     forecasts: list[PollForecast] = []     # 选前预测
+    iterations: int = 80                   # 蒙特卡洛迭代次数（按制度自适应）
     note: str = ""
 
 

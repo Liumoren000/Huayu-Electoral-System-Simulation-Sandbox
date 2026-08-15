@@ -107,7 +107,7 @@ class PollEngine:
                 series.append(PollPoint(week=week, party_id=pid, share=round(share, 4)))
 
         # 预测：以最后一周民调做席位投影 + 蒙特卡洛胜率
-        forecasts = self._forecast(result, cur, final_share)
+        forecasts, iter_count = self._forecast(result, cur, final_share)
 
         return PollResponse(
             weeks=self.weeks,
@@ -115,6 +115,7 @@ class PollEngine:
             series=series,
             events=events,
             forecasts=forecasts,
+            iterations=iter_count,
             note="民调曲线由确定性选举结果回退生成，竞选期向基准收敛并叠加随机波动与舆论事件冲击；事件冲击对象随当周政治格局动态变化（领先党承压、挑战者获利）。",
         )
 
@@ -122,10 +123,14 @@ class PollEngine:
         """基于最后一周民调进行席位投影与蒙特卡洛胜率/过半率预测
 
         - seat_projection: 民调收敛于确定性基准，席位投影即基准席位
-        - win_prob / majority_prob: 对当前配置做 200 次蒙特卡洛（不同种子），
+        - win_prob / majority_prob: 对当前配置做蒙特卡洛（不同种子），
           反映竞选期真实的不确定性（与稳健性分析同口径）
+        - 迭代数按制度耗时自适应：快速制度（~50ms/次）用 80 次，
+          排名/同意/波达等慢速制度（~400ms/次）用 24 次，避免民调
+          弹窗在多轮计票制度下卡顿，同时保持胜率估计可用。
         """
-        n = 200
+        SLOW_SYSTEMS = {'IRV', 'STV', 'APPROVAL', 'BORDA'}
+        n = 16 if self.config.system_type in SLOW_SYSTEMS else 80
         total = self.config.total_seats
         wins = {p.id: 0 for p in self.parties}
         majority = {p.id: 0 for p in self.parties}
@@ -156,7 +161,7 @@ class PollEngine:
                 majority_prob=round(majority[p.id] / n, 4),
             ))
         forecasts.sort(key=lambda f: f.seat_projection, reverse=True)
-        return forecasts
+        return forecasts, n
 
 
 def swing_analysis(city_data, parties, config) -> SwingAnalysisResponse:

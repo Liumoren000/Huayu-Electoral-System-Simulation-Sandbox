@@ -121,7 +121,7 @@ export default function PollModal({ year, config, totalSeats, minSeats, parties,
                 </div>
               )}
 
-              <div className="attack-section-title">选前预测（席位投影 + 蒙特卡洛 {200} 次）</div>
+              <div className="attack-section-title">选前预测（席位投影 + 蒙特卡洛 {data.iterations ?? 80} 次）</div>
               <table className="analysis-table">
                 <thead>
                   <tr>
@@ -151,7 +151,7 @@ export default function PollModal({ year, config, totalSeats, minSeats, parties,
                 </tbody>
               </table>
               <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 6 }}>
-                席位预测 = 确定性基准席位；最大党/过半概率 = 当前制度下 200 次不同随机种子模拟的频率。
+                席位预测 = 确定性基准席位；最大党/过半概率 = 当前制度下 {data.iterations ?? 80} 次不同随机种子模拟的频率。
               </div>
             </>
           )}
