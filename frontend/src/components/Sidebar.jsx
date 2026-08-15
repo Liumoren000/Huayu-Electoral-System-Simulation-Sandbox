@@ -482,7 +482,7 @@ function SchemePanel({ scheme, onChange, className, label, active, onActivate, e
             <input
               type="range"
               min="0"
-              max="0.3"
+              max="0.12"
               step="0.005"
               value={scheme.noise_amplitude ?? 0.03}
               onChange={e => onChange('noise_amplitude', parseFloat(e.target.value))}

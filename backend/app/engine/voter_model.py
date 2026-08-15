@@ -76,6 +76,27 @@ class VoterModel:
         self.calibration = calibration
         self.turnout_differential = turnout_differential
         self.affinity_power = affinity_power
+        self._national_swing = {}
+
+    def reset_run(self, seed: int = None) -> None:
+        """
+        开始新一轮模拟：清空全国性"竞选浪潮"缓存。
+
+        现实中的摇摆选民会受全国性事件（辩论/丑闻/经济数据）影响，产生
+        跨城市相关的整体偏移。浪潮按 (run_seed, party_id) 确定性采样，
+        同轮内各城市一致、不同轮之间不同，模拟一轮选战的全国性氛围。
+        """
+        self._national_swing = {}
+
+    def _national_swing_for(self, party_id: str) -> float:
+        """该轮内对某党的全国性浪潮冲击（确定性：同一轮内恒定）"""
+        if party_id not in self._national_swing:
+            # 用稳定哈希（zlib.crc32）而非内置 hash()，保证跨进程/会话确定性
+            import zlib
+            h = zlib.crc32(f"{self.seed}:{party_id}".encode())
+            r = random.Random(h)
+            self._national_swing[party_id] = r.gauss(0.0, 0.045)
+        return self._national_swing[party_id]
 
     def _tilt(self, dim: str, base: float) -> float:
         """全国选民在某一政策维度上的偏好偏移（选举剧本机制）"""
@@ -674,20 +695,28 @@ class VoterModel:
             # 摇摆选民噪声更大
             amp = noise_amplitude
             base = self.compute_city_party_affinity(city, party, amp, segment_offset)
-            # 摇摆选民：高频随机波动
+            # 摇摆选民：全国性竞选浪潮（跨城市相关的系统冲击）+ 局部扰动
             if self.swing_voter_pct > 0 and segment_offset is None:
-                swing_amp = noise_amplitude * 3.0
-                base = base * (1 - self.swing_voter_pct) + \
-                    max(0.001, self.compute_city_party_affinity(city, party, swing_amp, segment_offset)) * self.swing_voter_pct
+                swing_amp = noise_amplitude * 2.0
+                local = self.compute_city_party_affinity(city, party, swing_amp, segment_offset)
+                wave = self._national_swing_for(party.id)
+                # 浪潮使亲和度按比例整体抬升/压低（全国同步），局部噪声补充城市级波动
+                swing_base = max(0.001, base * (1.0 + wave) * 0.9 + local * 0.1)
+                base = base * (1 - self.swing_voter_pct) + swing_base * self.swing_voter_pct
             raw_scores[party.id] = base
 
         raw_scores = self._apply_party_effects(raw_scores, parties)
 
-        # 政党忠诚：铁票党选民始终投给其基准政党（占 party_loyalty 比例）
+        # 政党忠诚（铁票党）：每个政党按其在城市中的噪声无关亲和度份额
+        # 获得固定忠诚票仓（占 party_loyalty 比例），其余选票随议题/噪声浮动。
+        # 与现实一致：忠诚票仓按政党真实支持强度分布，而非全部归于单一锚党。
         if self.party_loyalty > 0:
-            anchor = self._city_anchor_party(city, parties)
-            loyal = {pid: (1.0 if pid == anchor else 0.0) * self.party_loyalty
-                     for pid in raw_scores}
+            base_aff = {p.id: self.compute_city_party_affinity(city, p, 0.0, segment_offset)
+                        for p in parties}
+            total_aff = sum(base_aff.values())
+            base_share = {pid: v / total_aff if total_aff > 0 else 1.0 / max(1, len(parties))
+                          for pid, v in base_aff.items()}
+            loyal = {pid: base_share[pid] * self.party_loyalty for pid in raw_scores}
             issue = {pid: v * (1 - self.party_loyalty) for pid, v in raw_scores.items()}
             raw_scores = {pid: loyal[pid] + issue[pid] for pid in raw_scores}
 

@@ -37,6 +37,7 @@ class ElectoralEngine:
         return city.population * (1.0 + boost)
 
     def run(self) -> ElectionResult:
+        self.voter_model.reset_run()
         if not self.parties:
             return ElectionResult(
                 config_name=self.config.name,

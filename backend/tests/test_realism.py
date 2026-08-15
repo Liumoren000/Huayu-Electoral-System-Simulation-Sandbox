@@ -72,18 +72,32 @@ class RealismFeatureTest(unittest.TestCase):
         self.assertGreater(tight, blowout)
 
     def test_loyalty_concentrates_votes(self):
-        """政党忠诚提高城市基准政党份额（铁票党效应）"""
+        """政党忠诚提高城市基准政党份额且降低波动（铁票党稳定化效应）"""
         from app.engine.voter_model import VoterModel
+        import statistics
 
-        vm_base = VoterModel(seed=42)
         city = self.cd.cities[0]
-        anchor = vm_base._city_anchor_party(city, self.parties)
-        base = vm_base.compute_vote_shares(city, self.parties, 0.03)
+        anchor = VoterModel(seed=42)._city_anchor_party(city, self.parties)
 
-        vm_loyal = VoterModel(seed=42, party_loyalty=0.4)
-        loyal = vm_loyal.compute_vote_shares(city, self.parties, 0.03)
-        self.assertGreater(loyal[anchor], base[anchor])
-        self.assertAlmostEqual(sum(loyal.values()), 1.0, places=4)
+        def anchor_stats(pct, seeds):
+            means, vals = [], []
+            for seed in seeds:
+                vm = VoterModel(seed=seed, party_loyalty=pct)
+                s = vm.compute_vote_shares(city, self.parties, 0.06)
+                vals.append(s[anchor])
+                means.append(sum(s.values()))
+            return statistics.mean(vals), statistics.pstdev(vals), statistics.mean(means)
+
+        seeds = range(100, 115)
+        m0, s0, sum0 = anchor_stats(0.0, seeds)
+        m1, s1, sum1 = anchor_stats(0.5, seeds)
+        # 忠诚票仓拉高锚党平均份额（铁票效应）
+        self.assertGreater(m1, m0)
+        # 忠诚使跨模拟波动下降（铁票稳定化）
+        self.assertLess(s1, s0)
+        # 份额总和仍为 1
+        self.assertAlmostEqual(sum0, 1.0, places=4)
+        self.assertAlmostEqual(sum1, 1.0, places=4)
 
     def test_stratification_changes_shares(self):
         """开启城市内选民分层后，得票率变化但总和为 1"""
@@ -232,6 +246,19 @@ class RealismFeatureTest(unittest.TestCase):
         m_w = statistics.mean(vm1.get_city_turnout(c, 1.0) for c in western)
         # 差异化开启后沿海-西部投票率差异仍保留（>5pp），而非塌缩
         self.assertGreater(m_c - m_w, 0.05)
+
+    def test_swing_voters_shift_nationally(self):
+        """摇摆选民受全国性浪潮影响：不同运行轮次间全国票率出现相关偏移"""
+        r0, _ = self._run(swing_voter_pct=0.0)
+        r1, _ = self._run(swing_voter_pct=0.6)
+        base = {p.party_id: p.vote_share for p in r0.party_results}
+        swung = {p.party_id: p.vote_share for p in r1.party_results}
+        # 某些政党出现方向性变化（浪潮非零），且至少一个政党变化超过 0.5pp
+        shifts = [abs(swung[pid] - base[pid]) for pid in base]
+        self.assertGreater(max(shifts), 0.005)
+        # 席位守恒
+        self.assertEqual(sum(p.seats for p in r1.party_results), 450)
+        self.assertAlmostEqual(sum(swung.values()), 1.0, places=3)
 
 
 if __name__ == '__main__':

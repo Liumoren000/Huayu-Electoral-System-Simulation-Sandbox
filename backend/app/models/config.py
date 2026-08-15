@@ -9,7 +9,7 @@ class ElectoralConfig(BaseModel):
     threshold: float = Field(default=0.0, ge=0.0, le=0.2, description="Vote share threshold for PR")
     allocation_method: str = Field(default="d_hondt", description="d_hondt, sainte_lague or largest_remainder")
     mixed_ratio: float = Field(default=0.4, ge=0.1, le=0.9, description="MMP/并行制中名单比例代表席位占比")
-    noise_amplitude: float = Field(default=0.03, ge=0.0, le=0.3, description="选民行为随机噪声幅度 (std)")
+    noise_amplitude: float = Field(default=0.03, ge=0.0, le=0.12, description="选民行为随机噪声幅度 (std)；过高会淹没城市间结构性差异")
     voter_samples: int = Field(default=80, ge=10, le=500, description="排名票制度每市虚拟选民抽样数")
     turnout_shift: float = Field(default=0.0, ge=-0.3, le=0.3, description="全局投票率偏移（危机/动员等情景）")
     dim_tilt: dict[str, float] = Field(default_factory=dict, description="全国选民政策维度偏好偏移（剧本用）")

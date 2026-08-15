@@ -44,7 +44,7 @@ class TestAcademicIndices(unittest.TestCase):
 
     def test_noise_amplitude_changes_results(self):
         a = run("PR", noise_amplitude=0.0)
-        b = run("PR", noise_amplitude=0.2)
+        b = run("PR", noise_amplitude=0.1)
         seats_a = sorted(p.seats for p in a.party_results)
         seats_b = sorted(p.seats for p in b.party_results)
         self.assertNotEqual(seats_a, seats_b)

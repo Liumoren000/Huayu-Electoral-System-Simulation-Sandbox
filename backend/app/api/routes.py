@@ -264,7 +264,7 @@ def simulate_robustness(request: RobustnessRequest):
 PARAM_RANGES = {
     "threshold": (0.0, 0.2),
     "mixed_ratio": (0.1, 0.9),
-    "noise_amplitude": (0.0, 0.3),
+    "noise_amplitude": (0.0, 0.12),
     "voter_samples": (10.0, 500.0),
     "urban_rural_weight": (0.0, 2.0),
 }
