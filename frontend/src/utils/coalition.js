@@ -62,7 +62,7 @@ function buildOption(partyMap, partyIds, totalSeats, majorityThreshold, totalPar
 
 export function findCoalitions({ party_results: partyResults, total_seats: totalSeats }, parties) {
   const partyMap = {};
-  for (const p of parties || []) partyMap[p.id] = p;
+  for (const p of parties || []) partyMap[p.id || p.party_id] = p;
 
   const majorityThreshold = totalSeats / 2;
 

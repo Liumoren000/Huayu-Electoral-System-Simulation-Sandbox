@@ -1,41 +1,71 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as echarts from 'echarts';
+import { findCoalitions } from '../utils/coalition.js';
 
 export default function BottomPanel({ result }) {
   const [showUpper, setShowUpper] = useState(false);
   const [chartType, setChartType] = useState('hemicycle');
 
+  const hasUpper = result?.upper_house_total_seats > 0;
+  const upperParties = result?.upper_house_party_results || [];
+  const upperTotal = result?.upper_house_total_seats || 0;
+
+  const effN = (shares) => {
+    const s = shares.filter(v => v > 0);
+    const total = s.reduce((a, b) => a + b, 0);
+    if (!total) return 0;
+    return s.reduce((a, b) => a + (b / total) ** 2, 0) > 0 ? 1 / s.reduce((a, b) => a + (b / total) ** 2, 0) : 0;
+  };
+  const upperVoteShares = upperParties.map(p => p.vote_share || 0);
+  const upperSeatShares = upperParties.map(p => upperTotal ? p.seats / upperTotal : 0);
+  const upperEffVote = upperVoteShares.length ? effN(upperVoteShares) : 0;
+  const upperEffSeats = upperSeatShares.length ? effN(upperSeatShares) : 0;
+  const upperGallagher = (() => {
+    if (!upperParties.length || !result?.party_results?.length) return 0;
+    const lh = upperParties.map((p, i) => {
+      const vs = p.vote_share || 0;
+      const ss = upperTotal ? p.seats / upperTotal : 0;
+      return Math.abs(vs - ss);
+    });
+    return lh.reduce((a, b) => a + b, 0) / 2;
+  })();
+  const upperCoalition = hasUpper ? findCoalitions(
+    { party_results: upperParties, total_seats: upperTotal },
+    result?.party_results || []
+  ) : null;
+  const isUpper = showUpper && hasUpper;
+
   const metricsBar = result ? (
     <div className="metrics-bar">
       <div className="metric-item">
         <span className="metric-label">有效政党数(票)</span>
-        <span className="metric-value">{result.effective_parties_vote?.toFixed(1) || '-'}</span>
+        <span className="metric-value">{isUpper ? (upperEffVote ? upperEffVote.toFixed(1) : '-') : (result.effective_parties_vote?.toFixed(1) || '-')}</span>
       </div>
       <div className="metric-item">
         <span className="metric-label">有效政党数(席)</span>
-        <span className="metric-value">{result.effective_parties_seats?.toFixed(1) || '-'}</span>
+        <span className="metric-value">{isUpper ? (upperEffSeats ? upperEffSeats.toFixed(1) : '-') : (result.effective_parties_seats?.toFixed(1) || '-')}</span>
       </div>
       <div className="metric-item">
         <span className="metric-label">Gallagher</span>
-        <span className="metric-value">{result.gallagher_index ? (result.gallagher_index * 100).toFixed(1) + '%' : '-'}</span>
+        <span className="metric-value">{isUpper ? (upperGallagher ? (upperGallagher * 100).toFixed(1) + '%' : '-') : (result.gallagher_index ? (result.gallagher_index * 100).toFixed(1) + '%' : '-')}</span>
       </div>
       <div className="metric-item">
         <span className="metric-label">Loosemore-Hanby</span>
-        <span className="metric-value">{result.loosemore_hanby !== undefined ? (result.loosemore_hanby * 100).toFixed(1) + '%' : '-'}</span>
+        <span className="metric-value">{isUpper ? '-' : (result.loosemore_hanby !== undefined ? (result.loosemore_hanby * 100).toFixed(1) + '%' : '-')}</span>
       </div>
       <div className="metric-item">
         <span className="metric-label">Rose指数</span>
-        <span className="metric-value" style={{ color: (result.rose_index ?? 0) > 0.8 ? 'var(--accent-green)' : 'var(--text-primary)' }}>
-          {result.rose_index !== undefined ? (result.rose_index * 100).toFixed(1) + '%' : '-'}
+        <span className="metric-value" style={{ color: isUpper ? 'var(--text-muted)' : ((result.rose_index ?? 0) > 0.8 ? 'var(--accent-green)' : 'var(--text-primary)') }}>
+          {isUpper ? '-' : (result.rose_index !== undefined ? (result.rose_index * 100).toFixed(1) + '%' : '-')}
         </span>
       </div>
       <div className="metric-item">
         <span className="metric-label">Malapportionment</span>
-        <span className="metric-value">{result.malapportionment_index !== undefined ? (result.malapportionment_index * 100).toFixed(1) + '%' : '-'}</span>
+        <span className="metric-value">{isUpper ? '-' : (result.malapportionment_index !== undefined ? (result.malapportionment_index * 100).toFixed(1) + '%' : '-')}</span>
       </div>
       <div className="metric-item">
         <span className="metric-label">政党国家化</span>
-        <span className="metric-value">{result.party_nationalization_index !== undefined ? (result.party_nationalization_index * 100).toFixed(0) + '%' : '-'}</span>
+        <span className="metric-value">{isUpper ? '-' : (result.party_nationalization_index !== undefined ? (result.party_nationalization_index * 100).toFixed(0) + '%' : '-')}</span>
       </div>
     </div>
   ) : null;
@@ -68,7 +98,6 @@ export default function BottomPanel({ result }) {
     );
   }
 
-  const hasUpper = result.upper_house_total_seats > 0;
   const activeResult = showUpper && hasUpper ? {
     ...result,
     party_results: result.upper_house_party_results,
@@ -137,8 +166,8 @@ export default function BottomPanel({ result }) {
         <SeatTable result={activeResult} />
       </div>
       <div className="bottom-cell">
-        <div className="bottom-cell-title">组阁推演</div>
-        <CoalitionBlock coalition={result.coalition} />
+        <div className="bottom-cell-title">组阁推演{isUpper ? '·上议院' : ''}</div>
+        <CoalitionBlock coalition={isUpper ? upperCoalition : result.coalition} />
       </div>
       </div>
     </div>
