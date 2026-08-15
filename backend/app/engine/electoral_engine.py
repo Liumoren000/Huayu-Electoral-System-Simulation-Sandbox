@@ -256,6 +256,7 @@ class ElectoralEngine:
             city_results_round1.append(CityResult(
                 city_id=city.id,
                 city_name=city.name,
+                province=city.province,
                 winner_party_id=winner_id,
                 winner_party_name=self.party_map[winner_id].name,
                 vote_shares={pid: round(s, 4) for pid, s in shares.items()},
@@ -336,6 +337,7 @@ class ElectoralEngine:
             city_results.append(CityResult(
                 city_id=city.id,
                 city_name=city.name,
+                province=city.province,
                 winner_party_id=winner_id,
                 winner_party_name=self.party_map[winner_id].name,
                 vote_shares={pid: round(s, 4) for pid, s in shares.items()},
@@ -596,6 +598,7 @@ class ElectoralEngine:
             city_results.append(CityResult(
                 city_id=city.id,
                 city_name=city.name,
+                province=city.province,
                 winner_party_id=winner_id,
                 winner_party_name=self.party_map[winner_id].name,
                 vote_shares={pid: round(s, 4) for pid, s in shares.items()},
@@ -739,6 +742,7 @@ class ElectoralEngine:
             results.append(CityResult(
                 city_id=city.id,
                 city_name=city.name,
+                province=city.province,
                 winner_party_id=winner_id,
                 winner_party_name=self.party_map[winner_id].name,
                 vote_shares={pid: round(s, 4) for pid, s in shares.items()},

@@ -5,6 +5,7 @@ from typing import Optional
 class CityResult(BaseModel):
     city_id: str
     city_name: str
+    province: str = ""  # 所属省，供报告/导出按省份聚合
     winner_party_id: str
     winner_party_name: str
     vote_shares: dict[str, float]  # party_id -> vote share
