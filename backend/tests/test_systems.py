@@ -43,10 +43,11 @@ class TestNewSystems(unittest.TestCase):
     def test_mixed_ratio_effect(self):
         low = run("MMP", 450, mixed_ratio=0.2)
         high = run("MMP", 450, mixed_ratio=0.8)
-        self.assertLess(
-            low.effective_parties_seats,
-            high.effective_parties_seats + 0.01,
-            "名单占比越高，比例性应越强（有效政党数越高）",
+        # 名单占比越高，席位分配越接近选票份额（Gallagher 比例性偏差越小）
+        self.assertLessEqual(
+            high.gallagher_index,
+            low.gallagher_index + 0.01,
+            "名单占比越高，比例性应越强（Gallagher 指数越低）",
         )
 
     def test_threshold_blocks_small_parties(self):

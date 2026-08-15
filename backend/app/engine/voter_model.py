@@ -233,24 +233,50 @@ class VoterModel:
 
     def compute_city_party_affinity(self, city: City, party: Party, noise_amplitude: float = 0.03,
                                     segment_offset: dict = None) -> float:
-        """计算城市对政党的综合亲和度"""
+        """
+        计算城市对政党的综合亲和度（7 维加权）。
+
+        权重反映现实政治中各方争夺选民的核心维度：
+        经济(25%) > 社会(15%) = 区域(15%) = 民族认同(15%) > 福利(10%) = 环保(10%) = 城乡(10%)。
+        民族/区域认同给予足额权重——多民族国家中文化认同是选票结构的重要来源。
+        """
         scores = []
 
-        # 经济维度匹配 (权重30%)
+        # 经济维度匹配 (25%)
         econ_score = self._economic_match(city, party, segment_offset)
-        scores.append(('economic', econ_score, 0.30))
+        scores.append(('economic', econ_score, 0.25))
 
-        # 社会维度匹配 (权重20%)
+        # 社会维度匹配 (15%)
         social_score = self._social_match(city, party, segment_offset)
-        scores.append(('social', social_score, 0.20))
+        scores.append(('social', social_score, 0.15))
 
-        # 区域维度匹配 (权重20%)
+        # 区域维度匹配 (15%)
         regional_score = self._regional_match(city, party, segment_offset)
-        scores.append(('regional', regional_score, 0.20))
+        scores.append(('regional', regional_score, 0.15))
 
-        # 政策维度匹配 (权重30%)
-        policy_score = self._policy_match(city, party, segment_offset)
-        scores.append(('policy', policy_score, 0.30))
+        # 福利维度匹配 (10%)
+        city_welfare = self._city_tilt(city, 'welfare', self._city_welfare_preference(city))
+        city_welfare += (segment_offset or {}).get('welfare', 0.0)
+        welfare_score = max(0, 1.0 - abs(city_welfare - getattr(party, 'welfare_position', 0)) * 0.8)
+        scores.append(('welfare', welfare_score, 0.10))
+
+        # 环保维度匹配 (10%)
+        city_env = self._city_tilt(city, 'environment', self._city_environment_preference(city))
+        city_env += (segment_offset or {}).get('environment', 0.0)
+        env_score = max(0, 1.0 - abs(city_env - getattr(party, 'environment_position', 0)) * 0.8)
+        scores.append(('environment', env_score, 0.10))
+
+        # 民族认同匹配 (15%)
+        city_nat = self._city_tilt(city, 'nationalism', self._city_nationalism(city))
+        city_nat += (segment_offset or {}).get('nationalism', 0.0)
+        nat_score = max(0, 1.0 - abs(city_nat - getattr(party, 'nationalism_position', 0)) * 1.0)
+        scores.append(('nationalism', nat_score, 0.15))
+
+        # 城乡利益匹配 (10%)
+        city_ur = self._city_tilt(city, 'urban_rural', self._city_urban_rural(city))
+        city_ur += (segment_offset or {}).get('urban_rural', 0.0)
+        ur_score = max(0, 1.0 - abs(city_ur - getattr(party, 'urban_rural_position', 0)) * 0.9)
+        scores.append(('urban_rural', ur_score, 0.10))
 
         raw_score = sum(s * w for _, s, w in scores)
 
