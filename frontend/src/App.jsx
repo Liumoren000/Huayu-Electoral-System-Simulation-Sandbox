@@ -340,7 +340,6 @@ export default function App() {
         parties: enabledParties,
       });
 
-      console.log('Simulation result:', response.result_a?.party_results?.length, 'parties');
       setResult(response.result_a);
       setCoalition(response.coalition_a);
       setResultB(response.result_b);
@@ -790,7 +789,7 @@ body: JSON.stringify({
               <button className="header-btn" onClick={runFragmentationAnalysis} title="分析不同制度的政党碎片化">
                 碎片化分析
               </button>
-              <button className="header-btn" onClick={runTrendAnalysis} title="分析2020-2024年指标变化趋势">
+              <button className="header-btn" onClick={runTrendAnalysis} title="分析各研究年代（1949-2024）指标变化趋势">
                 年份趋势
               </button>
               <div className="tools-dropdown">
@@ -1182,7 +1181,7 @@ function TrendModal({ trendAnalysis, onClose }) {
     chart.setOption({
       tooltip: { trigger: 'axis' },
       legend: {
-        data: ['有效政党数(票)', '有效政党数(席)', '第一大党席位占比', 'Gallagher指数', 'Loosemore-Hanby'],
+        data: ['有效政党数(票)', '有效政党数(席)', '第一大党席位占比', 'Gallagher指数', 'Loosemore-Hanby', 'Rose指数', '名额失衡', '全国化', '投票率'],
         textStyle: { color: '#c9d1d9', fontSize: 11 },
       },
       grid: { left: 44, right: 48, top: 38, bottom: 34 },
@@ -1217,6 +1216,10 @@ function TrendModal({ trendAnalysis, onClose }) {
         { name: '第一大党席位占比', type: 'line', smooth: true, symbolSize: 6, yAxisIndex: 1, data: trendAnalysis.map(d => +(d.largest_share * 100).toFixed(1)) },
         { name: 'Gallagher指数', type: 'line', smooth: true, symbolSize: 6, yAxisIndex: 1, data: trendAnalysis.map(d => +(d.gallagher * 100).toFixed(1)) },
         { name: 'Loosemore-Hanby', type: 'line', smooth: true, symbolSize: 6, yAxisIndex: 1, lineStyle: { type: 'dashed' }, data: trendAnalysis.map(d => +(d.loosemore * 100).toFixed(1)) },
+        { name: 'Rose指数', type: 'line', smooth: true, symbolSize: 6, yAxisIndex: 1, lineStyle: { type: 'dotted' }, data: trendAnalysis.map(d => +(d.rose * 100).toFixed(1)) },
+        { name: '名额失衡', type: 'line', smooth: true, symbolSize: 6, yAxisIndex: 1, lineStyle: { type: 'dashed' }, data: trendAnalysis.map(d => +(d.malapportionment * 100).toFixed(1)) },
+        { name: '全国化', type: 'line', smooth: true, symbolSize: 6, yAxisIndex: 1, lineStyle: { type: 'dotted' }, data: trendAnalysis.map(d => +(d.nationalization * 100).toFixed(1)) },
+        { name: '投票率', type: 'line', smooth: true, symbolSize: 6, yAxisIndex: 1, lineStyle: { type: 'dashed' }, data: trendAnalysis.map(d => +(d.avg_turnout * 100).toFixed(1)) },
       ],
     });
     const onResize = () => chart.resize();

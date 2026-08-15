@@ -37,7 +37,7 @@ export default function SensitivityModal({ year, config, totalSeats, minSeats, p
         parties: enabled,
         delta,
         iterations: 5,
-        params: ['threshold', 'mixed_ratio', 'noise_amplitude'],
+        params: ['threshold', 'mixed_ratio', 'noise_amplitude', 'voter_samples', 'urban_rural_weight'],
       });
       setData(d);
     } catch (e) {

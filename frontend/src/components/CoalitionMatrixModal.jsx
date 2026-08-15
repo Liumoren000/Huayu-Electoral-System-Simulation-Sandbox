@@ -1,9 +1,5 @@
 import React from 'react';
 
-function marginColor(matrix, partyId) {
-  return null;
-}
-
 export default function CoalitionMatrixModal({ coalition, result, onClose }) {
   const cm = coalition?.coalition_matrix;
   if (!cm) {

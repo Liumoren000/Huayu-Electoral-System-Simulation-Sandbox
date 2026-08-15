@@ -404,7 +404,7 @@ def explain_voter_model(request: VoterExplainRequest):
                     voter_stratification=request.config.voter_stratification,
                     calibration=request.config.calibration,
                     turnout_differential=request.config.turnout_differential or 0.0,
-                    affinity_power=request.config.affinity_power or 4.0)
+                    affinity_power=request.config.affinity_power)
     expl = vm.explain_city(city, request.parties, request.config.noise_amplitude)
 
     city_position = [

@@ -64,7 +64,7 @@ class VoterModel:
                  party_effects: dict = None, party_loyalty: float = 0.0,
                  swing_voter_pct: float = 0.0, voter_stratification: bool = False,
                  calibration: bool = False, turnout_differential: float = 0.0,
-                 affinity_power: float = 4.0):
+                 affinity_power: float = 6.0):
         self.rng = random.Random(seed)
         self.seed = seed
         self.turnout_shift = turnout_shift

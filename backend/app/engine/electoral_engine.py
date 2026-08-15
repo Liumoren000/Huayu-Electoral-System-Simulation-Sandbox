@@ -21,7 +21,7 @@ class ElectoralEngine:
             voter_stratification=config.voter_stratification,
             calibration=config.calibration,
             turnout_differential=config.turnout_differential or 0.0,
-            affinity_power=config.affinity_power or 3.0,
+            affinity_power=config.affinity_power,
         )
         self.party_map = {p.id: p for p in parties}
 
