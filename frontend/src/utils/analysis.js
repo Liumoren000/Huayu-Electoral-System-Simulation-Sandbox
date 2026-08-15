@@ -153,6 +153,15 @@ export function generateReport(displayResult, resultA, resultB, activeScheme, co
   let gov = `在${res.system_type}制度下，第一大党「${top?.party_name}」获得 ${top?.seats} 席（占 ${formatPct(top?.seats / total, 1)}），${hasMajority ? `超过多数门槛 ${majorityThreshold} 席，可单独执政（${coalition?.majority_type === 'absolute' ? '绝对多数' : '简单多数'}）` : `未达多数门槛 ${majorityThreshold} 席，需要联合组阁`}。`;
   sections.push({ title: '总体态势', items: [gov] });
 
+  // 1.25 中间选民分析
+  const mv = res.median_voter_alignment;
+  if (mv && mv.median_economic !== undefined) {
+    const mvItems = [];
+    const winnerNearMedian = mv.winner_distance <= (mv.party_distances ? Math.min(...Object.values(mv.party_distances)) + 0.05 : 0.5);
+    mvItems.push(`全国选民中位立场位于经济 ${mv.median_economic > 0 ? '偏右（市场）' : '偏左（干预）'}、社会 ${mv.median_social > 0 ? '偏现代' : '偏传统'}，与赢家「${mv.winner_party_name}」的意识形态距离为 ${mv.winner_distance.toFixed(2)}${winnerNearMedian ? '，接近中间立场（符合中间选民定理）' : '，偏离中间立场'}` + `。意识形态上离中位选民最近的是「${mv.closest_party_name}」。`);
+    sections.push({ title: '中间选民分析', items: mvItems });
+  }
+
   // 2. 比例性与偏差
   const lhItems = [];
   const gallagher = (res.gallagher_index || 0) * 100;
@@ -180,6 +189,21 @@ export function generateReport(displayResult, resultA, resultB, activeScheme, co
   const mal = (res.malapportionment_index || 0) * 100;
   if (mal > 5) structItems.push(`省际名额失衡 ${mal.toFixed(1)}%，省际席-人口错配是值得关注的问题。`);
   sections.push({ title: '政治结构与碎片化', items: structItems });
+
+  // 3.25 选举效率（每席需票）
+  const effItems = [];
+  const partyRows = [...(res.party_results || [])].filter(p => p.seats > 0).sort((a, b) => a.vote_efficiency - b.vote_efficiency);
+  if (partyRows.length) {
+    const best = partyRows[0];
+    const worst = partyRows[partyRows.length - 1];
+    effItems.push(`选举效率衡量各党"每获 1% 议席所需票%"。${best.party_name} 效率 ${best.vote_efficiency.toFixed(2)}（${best.vote_efficiency < 1 ? '少于应得份额，' : '需更多票才获同等议席，'}属于制度获益者），${worst.party_name} 效率 ${worst.vote_efficiency.toFixed(2)}（${worst.vote_efficiency > 1.2 ? '显著欠代表，' : '接近公平，'}制度受损者）。`);
+    const favored = partyRows.filter(p => p.vote_efficiency < 0.9);
+    const punished = partyRows.filter(p => p.vote_efficiency > 1.2);
+    if (favored.length && punished.length) {
+      effItems.push(`制度偏向 ${favored.map(p => p.party_name).join('、')}（过度代表），而 ${punished.map(p => p.party_name).join('、')} 承受代表不足。`);
+    }
+  }
+  if (effItems.length) sections.push({ title: '选举效率', items: effItems });
 
   // 4. 区域/民族版图
   const regionItems = [];
@@ -298,6 +322,15 @@ export function systemFeatureTags(res, config) {
       ? `名单席按 ${mr.toFixed(0)}% 混合比例补偿选区失真的席位——结果整体接近比例制。`
       : `名单席 ${mr.toFixed(0)}% 与选区席彼此独立，不补偿选区失真——比例性与 FPTP 之间折中。`);
     tag('结构性失真', `Gallagher ${gallagher.toFixed(1)}%${sys === 'MMP' ? '（MMP 通常 ≤8%）' : '（并立制通常显著高于 MMP）'}。`);
+    const st = res.split_ticket || {};
+    if (Object.keys(st).length) {
+      const splits = Object.entries(st).filter(([, v]) => Math.abs(v) >= 0.5).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]));
+      if (splits.length) {
+        const s = splits.slice(0, 2);
+        const label = s.map(([pid, v]) => `「${res.party_results.find(p => p.party_id === pid)?.party_name || pid}」名单票${v > 0 ? '高于' : '低于'}选区票 ${Math.abs(v).toFixed(1)}pp`).join('、');
+        tag('分裂选票', `选区票与名单票出现分化：${label}——选民在同一张选票上"分票"，反映了选区层策略性弃保与名单层真实偏好的背离。`);
+      }
+    }
   } else if (sys === 'IRV') {
     const avCities = res.city_results?.filter(cr => (cr.party_seats && Object.values(cr.party_seats).reduce((s, n) => s + n, 0)) > 0).length || 0;
     tag('多数偏好', '选民按偏好顺序排名，末位者票源依序转移，直到产生过半者——避免"得票多反被边缘化"的废票。');

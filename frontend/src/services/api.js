@@ -107,3 +107,13 @@ export async function runGovernment(request) {
   if (!res.ok) throw new Error('Government simulation failed');
   return res.json();
 }
+
+export async function runSystemComparison(request) {
+  const res = await fetch(`${API_BASE}/simulate/system-comparison`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  if (!res.ok) throw new Error('System comparison failed');
+  return res.json();
+}

@@ -26,6 +26,7 @@ class ElectoralEngine:
             party_system_concentration=config.party_system_concentration or 0.0,
         )
         self.party_map = {p.id: p for p in parties}
+        self._split_ticket_cache = {}
 
     def _concentration_bonus(self, party_votes: dict[str, float]) -> dict[str, float]:
         """政党体系集中化加成：全国领先党（第一党+b、第二党+b/2）获得声望加成，
@@ -52,6 +53,51 @@ class ElectoralEngine:
             t = sum(adj.values())
             city_shares[cid] = {pid: v / t for pid, v in adj.items()} if t > 0 else shares
         return party_votes
+
+    def _compute_split_ticket(self, party_results: list[PartySeatResult]) -> dict[str, float]:
+        """分裂选票：各党名单票-选区票差异（pp），正=名单票更多（弃保受益），负=选区票更多"""
+        return {p.party_id: self._split_ticket_cache.get(p.party_id, 0.0) for p in party_results}
+
+    def _compute_median_voter(self, party_results: list[PartySeatResult]) -> dict:
+        """
+        中间选民定理（median voter）验证：全国选民在关键议题上的中位立场，
+        与各党立场距离及胜者对照，判断赢家是否接近中间立场。
+        """
+        econ_pts = []
+        soc_pts = []
+        for city in self.city_data.cities:
+            w = float(city.population)
+            dims = self.voter_model.get_city_dimensions(city)
+            econ_pts.append((dims.get('economic', 0.0), w))
+            soc_pts.append((dims.get('social', 0.0), w))
+        total = max(1.0, sum(w for _, w in econ_pts))
+        econ_pts.sort(); soc_pts.sort()
+        median_econ = self._weighted_median(econ_pts, total)
+        median_soc = self._weighted_median(soc_pts, total)
+        winner = max(party_results, key=lambda p: p.seats)
+        win_dist = abs(winner.economic_position - median_econ) + abs(winner.social_position - median_soc)
+        dists = {}
+        for p in party_results:
+            d = abs(p.economic_position - median_econ) + abs(p.social_position - median_soc)
+            dists[p.party_id] = round(d, 3)
+        return {
+            "median_economic": round(median_econ, 3),
+            "median_social": round(median_soc, 3),
+            "winner_party_id": winner.party_id,
+            "winner_party_name": winner.party_name,
+            "winner_distance": round(win_dist, 3),
+            "closest_party_id": min(dists, key=dists.get),
+            "closest_party_name": self.party_map[min(dists, key=dists.get)].name,
+            "party_distances": dists,
+        }
+
+    def _weighted_median(self, pts: list[tuple[float, float]], total: float) -> float:
+        acc = 0.0
+        for v, w in pts:
+            acc += w
+            if acc >= total / 2.0:
+                return v
+        return pts[-1][0] if pts else 0.0
 
     def _effective_population(self, city: City) -> float:
         """应用 malapportionment：小城市/农业城市超代表"""
@@ -787,6 +833,7 @@ class ElectoralEngine:
                 'shares': shares,
                 'turnout': turnout,
                 'eligible_voter_ratio': eligible,
+                'city_votes': city_votes,
             }
 
         # 政党体系集中化：全国领先党声望加成，作用于"真实偏好"得票与各市份额
@@ -802,6 +849,17 @@ class ElectoralEngine:
             district_total,
             min_seats=min_seats,
         )
+        # 分裂选票：选区票（弃保后，按投票人口加权）vs 名单票（party_votes / total_votes）
+        district_agg = {p.id: 0.0 for p in self.parties}
+        for info in city_info.values():
+            cv = info['city_votes']
+            for pid, s in info['shares'].items():
+                district_agg[pid] += s * cv
+        self._split_ticket_cache = {}
+        for pid in party_votes:
+            list_share = party_votes[pid] / total_votes if total_votes > 0 else 0.0
+            dist_share = district_agg[pid] / total_votes if total_votes > 0 else 0.0
+            self._split_ticket_cache[pid] = round((list_share - dist_share) * 100, 2)
         return city_info, city_seats, party_votes, total_votes
 
     def _count_city_seats(self, city_seats: dict, city_winners: dict) -> dict[str, int]:
@@ -841,6 +899,13 @@ class ElectoralEngine:
                       actual_total_seats: int = None,
                       overhang_seats: int = 0,
                       overhang_by_party: dict = None) -> ElectionResult:
+        eff_total = actual_total_seats or self.config.total_seats
+        # 选举效率：每获 1% 议席所需票%（<1 过代表，>1 欠代表；0 席→高值）
+        for pr in party_results:
+            seat_share = (pr.seats / eff_total) if eff_total > 0 else 0.0
+            pr.vote_efficiency = round(pr.vote_share / seat_share, 3) if seat_share > 0 else 99.0
+        # 分裂选票：名单票（真实偏好 = party_results.vote_share）vs 选区票（弃保后聚合）
+        split_ticket = self._compute_split_ticket(party_results)
         province_results = self._aggregate_provinces(city_results)
         if city_seats_map:
             for cr in city_results:
@@ -876,6 +941,7 @@ class ElectoralEngine:
         classification, classification_detail = self._classify_party_system(party_results, actual_total_seats or self.config.total_seats, env)
         polarization = self._compute_polarization(party_results)
         regional_blocks = self._compute_regional_blocks(province_results, party_results)
+        median_voter = self._compute_median_voter(party_results)
         return ElectionResult(
             config_name=self.config.name,
             system_type=self.config.system_type,
@@ -901,6 +967,8 @@ class ElectoralEngine:
             regional_blocks=regional_blocks,
             overhang_seats=overhang_seats,
             overhang_by_party=overhang_by_party or {},
+            split_ticket=split_ticket,
+            median_voter_alignment=median_voter,
         )
 
     def _compute_polarization(self, party_results: list[PartySeatResult]) -> float:

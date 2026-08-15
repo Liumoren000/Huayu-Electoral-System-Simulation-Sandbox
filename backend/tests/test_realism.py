@@ -451,6 +451,47 @@ class RealismFeatureTest(unittest.TestCase):
         if resp.flipped_cities:
             self.assertTrue(all(f.prev_party_id != f.cur_party_id for f in resp.flow_matrix))
 
+    def test_vote_efficiency_computed(self):
+        """选举效率应填充：PR 下各党效率接近 1，多数制下存在获益/受损分化"""
+        pr_cfg = ElectoralConfig(system_type='PR', total_seats=450)
+        pr = ElectoralEngine(self.cd, self.parties, pr_cfg, seed=42).run()
+        for p in pr.party_results:
+            self.assertAlmostEqual(p.vote_efficiency, 1.0, delta=0.15)
+        fptp, _ = self._run()
+        effs = [p.vote_efficiency for p in fptp.party_results if p.seats > 0]
+        self.assertGreater(max(effs), min(effs) + 0.3)
+
+    def test_split_ticket_parallel(self):
+        """并立制下应有分裂选票信号，纯比例制下无"""
+        def run(sys):
+            cfg = ElectoralConfig(system_type=sys, total_seats=450, tactical_voting=0.8)
+            return ElectoralEngine(self.cd, self.parties, cfg, seed=42).run()
+        para = run('PARALLEL')
+        self.assertTrue(any(abs(v) > 0.3 for v in para.split_ticket.values()))
+        pr = run('PR')
+        self.assertTrue(all(abs(v) < 0.01 for v in pr.split_ticket.values()))
+
+    def test_median_voter_present(self):
+        """中间选民分析应给出中位立场与赢家/最近党"""
+        r, _ = self._run()
+        mv = r.median_voter_alignment
+        self.assertIn('median_economic', mv)
+        self.assertIn('median_social', mv)
+        self.assertTrue(mv['winner_party_name'])
+        self.assertTrue(mv['closest_party_name'])
+
+    def test_system_comparison_endpoint(self):
+        """制度全景对比应返回全部 9 种制度"""
+        from app.engine.data_loader import generate_default_parties
+        from app.api.routes import system_comparison, SystemComparisonRequest
+        parties = generate_default_parties()
+        cfg = ElectoralConfig(system_type='FPTP', total_seats=450)
+        req = SystemComparisonRequest(year=2023, config=cfg, parties=parties)
+        resp = system_comparison(req)
+        self.assertEqual(len(resp.systems), 9)
+        pr = next(s for s in resp.systems if s.system_type == 'PR')
+        self.assertLess(pr.gallagher, 0.05)
+
 
 if __name__ == '__main__':
     unittest.main()

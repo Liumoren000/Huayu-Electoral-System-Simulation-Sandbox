@@ -26,6 +26,7 @@ class PartySeatResult(BaseModel):
     economic_position: float = 0.0
     social_position: float = 0.0
     camp: str = ""
+    vote_efficiency: float = 0.0  # 每获1%议席需票%（<1 过代表，>1 欠代表）
 
 
 class ProvinceResult(BaseModel):
@@ -91,6 +92,8 @@ class ElectionResult(BaseModel):
     regional_blocks: list[RegionalBlock] = []  # 区域政治集团（按省份赢家归纳）
     overhang_seats: int = 0  # MMP 超额席位（悬空席）总数
     overhang_by_party: dict[str, int] = {}  # MMP 各党超额席位数（party_id -> n）
+    median_voter_alignment: dict = {}  # 中间选民分析：赢家/各党与选民中位立场的距离
+    split_ticket: dict[str, float] = {}  # 分裂选票：各党名单票-选区票差（pp）
 
 
 class CoalitionOption(BaseModel):
@@ -419,3 +422,28 @@ class GovernmentTermResult(BaseModel):
     reason_breakdown: dict[str, float] = {}  # 各倒阁原因占比
     single_party: bool = False  # 单党绝对多数执政
     confidence_vote: float = 0.0  # 就职信任投票通过率
+
+
+# ========== 制度全景对比 ==========
+
+
+class SystemComparisonRow(BaseModel):
+    """单制度在统一选情配置下的结果摘要"""
+    system_type: str
+    top_party: str = ""          # 第一大党名
+    top_seats: int = 0
+    top_vote: float = 0.0
+    total_seats: int = 0
+    gallagher: float = 0.0       # 比例性（越低越成比例）
+    eff_parties_vote: float = 0.0
+    eff_parties_seats: float = 0.0
+    effective_threshold: float = 0.0  # 首党席位过半所需票%（近似）
+    majority_possible: bool = False   # 是否存在过半政党
+    overhang: int = 0
+    polarization: float = 0.0
+    classification: str = ""     # Sartori 格局类型
+
+
+class SystemComparisonResponse(BaseModel):
+    year: int = 0
+    systems: list[SystemComparisonRow] = []

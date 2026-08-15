@@ -103,3 +103,9 @@ class GovernmentRequest(BaseModel):
     parties: list[Party]
     ruling_parties: list[str] = Field(default_factory=list, description="指定执政联盟（空 = 自动推荐）")
     term_months: int = Field(default=60, ge=24, le=120, description="法定最长任期（月）")
+
+
+class SystemComparisonRequest(BaseModel):
+    year: int = Field(default=2023, ge=1949, le=2024)
+    config: ElectoralConfig
+    parties: list[Party]

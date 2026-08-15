@@ -24,6 +24,7 @@ import CoalitionNegotiationModal from './components/CoalitionNegotiationModal.js
 
 import CalibrationModal from './components/CalibrationModal.jsx';
 import RegionalBlockModal from './components/RegionalBlockModal.jsx';
+import SystemComparisonModal from './components/SystemComparisonModal.jsx';
 import EraModal from './components/EraModal.jsx';
 import GovernmentModal from './components/GovernmentModal.jsx';
 import { fetchParties, fetchCities, fetchEras, runSimulation, runRobustness } from './services/api.js';
@@ -168,6 +169,7 @@ export default function App() {
   const [showNegotiation, setShowNegotiation] = useState(false);
   const [showCalibration, setShowCalibration] = useState(false);
   const [showRegionalBlock, setShowRegionalBlock] = useState(false);
+  const [showSystemComparison, setShowSystemComparison] = useState(false);
   const [snapshots, setSnapshots] = useState([]);  // { id, label, result }
   const [eras, setEras] = useState([]);
   const [showEra, setShowEra] = useState(false);
@@ -881,6 +883,7 @@ body: JSON.stringify({
                     <button onClick={() => { setShowVoterStructure(true); setShowTools(false); }}>选民结构构成</button>
                     <button onClick={() => { setShowCalibration(true); setShowTools(false); }}>历史选举校准</button>
                     <button onClick={() => { setShowRegionalBlock(true); setShowTools(false); }}>区域政治版图</button>
+                    <button onClick={() => { setShowSystemComparison(true); setShowTools(false); }}>制度全景对比</button>
                     <button onClick={() => { setShowSnap(true); setShowTools(false); }}>多快照对比</button>
                   </div>
                 )}
@@ -1232,6 +1235,17 @@ body: JSON.stringify({
         <RegionalBlockModal
           result={displayResult}
           onClose={() => setShowRegionalBlock(false)}
+        />
+      )}
+
+      {showSystemComparison && (
+        <SystemComparisonModal
+          config={effectiveConfig}
+          totalSeats={totalSeats}
+          minSeats={minSeats}
+          parties={parties}
+          year={year}
+          onClose={() => setShowSystemComparison(false)}
         />
       )}
     </div>
