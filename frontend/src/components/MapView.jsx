@@ -726,6 +726,7 @@ function renderMap(chart, result, manualSeatsData, currentProvince, viewMode, ci
             });
           } else if (d._ethnicShare != null) {
             const share = d._ethnicShare;
+            const pr = d._provinceResult;
             h += `<div style="font-weight:700;margin-bottom:4px">${params.name}</div>`;
             h += `<div style="color:#ce93d8;font-weight:700;margin-bottom:2px">少数民族占比 ${(share * 100).toFixed(1)}%</div>`;
             const ethnicParty = result?.party_results?.find(p => p.camp === 'ethnic');
