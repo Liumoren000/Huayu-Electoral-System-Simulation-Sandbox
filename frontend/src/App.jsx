@@ -314,7 +314,10 @@ export default function App() {
     }
   };
 
-  const handleRun = async () => {
+  const handleRun = async (runYear, runConfig, runConfigB) => {
+    const targetYear = runYear ?? year;
+    const targetConfig = runConfig ?? config;
+    const targetConfigB = runConfigB ?? configB;
     if (!parties.length) {
       alert('政党数据未加载，请刷新页面重试');
       return;
@@ -328,12 +331,12 @@ export default function App() {
     }
     setLoading(true);
     try {
-      const simConfig = { ...config, total_seats: totalSeats, min_seats_per_city: minSeats };
-      const simConfigB = { ...configB, total_seats: totalSeats, min_seats_per_city: minSeats };
+      const simConfig = { ...targetConfig, total_seats: totalSeats, min_seats_per_city: minSeats };
+      const simConfigB = { ...targetConfigB, total_seats: totalSeats, min_seats_per_city: minSeats };
       const response = await runSimulation({
-        year,
-        config_a: { ...simConfig, urban_rural_weight: config.urban_rural_weight ?? 1.0 },
-        config_b: { ...simConfigB, urban_rural_weight: configB.urban_rural_weight ?? 1.0 },
+        year: targetYear,
+        config_a: { ...simConfig, urban_rural_weight: targetConfig.urban_rural_weight ?? 1.0 },
+        config_b: { ...simConfigB, urban_rural_weight: targetConfigB.urban_rural_weight ?? 1.0 },
         parties: enabledParties,
       });
 
@@ -1013,13 +1016,14 @@ body: JSON.stringify({
           onApply={(eraYear, eraConfig) => {
             setYear(eraYear);
             const merged = { ...defaultConfig, ...config, ...eraConfig };
+            const mergedB = { ...defaultConfig, ...configB, ...eraConfig };
             setConfig(merged);
-            setConfigB({ ...defaultConfig, ...configB, ...eraConfig });
+            setConfigB(mergedB);
             setShowEra(false);
             // 应用年代后自动重跑主推演，使地图/分析/剧本随新年代生效
             setScriptItems([]);
             setScriptIdx(-1);
-            setTimeout(() => { handleRun(); }, 50);
+            setTimeout(() => { handleRun(eraYear, merged, mergedB); }, 50);
           }}
           onClose={() => setShowEra(false)}
         />
