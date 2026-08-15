@@ -24,7 +24,7 @@ class CoalitionEngine:
         self.party_map = {p.id: p for p in parties}
 
     def find_coalitions(self, result: ElectionResult) -> CoalitionResult:
-        majority_threshold = result.total_seats / 2
+        majority_threshold = result.total_seats // 2
         party_results = {r.party_id: r for r in result.party_results}
 
         # 检查单一政党多数

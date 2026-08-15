@@ -54,7 +54,8 @@ function buildPartial(fullResult, config, revealedProvinceNames, provByCity, cit
   const votes = {};
   revealedCities.forEach(cr => {
     const city = citiesById[cr.city_id];
-    const cityVotes = (city?.population || 0) * (cr.turnout || 0);
+    const eligible = cr.eligible_voter_ratio ?? 0.79;
+    const cityVotes = (city?.population || 0) * eligible * (cr.turnout || 0);
     Object.entries(cr.vote_shares || {}).forEach(([pid, s]) => {
       votes[pid] = (votes[pid] || 0) + cityVotes * s;
     });
@@ -174,7 +175,8 @@ export default function CountReplay({ result, config, cities, totalSeats, onPart
       const votes = {};
       list.forEach(cr => {
         const city = citiesById[cr.city_id];
-        const v = (city?.population || 0) * (cr.turnout || 0);
+        const eligible = cr.eligible_voter_ratio ?? 0.79;
+        const v = (city?.population || 0) * eligible * (cr.turnout || 0);
         Object.entries(cr.vote_shares || {}).forEach(([pid, s]) => { votes[pid] = (votes[pid] || 0) + v * s; });
       });
       const sorted = Object.entries(votes).sort((a, b) => b[1] - a[1]);

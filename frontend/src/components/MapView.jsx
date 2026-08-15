@@ -350,13 +350,13 @@ const GEO_NAME_TO_CITY_NAME = {
 };
 
 function getTurnoutColor(turnout) {
-  if (turnout >= 0.70) return '#2e7d32';
+  if (turnout >= 0.78) return '#1b5e20';
+  if (turnout >= 0.72) return '#2e7d32';
   if (turnout >= 0.65) return '#4caf50';
-  if (turnout >= 0.60) return '#81c784';
-  if (turnout >= 0.55) return '#fff176';
-  if (turnout >= 0.50) return '#ffb74d';
-  if (turnout >= 0.45) return '#ff8a65';
-  return '#e57373';
+  if (turnout >= 0.58) return '#81c784';
+  if (turnout >= 0.50) return '#fff176';
+  if (turnout >= 0.42) return '#ffb74d';
+  return '#ff8a65';
 }
 
 function getUncertaintyColor(winRate) {

@@ -184,12 +184,14 @@ class ElectoralEngine:
             turnout = self.voter_model.get_city_turnout(
                 city, self.config.urban_rural_weight,
                 competitiveness=comp, abstention_sensitivity=self.config.abstention_sensitivity or 0.0)
-            city_votes_total = city.population * turnout
+            eligible = self.voter_model.get_eligible_voter_ratio(city)
+            city_votes_total = city.population * eligible * turnout
 
             city_info[city.id] = {
                 'city': city,
                 'shares': shares,
                 'turnout': turnout,
+                'eligible_voter_ratio': eligible,
                 'votes_per_seat': city_votes_total,
             }
 
@@ -242,7 +244,8 @@ class ElectoralEngine:
             # 两轮制首轮弃保压力弱于小选区制：转投者可等第二轮再表达，故阻尼 0.5
             shares = self._apply_tactical_voting(shares, city, intensity=0.5)
             turnout = self.voter_model.get_city_turnout(city, self.config.urban_rural_weight)
-            city_votes = city.population * turnout
+            eligible = self.voter_model.get_eligible_voter_ratio(city)
+            city_votes = city.population * eligible * turnout
 
             for pid, share in shares.items():
                 party_votes_round1[pid] += share * city_votes
@@ -256,6 +259,7 @@ class ElectoralEngine:
                 winner_party_name=self.party_map[winner_id].name,
                 vote_shares={pid: round(s, 4) for pid, s in shares.items()},
                 turnout=turnout,
+                eligible_voter_ratio=self.voter_model.get_eligible_voter_ratio(city),
                 affinities=self.voter_model.get_city_affinities(city, self.parties, self.config.noise_amplitude),
                 dimensions=self.voter_model.get_city_dimensions(city),
             ))
@@ -274,7 +278,8 @@ class ElectoralEngine:
                 shares = self.voter_model.compute_vote_shares(city, self.parties, self.config.noise_amplitude)
                 shares = self._adjust_shares_for_urban_rural(shares, city)
                 turnout = self.voter_model.get_city_turnout(city, self.config.urban_rural_weight)
-                city_votes = city.population * turnout
+                eligible = self.voter_model.get_eligible_voter_ratio(city)
+                city_votes = city.population * eligible * turnout
 
                 eliminated = {pid: share for pid, share in shares.items() if pid not in top2_ids}
                 eliminated_total = sum(eliminated.values())
@@ -319,7 +324,8 @@ class ElectoralEngine:
             shares = self._adjust_shares_for_urban_rural(shares, city)
             base_turnout = self.voter_model.get_city_turnout(city, self.config.urban_rural_weight)
 
-            city_votes = city.population * base_turnout
+            eligible = self.voter_model.get_eligible_voter_ratio(city)
+            city_votes = city.population * eligible * base_turnout
             for pid, share in shares.items():
                 party_votes[pid] += share * city_votes
             total_votes += city_votes
@@ -332,6 +338,7 @@ class ElectoralEngine:
                 winner_party_name=self.party_map[winner_id].name,
                 vote_shares={pid: round(s, 4) for pid, s in shares.items()},
                 turnout=base_turnout,
+                eligible_voter_ratio=self.voter_model.get_eligible_voter_ratio(city),
                 affinities=self.voter_model.get_city_affinities(city, self.parties, self.config.noise_amplitude),
                 dimensions=self.voter_model.get_city_dimensions(city),
             ))
@@ -686,7 +693,8 @@ class ElectoralEngine:
             # 名单席位/比例代表反映"真实偏好"；选区席赢者通吃才受弃保影响
             honest = dict(shares)
             shares = self._apply_tactical_voting(shares, city)
-            city_votes = city.population * turnout
+            eligible = self.voter_model.get_eligible_voter_ratio(city)
+            city_votes = city.population * eligible * turnout
             for pid, share in honest.items():
                 party_votes[pid] += share * city_votes
             total_votes += city_votes
@@ -694,6 +702,7 @@ class ElectoralEngine:
                 'city': city,
                 'shares': shares,
                 'turnout': turnout,
+                'eligible_voter_ratio': eligible,
             }
 
         min_seats = min(self.config.min_seats_per_city, district_total // max(1, len(city_info)))
@@ -727,6 +736,7 @@ class ElectoralEngine:
                 winner_party_name=self.party_map[winner_id].name,
                 vote_shares={pid: round(s, 4) for pid, s in shares.items()},
                 turnout=info['turnout'],
+                eligible_voter_ratio=info.get('eligible_voter_ratio', 0.0),
                 affinities=self.voter_model.get_city_affinities(city, self.parties, self.config.noise_amplitude),
                 dimensions=self.voter_model.get_city_dimensions(city),
             ))

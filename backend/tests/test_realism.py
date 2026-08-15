@@ -24,6 +24,43 @@ class RealismFeatureTest(unittest.TestCase):
                          [(p.party_id, p.seats) for p in b.party_results])
         self.assertEqual(sum(p.seats for p in a.party_results), a.total_seats)
 
+    def test_eligible_voter_ratio_realistic(self):
+        """18+ 适龄选民占比应接近中国现实（全国均值≈0.79，城市 0.72-0.85）"""
+        from app.engine.voter_model import VoterModel
+        import statistics
+
+        vm = VoterModel(seed=42)
+        ratios = [vm.get_eligible_voter_ratio(c) for c in self.cd.cities]
+        mean = statistics.mean(ratios)
+        self.assertGreater(mean, 0.76)
+        self.assertLess(mean, 0.82)
+        self.assertGreater(min(ratios), 0.70)
+        self.assertLess(max(ratios), 0.86)
+
+    def test_turnout_capped_at_realistic_max(self):
+        """适龄选民投票率不应超过 0.85（强制投票国上限水平）"""
+        from app.engine.voter_model import VoterModel
+
+        vm = VoterModel(seed=42)
+        for c in self.cd.cities:
+            t = vm.get_city_turnout(c, 1.0)
+            self.assertLessEqual(t, 0.85)
+            self.assertGreaterEqual(t, 0.35)
+
+    def test_votes_use_eligible_voters_not_total_population(self):
+        """总票数 = 人口 × 适龄占比 × 投票率，而非人口 × 投票率（否则未成年人也被计入）"""
+        r, _ = self._run()
+        pop = self.cd.total_population
+        self.assertLess(r.total_votes / pop, 0.70, "总票数不应超过总人口的70%")
+        self.assertGreater(r.total_votes / pop, 0.40, "高动员场景总票数不应低于总人口40%")
+        # 城市级口径：票数等于人口×适龄占比×投票率
+        from app.engine.voter_model import VoterModel
+        vm = VoterModel(seed=42)
+        cr = r.city_results[0]
+        city = next(c for c in self.cd.cities if c.id == cr.city_id)
+        expected = city.population * vm.get_eligible_voter_ratio(city) * cr.turnout
+        self.assertAlmostEqual(cr.eligible_voter_ratio, vm.get_eligible_voter_ratio(city), places=3)
+
     def test_seat_sum_preserved_with_features(self):
         """开启全部真实感机制后，席位总数仍然守恒"""
         for kw in [

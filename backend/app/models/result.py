@@ -9,6 +9,7 @@ class CityResult(BaseModel):
     winner_party_name: str
     vote_shares: dict[str, float]  # party_id -> vote share
     turnout: float
+    eligible_voter_ratio: float = 0.0  # 18+ 适龄选民占总人口比例
     seats: int = 0
     affinities: dict[str, float] = {}  # party_id -> raw affinity score
     dimensions: dict[str, float] = {}  # economic, social, regional position

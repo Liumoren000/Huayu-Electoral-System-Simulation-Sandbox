@@ -34,7 +34,7 @@ class ElectoralConfig(BaseModel):
     calibration: bool = Field(default=False, description="启用历史倾向锚点校准（每城基准政党）")
     tactical_voting: float = Field(default=0.0, ge=0.0, le=1.0, description="策略性投票/弃保比例：小选区制下弱势候选人支持者转投可赢政党（Duverger 效应）")
     turnout_differential: float = Field(default=0.0, ge=0.0, le=1.0, description="群体差异化投票率：老年/高学历/高收入/城市选民投票率显著更高，城市投票率按人口结构加权（0=关闭，1=完全差异化）")
-    affinity_power: float = Field(default=4.0, ge=1.0, le=8.0, description="得票率浓缩指数：对亲和度做幂次变换后归一化，放大政党间差距（1=线性均匀，4≈现实多党制分化，越高越两极）")
+    affinity_power: float = Field(default=6.0, ge=1.0, le=8.0, description="得票率浓缩指数：对亲和度做幂次变换后归一化，放大政党间差距（1=线性均匀，6≈中国式高动员分化，首党约25%，越高越两极）")
 
 
 class SimulationRequest(BaseModel):

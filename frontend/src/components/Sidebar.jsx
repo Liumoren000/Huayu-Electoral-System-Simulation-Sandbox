@@ -219,14 +219,14 @@ export default function Sidebar({
         <div className="slider-row">
           <label>
             <span>得票率浓缩指数</span>
-            <span>{(config.affinity_power ?? 4).toFixed(1)}</span>
+            <span>{(config.affinity_power ?? 6).toFixed(1)}</span>
           </label>
           <input
             type="range"
             min="1"
             max="8"
             step="0.5"
-            value={config.affinity_power ?? 4}
+            value={config.affinity_power ?? 6}
             onChange={e => setBothConfigs('affinity_power', parseFloat(e.target.value))}
           />
         </div>
@@ -361,7 +361,7 @@ export default function Sidebar({
 
       {/* 运行按钮 */}
       <div className="sidebar-section">
-        <button className="run-btn" onClick={onRun} disabled={loading}>
+        <button className="run-btn" onClick={() => onRun()} disabled={loading}>
           {loading ? '推演中...' : '运行推演'}
         </button>
       </div>

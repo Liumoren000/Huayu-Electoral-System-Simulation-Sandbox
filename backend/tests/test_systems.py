@@ -67,6 +67,19 @@ class TestNewSystems(unittest.TestCase):
         self.assertLess(pr.gallagher_index, fptp.gallagher_index,
                         "PR 的 Gallagher 指数应显著低于 FPTP")
 
+    def test_odd_seat_count_coalition(self):
+        """奇数总席位下联盟引擎不应崩溃（majority_threshold 需取整）"""
+        from app.engine import CoalitionEngine
+
+        for seats in (565, 543):
+            res = run("PR", seats, allocation_method="d_hondt")
+            ce = CoalitionEngine(generate_default_parties())
+            coal = ce.find_coalitions(res)
+            self.assertIsInstance(coal.coalition_options, list)
+            for opt in coal.coalition_options:
+                self.assertEqual(int(opt.excess), opt.excess,
+                                 "联盟冗余席位应为整数")
+
 
 if __name__ == "__main__":
     unittest.main()

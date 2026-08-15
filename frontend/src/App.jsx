@@ -48,7 +48,7 @@ const defaultConfig = {
   calibration: false,
   tactical_voting: 0,
   turnout_differential: 0,
-  affinity_power: 4,
+  affinity_power: 6,
 };
 
 function largestRemainderAllocation(pops, totalSeats, minSeats) {
@@ -315,7 +315,7 @@ export default function App() {
   };
 
   const handleRun = async (runYear, runConfig, runConfigB) => {
-    const targetYear = runYear ?? year;
+    const targetYear = typeof runYear === 'number' ? runYear : year;
     const targetConfig = runConfig ?? config;
     const targetConfigB = runConfigB ?? configB;
     if (!parties.length) {

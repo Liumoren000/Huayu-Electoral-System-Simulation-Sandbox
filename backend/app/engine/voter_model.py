@@ -293,7 +293,7 @@ class VoterModel:
     def get_city_turnout(self, city: City, urban_rural_weight: float = 1.0,
                          competitiveness: float = None, abstention_sensitivity: float = 0.0) -> float:
         """
-        计算城市投票率 (0.35 - 0.80)
+        计算城市适龄选民投票率 (0.35 - 0.85)
 
         考虑因素：
         - 城镇化率（高→投票率高）
@@ -301,6 +301,8 @@ class VoterModel:
         - 老龄化（中等→投票率高，过高→投票率下降）
         - 区域差异（沿海→高，偏远农村→低）
         - 竞争激烈程度（可选，竞争越激烈投票率越高）
+
+        注：返回值为适龄选民（18+）口径投票率；实际票数 = 人口 × 适龄占比 × 此值。
 
         Args:
             city: 城市数据
@@ -365,7 +367,21 @@ class VoterModel:
             turnout += (competitiveness - 0.6) * abstention_sensitivity * 0.20
 
         turnout += self.turnout_shift
-        return round(max(0.35, min(0.95, turnout)), 4)
+        return round(max(0.35, min(0.85, turnout)), 4)
+
+    def get_eligible_voter_ratio(self, city: City) -> float:
+        """
+        估算城市 18 岁以上（适龄选民）人口占比。
+
+        现实口径中投票率以适龄选民为分母，而城市数据仅有总人口；
+        用城市化/老龄化/教育水平近似 0-17 岁人口占比（城镇化与教育水平越高、
+        老龄化越深 → 少儿占比越低），再以 1 - 少儿占比得到适龄占比。
+        全国均值约 0.78-0.81，与中国 18+ 占比（≈0.79）一致。
+        """
+        child_share = 0.28 - 0.08 * city.urbanization_rate \
+            - 0.06 * city.aging_rate - 0.04 * city.education_index
+        child_share = max(0.15, min(0.30, child_share))
+        return round(1.0 - child_share, 4)
 
     def _group_turnout_weights(self, city: City) -> dict[str, float]:
         """
