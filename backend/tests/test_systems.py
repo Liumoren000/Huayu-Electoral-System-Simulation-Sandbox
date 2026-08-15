@@ -23,7 +23,13 @@ class TestNewSystems(unittest.TestCase):
         for st in ["FPTP", "RUNOFF", "PR", "MMP", "PARALLEL", "IRV", "APPROVAL", "BORDA", "STV"]:
             for seats in (100, 450, 500):
                 res = run(st, seats)
-                self.assertEqual(sum(p.seats for p in res.party_results), seats, st)
+                total = sum(p.seats for p in res.party_results)
+                if st == "MMP":
+                    # MMP 允许超额席位（overhang），总席 >= 配置席
+                    self.assertGreaterEqual(total, seats, st)
+                    self.assertEqual(res.overhang_seats, total - seats, st)
+                else:
+                    self.assertEqual(total, seats, st)
                 self.assertEqual(len(res.party_results), 7, st)
 
     def test_deterministic(self):

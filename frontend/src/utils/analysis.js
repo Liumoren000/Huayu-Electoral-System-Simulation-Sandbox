@@ -113,6 +113,19 @@ export function generateReport(displayResult, resultA, resultB, activeScheme, co
   const sysItems = systemFeatureTags(res, activeScheme === 'B' ? configB : configA);
   if (sysItems.length) sections.push({ title: `制度特征 · ${res.system_type}`, items: sysItems });
 
+  // 0.25 超额席位（MMP overhang）
+  if ((res.overhang_seats ?? 0) > 0) {
+    const ohNames = (res.party_results || [])
+      .filter(p => (res.overhang_by_party || {})[p.party_id])
+      .map(p => `「${p.party_name}」选区超得 ${res.overhang_by_party[p.party_id]} 席`);
+    sections.push({
+      title: '超额席位 (overhang)',
+      items: [
+        `${ohNames.join('、')}。议会因选区超得席位由 ${res.total_seats - res.overhang_seats} 席膨胀至 ${res.total_seats} 席（${res.overhang_seats} 席悬空），选区强势政党获得超出名单比例份额的代表。`,
+      ],
+    });
+  }
+
   // 0.5 政党体系格局（Sartori 类型学）
   if (res.party_system_classification) {
     const classificationItems = [];

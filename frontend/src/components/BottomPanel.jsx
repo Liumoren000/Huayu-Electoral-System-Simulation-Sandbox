@@ -79,6 +79,14 @@ export default function BottomPanel({ result }) {
           {isUpper ? '-' : (result.polarization_index !== undefined ? (result.polarization_index * 100).toFixed(0) : '-')}
         </span>
       </div>
+      {!isUpper && (result.overhang_seats ?? 0) > 0 && (
+        <div className="metric-item">
+          <span className="metric-label">超额席位</span>
+          <span className="metric-value" style={{ color: 'var(--accent-orange)' }}>
+            +{result.overhang_seats}
+          </span>
+        </div>
+      )}
     </div>
   ) : null;
 

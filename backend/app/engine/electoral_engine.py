@@ -430,7 +430,12 @@ class ElectoralEngine:
     # ========== 混合制 ==========
 
     def _run_mmp(self) -> ElectionResult:
-        """混合成员比例代表制 (MMP)：选区席 + 名单席补位到比例代表"""
+        """混合成员比例代表制 (MMP)：选区席 + 名单席补位到比例代表
+
+        真实 MMP 允许超额席位（overhang）：若政党通过选区赢得的席位超过其
+        名单比例应得份额，该党保留全部选区席，议会总席数随之膨胀
+        （如德国/新西兰）。名单补位在其余政党间按比例分配。
+        """
         total = self.config.total_seats
         district_total = self._district_count(total)
         list_total = total - district_total
@@ -439,24 +444,38 @@ class ElectoralEngine:
         city_winners = {cid: max(info['shares'], key=info['shares'].get) for cid, info in city_info.items()}
 
         district_seats = self._count_city_seats(city_seats, city_winners)
+        # 各党名单比例应得席（以总席数为分母）
         ideal = self._allocate_pr(party_votes, total, threshold=self.config.threshold)
+        # 选区超额：选区席超过理想席的部分 → 悬空席（overhang）
+        overhang_by_party = {pid: district_seats.get(pid, 0) - ideal[pid]
+                             for pid in party_votes if district_seats.get(pid, 0) > ideal[pid]}
+        overhang_seats = sum(overhang_by_party.values())
+        # 名单补位：先补选区未达理想席的部分；超额政党不再补
         list_seats = {pid: max(0, ideal[pid] - district_seats.get(pid, 0)) for pid in party_votes}
 
-        # 名单席位调整到恰好 list_total（处理悬空席/余数）
+        # 超额政党让出的名单额（其理想席中已被选区占用的超额部分）重新分配：
+        # 超额释放的名单席数额 = overhang_seats，在未超额政党间按剩余缺口补足。
+        released = overhang_seats
         s = sum(list_seats.values())
-        if s < list_total:
-            while s < list_total:
-                pid = max(list_seats, key=lambda p: ideal[p] - district_seats.get(p, 0) - list_seats[p])
-                list_seats[pid] += 1
-                s += 1
-        elif s > list_total:
-            while s > list_total:
-                pid = max((p for p in list_seats if list_seats[p] > 0),
-                          key=lambda p: district_seats.get(p, 0) - ideal[p])
-                list_seats[pid] -= 1
-                s -= 1
+        while released > 0 and s < total - district_total + overhang_seats:
+            # 每轮把 1 席给当前缺口最大的未超额政党
+            candidates = [p for p in list_seats if p not in overhang_by_party]
+            if not candidates:
+                break
+            pid = max(candidates, key=lambda p: ideal[p] - district_seats.get(p, 0) - list_seats[p])
+            list_seats[pid] += 1
+            s += 1
+            released -= 1
+
+        # 超发名单席回退（浮点余数可能使 list 略超）
+        while s > list_total + overhang_seats:
+            pid = max((p for p in list_seats if list_seats[p] > 0),
+                      key=lambda p: district_seats.get(p, 0) - ideal[p])
+            list_seats[pid] -= 1
+            s -= 1
 
         total_party = {pid: district_seats.get(pid, 0) + list_seats.get(pid, 0) for pid in party_votes}
+        actual_total = sum(total_party.values())
         party_results = [
             PartySeatResult(
                 party_id=p.id,
@@ -474,7 +493,10 @@ class ElectoralEngine:
         city_results = self._build_city_results(city_info, city_winners)
         city_party_seats = {cid: {city_winners[cid]: n} for cid, n in city_seats.items() if city_winners.get(cid)}
         return self._build_result(city_results, party_results, total_votes, city_seats_map=city_seats,
-                                  city_party_seats=city_party_seats, province_proportional=True)
+                                  city_party_seats=city_party_seats, province_proportional=True,
+                                  actual_total_seats=actual_total,
+                                  overhang_seats=overhang_seats,
+                                  overhang_by_party=overhang_by_party)
 
     def _run_parallel(self) -> ElectionResult:
         """并立制：选区席 + 名单席（二者互不关联）"""
@@ -815,7 +837,10 @@ class ElectoralEngine:
     def _build_result(self, city_results: list[CityResult], party_results: list[PartySeatResult],
                       total_votes: float, city_seats_map: dict = None,
                       city_party_seats: dict = None, province_party_seats: dict = None,
-                      province_proportional: bool = False) -> ElectionResult:
+                      province_proportional: bool = False,
+                      actual_total_seats: int = None,
+                      overhang_seats: int = 0,
+                      overhang_by_party: dict = None) -> ElectionResult:
         province_results = self._aggregate_provinces(city_results)
         if city_seats_map:
             for cr in city_results:
@@ -848,13 +873,13 @@ class ElectoralEngine:
         env, ens, gallagher = self._compute_diversity_metrics(party_results)
         lh, rose, mal, pns = self._compute_additional_indices(party_results, province_results)
         decomp = self._compute_disprop_decomposition(party_results, province_results)
-        classification, classification_detail = self._classify_party_system(party_results, self.config.total_seats, env)
+        classification, classification_detail = self._classify_party_system(party_results, actual_total_seats or self.config.total_seats, env)
         polarization = self._compute_polarization(party_results)
         regional_blocks = self._compute_regional_blocks(province_results, party_results)
         return ElectionResult(
             config_name=self.config.name,
             system_type=self.config.system_type,
-            total_seats=self.config.total_seats,
+            total_seats=actual_total_seats or self.config.total_seats,
             city_results=city_results,
             province_results=province_results,
             party_results=party_results,
@@ -874,6 +899,8 @@ class ElectoralEngine:
             party_system_classification_detail=classification_detail,
             polarization_index=polarization,
             regional_blocks=regional_blocks,
+            overhang_seats=overhang_seats,
+            overhang_by_party=overhang_by_party or {},
         )
 
     def _compute_polarization(self, party_results: list[PartySeatResult]) -> float:

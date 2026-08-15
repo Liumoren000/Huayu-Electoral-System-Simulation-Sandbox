@@ -89,6 +89,8 @@ class ElectionResult(BaseModel):
     party_system_classification_detail: str = ""  # 分类依据（含关键指标）
     polarization_index: float = 0.0  # 议会极化度：席位加权意识形态标准差（0-1，越高越两极化）
     regional_blocks: list[RegionalBlock] = []  # 区域政治集团（按省份赢家归纳）
+    overhang_seats: int = 0  # MMP 超额席位（悬空席）总数
+    overhang_by_party: dict[str, int] = {}  # MMP 各党超额席位数（party_id -> n）
 
 
 class CoalitionOption(BaseModel):
