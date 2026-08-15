@@ -123,7 +123,7 @@ export default function MapView({ result, cities, mapLabel, accentColor, onProvi
         }
         echarts.registerMap('province', geo);
         setCityGeoLoaded(true);
-renderMap(chartRef.current, result, manualSeats, currentProvince, viewMode, cities, showTurnout, compareResult, tippingCityIds, uncertainty, showUncertainty);
+renderMap(chartRef.current, result, manualSeats, currentProvince, viewMode, cities, showTurnout, compareResult, tippingCityIds, uncertainty, showUncertainty, showEthnic);
         setStatus('ready');
       } catch (e) {
         console.error('City geo error:', e);
@@ -137,7 +137,7 @@ renderMap(chartRef.current, result, manualSeats, currentProvince, viewMode, citi
   useEffect(() => {
     if (!chartRef.current) return;
     if (viewMode === 'city' && currentProvince && !cityGeoLoaded && currentProvince !== '台湾省') return;
-    renderMap(chartRef.current, result, manualSeats, currentProvince, viewMode, cities, showTurnout, compareResult, tippingCityIds, uncertainty, showUncertainty);
+    renderMap(chartRef.current, result, manualSeats, currentProvince, viewMode, cities, showTurnout, compareResult, tippingCityIds, uncertainty, showUncertainty, showEthnic);
   }, [result, manualSeats, viewMode, cityGeoLoaded, currentProvince, showTurnout, compareResult, uncertainty, showUncertainty, showEthnic]);
 
   useEffect(() => {
