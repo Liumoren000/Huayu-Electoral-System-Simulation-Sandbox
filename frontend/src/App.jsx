@@ -7,7 +7,6 @@ import CountReplay from './components/CountReplay.jsx';
 import ProvinceDetail from './components/ProvinceDetail.jsx';
 import ManualSeatModal from './components/ManualSeatModal.jsx';
 import ComparePanel from './components/ComparePanel.jsx';
-import SensitivityModal from './components/SensitivityModal.jsx';
 import ScriptModal from './components/ScriptModal.jsx';
 import BubbleChartModal from './components/BubbleChartModal.jsx';
 import TippingSeatsModal from './components/TippingSeatsModal.jsx';
@@ -147,7 +146,6 @@ export default function App() {
   const [robustLoading, setRobustLoading] = useState(false);
   const [attackInitialMode, setAttackInitialMode] = useState('coalition');
   const [showCompare, setShowCompare] = useState(false);
-  const [showSensitivity, setShowSensitivity] = useState(false);
   const [showScript, setShowScript] = useState(false);
   const [scriptItems, setScriptItems] = useState([]);  // { name, scriptConfig, result, coalition }
   const [scriptIdx, setScriptIdx] = useState(-1);  // -1 = 基准
@@ -866,8 +864,6 @@ body: JSON.stringify({
                 </button>
                 {showTools && (
                   <div className="tools-menu">
-                    <button onClick={() => { if (robustnessData) setShowRobustnessModal(true); else runRobustnessAnalysis(); setShowTools(false); }}>稳健性</button>
-                    <button onClick={() => { setShowSensitivity(true); setShowTools(false); }}>敏感性</button>
                     <button onClick={() => { setShowPoll(true); setShowTools(false); }}>竞选民调</button>
                     <button onClick={() => { setShowGovernment(true); setShowTools(false); }}>政府任期模拟</button>
                     <button onClick={() => { setShowSwing(true); setShowTools(false); }}>摇摆/风向标选区</button>
@@ -1051,16 +1047,6 @@ body: JSON.stringify({
         />
       )}
 
-      {showSensitivity && (
-        <SensitivityModal
-          year={year}
-          config={effectiveConfig}
-          totalSeats={totalSeats}
-          minSeats={minSeats}
-          parties={parties}
-          onClose={() => setShowSensitivity(false)}
-        />
-      )}
       {showScript && (
         <ScriptModal
           year={year}
