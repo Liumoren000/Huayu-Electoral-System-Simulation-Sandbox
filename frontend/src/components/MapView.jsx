@@ -308,6 +308,22 @@ renderMap(chartRef.current, result, manualSeats, currentProvince, viewMode, citi
           </div>
         </div>
       )}
+      {showTurnout && viewMode === 'city' && (
+        <div style={{
+          position: 'absolute', bottom: 10, right: 16, zIndex: 20,
+          background: 'rgba(10,14,20,0.85)', border: '1px solid var(--border-color)',
+          borderRadius: 6, padding: '8px 12px', backdropFilter: 'blur(6px)',
+        }}>
+          <div style={{ fontSize: 11, color: '#ffb74d', fontWeight: 700, marginBottom: 6 }}>
+            各市投票率
+          </div>
+          <div style={{ fontSize: 10, color: 'var(--text-secondary)', lineHeight: 1.9 }}>
+            {[[0.78, '≥78%'], [0.72, '72–78%'], [0.65, '65–72%'], [0.58, '58–65%'], [0.5, '50–58%'], [0.42, '42–50%'], [0, '<42%']].map(([v, label]) => (
+              <div key={label}><span style={{ display: 'inline-block', width: 10, height: 10, background: getTurnoutColor(v), marginRight: 6, borderRadius: 2 }} />{label}</div>
+            ))}
+          </div>
+        </div>
+      )}
       {showTurnoutProvince && viewMode !== 'city' && (
         <div style={{
           position: 'absolute', bottom: 10, right: 16, zIndex: 20,

@@ -144,7 +144,7 @@ export default function CalibrationModal({ config, totalSeats, minSeats, parties
                 </tbody>
               </table>
               <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 6 }}>
-                基准为上届（{data.baseline_year}）人口/GDP缩放 + 不同随机种子，对比本届（{data.current_year}）以衡量模型稳定性与人口结构漂移效应。
+                基准年（{data.baseline_year}）城市数据经研究年代库（era）与本届同口径加载，配以不同随机种子，对比本届（{data.current_year}）以衡量模型稳定性与人口结构漂移效应。
               </div>
             </>
           )}
