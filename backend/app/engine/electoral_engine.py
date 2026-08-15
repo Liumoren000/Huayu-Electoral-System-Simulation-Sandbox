@@ -781,7 +781,7 @@ class ElectoralEngine:
                     if ps[top] > 0:
                         pr.winner_party_id = top
                         pr.winner_party_name = self.party_map[top].name
-        uh_party_results, uh_province_results, uh_total = self._compute_upper_house(province_results)
+        uh_party_results, uh_province_results, uh_total = self._compute_upper_house(province_results, party_results)
         env, ens, gallagher = self._compute_diversity_metrics(party_results)
         lh, rose, mal, pns = self._compute_additional_indices(party_results, province_results)
         decomp = self._compute_disprop_decomposition(party_results, province_results)
@@ -1037,7 +1037,7 @@ class ElectoralEngine:
 
         return round(env, 2), round(ens, 2), round(gallagher, 4)
 
-    def _compute_upper_house(self, province_results: list[ProvinceResult]) -> tuple[list[PartySeatResult], list[ProvinceResult], int]:
+    def _compute_upper_house(self, province_results: list[ProvinceResult], lower_party_results: list[PartySeatResult] = None) -> tuple[list[PartySeatResult], list[ProvinceResult], int]:
         if not self.config.upper_house_enabled:
             return [], [], 0
 
@@ -1103,12 +1103,18 @@ class ElectoralEngine:
             ))
 
         uh_party_results = []
+        lower_share = {}
+        if lower_party_results:
+            lower_share = {pr.party_id: pr.vote_share for pr in lower_party_results}
         for p in self.parties:
+            vote_share = lower_share.get(p.id)
+            if vote_share is None:
+                vote_share = uh_party_seats.get(p.id, 0) / max(1, uh_seats)
             uh_party_results.append(PartySeatResult(
                 party_id=p.id,
                 party_name=p.name,
                 seats=uh_party_seats.get(p.id, 0),
-                vote_share=round(uh_party_seats.get(p.id, 0) / max(1, uh_seats), 4),
+                vote_share=round(vote_share, 4),
                 color=p.color,
                 economic_position=p.economic_position,
                 social_position=p.social_position,
