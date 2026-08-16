@@ -594,12 +594,16 @@ def _city_structure_bullets(city) -> list[dict]:
     return bullets
 
 
-def city_vote_explanation(city_data, parties, config, city_id: str):
+def city_vote_explanation(city_data, parties, config, city_id: str,
+                          city_result=None):
     """城市投票成因解读：为什么这座城市投给了谁。
 
     结合城市人口/经济结构、7 维政策偏好位置、各党亲和度分解，
     生成一份可读的「投票成因报告」——解释胜者为何胜、败者为何败、
     城市基本盘偏向何处、关键摇摆维度的权重。
+
+    city_result: 可选，实际模拟生成的 CityResult（得票/胜者/亲和度/维度/席位）。
+    传入后解读的得票、胜者与亲和度一律以实际模拟为准，避免与席位结果脱节。
     """
     from app.engine.voter_model import VoterModel
 
@@ -626,9 +630,39 @@ def city_vote_explanation(city_data, parties, config, city_id: str):
     prov_dims = avg_dim([vm.get_city_dimensions(c) for c in city_data.cities
                          if c.province == city.province])
 
-    # 各党在 7 维的匹配分 + 得票
+    # 各党在 7 维的匹配分（explain_city 的结构分解，用于强/弱维度归因）
     party_rows = sorted(expl['parties'], key=lambda r: -r['vote_share'])
-    winner = party_rows[0]
+    for row in party_rows:
+        dim_scores = {k: round(row.get(k, 0.0), 3) for k in DIM_LABELS}
+        best = sorted(dim_scores.items(), key=lambda x: -x[1])[:2]
+        worst = sorted(dim_scores.items(), key=lambda x: x[1])[:2]
+        row['best_dims'] = [DIM_LABELS[k] for k, _ in best]
+        row['worst_dims'] = [DIM_LABELS[k] for k, _ in worst]
+        row['dim_scores'] = dim_scores
+
+    # 实际模拟结果优先：得票 / 胜者 / 亲和度 / 席位与推演完全一致
+    actual = {}
+    if city_result is not None:
+        actual = {
+            "vote_shares": city_result.get('vote_shares') or {},
+            "winner_party_id": city_result.get('winner_party_id') or '',
+            "winner_party_name": city_result.get('winner_party_name') or '',
+            "affinities": city_result.get('affinities') or {},
+            "turnout": city_result.get('turnout') or 0.0,
+            "seats": city_result.get('seats') or 0,
+            "party_seats": city_result.get('party_seats') or {},
+        }
+
+    if actual.get('vote_shares'):
+        # 用实际得票排序决定胜者与排序
+        party_rows.sort(key=lambda r: -actual['vote_shares'].get(r['party_id'], 0.0))
+        winner_id = actual['winner_party_id'] or (party_rows[0]['party_id'] if party_rows else '')
+        winner = next((r for r in party_rows if r['party_id'] == winner_id), party_rows[0] if party_rows else None)
+    else:
+        winner = party_rows[0] if party_rows else None
+
+    for row in party_rows:
+        row['is_winner'] = bool(winner) and row['party_id'] == winner['party_id']
 
     # 城市最突出的立场（偏离全国最远的维度）→ 关键议题
     deviations = []
@@ -637,22 +671,12 @@ def city_vote_explanation(city_data, parties, config, city_id: str):
         deviations.append((k, dev))
     key_dims = sorted(deviations, key=lambda x: abs(x[1]), reverse=True)[:3]
 
-    # 每个政党的强项维度（匹配分最高的）
-    for row in party_rows:
-        dim_scores = {
-            k: round(row.get(k, 0.0), 3)
-            for k in DIM_LABELS
-        }
-        best = sorted(dim_scores.items(), key=lambda x: -x[1])[:2]
-        worst = sorted(dim_scores.items(), key=lambda x: x[1])[:2]
-        row['best_dims'] = [DIM_LABELS[k] for k, _ in best]
-        row['worst_dims'] = [DIM_LABELS[k] for k, _ in worst]
-        row['dim_scores'] = dim_scores
-        row['is_winner'] = (row['party_id'] == winner['party_id'])
+    if not winner:
+        return {"error": "city not found"}
 
-    # 叙事段落
+    # 叙事段落（使用实际得票/胜者）
     narrative = _build_city_narrative(city, city_pos, party_rows, key_dims,
-                                      national_dims, prov_dims, winner)
+                                      national_dims, prov_dims, winner, actual)
 
     return {
         "city": {
@@ -671,12 +695,16 @@ def city_vote_explanation(city_data, parties, config, city_id: str):
              "deviation": dev, "pole": DIM_POLES[k][0] if dev < 0 else DIM_POLES[k][1]}
             for k, dev in key_dims
         ],
-        "turnout": expl['turnout'],
+        "turnout": round(actual.get('turnout', expl['turnout']), 4),
+        "seats": actual.get('seats', 0),
+        "party_seats": actual.get('party_seats', {}),
         "parties": [
             {
                 "party_id": r['party_id'], "party_name": r['party_name'],
-                "color": r['color'], "vote_share": r['vote_share'],
-                "affinity": r['affinity'], "weighted_affinity": r['weighted_affinity'],
+                "color": r['color'],
+                "vote_share": round(actual['vote_shares'].get(r['party_id'], r['vote_share']), 4) if actual.get('vote_shares') else r['vote_share'],
+                "affinity": actual['affinities'].get(r['party_id'], r['affinity']) if actual.get('affinities') else r['affinity'],
+                "weighted_affinity": r['weighted_affinity'],
                 "distance": r['distance'], "best_dims": r['best_dims'],
                 "worst_dims": r['worst_dims'], "dim_scores": r['dim_scores'],
                 "is_winner": r['is_winner'],
@@ -691,8 +719,22 @@ def city_vote_explanation(city_data, parties, config, city_id: str):
 
 
 def _build_city_narrative(city, city_pos, party_rows, key_dims, national_dims,
-                          prov_dims, winner) -> list[str]:
+                          prov_dims, winner, actual=None):
     """把解读拼成自然语言段落列表。"""
+    actual = actual or {}
+    shares = actual.get('vote_shares') or {}
+    affs = actual.get('affinities') or {}
+
+    def share(row):
+        if shares:
+            return shares.get(row['party_id'], row['vote_share'])
+        return row['vote_share']
+
+    def aff(row):
+        if affs:
+            return affs.get(row['party_id'], row['affinity'])
+        return row['affinity']
+
     lines = []
     reg = {'coastal': '沿海', 'inland': '内陆', 'western': '西部', 'northeast': '东北'}.get(city.region_type, city.region_type)
     lines.append(f"「{city.name}」位于{reg}，是{city.province}的一座城市，人口约{city.population//10000}万。它的选民偏好首先由产业结构与人口构成塑造——{_city_structure_bullets(city)[0]['note'] if _city_structure_bullets(city) else ''}")
@@ -705,14 +747,17 @@ def _build_city_narrative(city, city_pos, party_rows, key_dims, national_dims,
             parts.append(f"{DIM_LABELS[k]}较全国{'偏左' if dev < 0 else '偏右'}（{'+' if dev > 0 else ''}{dev:.2f}，偏向「{pole}」）")
         lines.append("政策偏好上，" + "；".join(parts) + "。这是该市选情最关键的三组变量。")
 
-    # 胜者归因
+    # 胜者归因（若实际席位中该党无席，提示制度因素）
     w = winner
-    lines.append(f"最终「{w['party_name']}」以 {w['vote_share']*100:.1f}% 胜出——它在 {w['best_dims'][0]}、{w['best_dims'][1]} 上与本市选民最契合，亲和度达 {w['affinity']:.2f}，综合匹配度最高。")
+    seat_note = ""
+    if actual.get('party_seats') and w and actual['party_seats'].get(w['party_id'], 0) == 0:
+        seat_note = "不过该党在市内未获议席——多数制的胜者全得让得票未能完全转化为席位。"
+    lines.append(f"最终「{w['party_name']}」以 {share(w)*100:.1f}% 在该市拔得头筹——它在 {w['best_dims'][0]}、{w['best_dims'][1]} 上与本市选民最契合，亲和度达 {aff(w):.2f}，综合匹配度最高。{seat_note}")
 
     # 次席归因
     if len(party_rows) > 1:
         second = party_rows[1]
-        lines.append(f"次席「{second['party_name']}」获得 {second['vote_share']*100:.1f}%（亲和 {second['affinity']:.2f}），它的 {second['best_dims'][0]} 主张有一定号召力，但在 {second['worst_dims'][0]} 上与本市偏好存在明显落差，难以翻盘。")
+        lines.append(f"次席「{second['party_name']}」获得 {share(second)*100:.1f}%（亲和 {aff(second):.2f}），它的 {second['best_dims'][0]} 主张有一定号召力，但在 {second['worst_dims'][0]} 上与本市偏好存在明显落差，难以翻盘。")
 
     # 市内外对比
     city_econ = city_pos.get('economic', 0.0)

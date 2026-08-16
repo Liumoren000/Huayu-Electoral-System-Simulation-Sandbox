@@ -24,7 +24,9 @@ export default function ProvinceDetail({ province, result, cities, onClose, manu
       try {
         const cityId = cityNameMap[province]?.id;
         if (!cityId) return;
-        const res = await explainCityVote({ year, config, parties, city_id: cityId });
+        // 实际模拟的该城市结果：保证解读与席位/得票一致
+        const cityResult = result?.city_results?.find(cr => cr.city_id === cityId);
+        const res = await explainCityVote({ year, config, parties, city_id: cityId, city_result: cityResult || {} });
         if (!cancelled) setExplanation(res);
       } catch (e) {
         if (!cancelled) setExpError(e.message);
@@ -146,6 +148,7 @@ export default function ProvinceDetail({ province, result, cities, onClose, manu
                     <tr>
                       <th>政党</th>
                       <th style={{ textAlign: 'right' }}>得票</th>
+                      <th style={{ textAlign: 'center' }}>市内席位</th>
                       <th style={{ textAlign: 'right' }}>亲和度</th>
                       <th>强势维度</th>
                       <th>弱势维度</th>
@@ -161,6 +164,9 @@ export default function ProvinceDetail({ province, result, cities, onClose, manu
                         </td>
                         <td style={{ textAlign: 'right', fontWeight: p.is_winner ? 700 : 400 }}>
                           {(p.vote_share * 100).toFixed(1)}%
+                        </td>
+                        <td style={{ textAlign: 'center', fontWeight: 700, color: (explanation.party_seats?.[p.party_id] || 0) > 0 ? 'var(--accent-blue)' : 'var(--text-muted)' }}>
+                          {explanation.party_seats?.[p.party_id] || 0}
                         </td>
                         <td style={{ textAlign: 'right' }}>{p.affinity.toFixed(2)}</td>
                         <td style={{ fontSize: 11, color: 'var(--text-muted)' }}>{p.best_dims.join('、')}</td>

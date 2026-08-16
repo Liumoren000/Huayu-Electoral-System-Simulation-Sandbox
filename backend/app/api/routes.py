@@ -629,7 +629,8 @@ def simulate_party_freeze(request: FreezeRequest):
 def simulate_city_explain(request: CityExplainRequest):
     """
     城市投票成因解读：结合城市人口/经济结构、7 维政策偏好位置与各党亲和度，
-    生成「为什么这座城市投给了谁」的可读报告。
+    生成「为什么这座城市投给了谁」的可读报告。传入 city_result 时，
+    得票/胜者/亲和度以实际推演结果为准，保证与席位情况一致。
     """
     if not request.parties:
         return JSONResponse(status_code=400, content={"error": "至少需要一个参选政党"})
@@ -637,4 +638,4 @@ def simulate_city_explain(request: CityExplainRequest):
         return JSONResponse(status_code=400, content={"error": "请指定城市"})
     city_data = data_loader.get_city_data(request.year)
     return city_vote_explanation(city_data, request.parties, request.config,
-                                 request.city_id)
+                                 request.city_id, request.city_result or None)

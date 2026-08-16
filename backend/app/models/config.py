@@ -166,3 +166,4 @@ class CityExplainRequest(BaseModel):
     city_id: str = ""
     config: ElectoralConfig
     parties: list[Party]
+    city_result: dict = Field(default_factory=dict, description="实际模拟生成的该城市 CityResult（保证解读与席位一致）")

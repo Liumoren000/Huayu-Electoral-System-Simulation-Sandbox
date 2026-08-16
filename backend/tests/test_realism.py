@@ -587,20 +587,38 @@ class RealismFeatureTest(unittest.TestCase):
     def test_city_vote_explanation(self):
         """城市投票成因解读：应返回结构标签、关键维度、叙事与各党归因"""
         from app.engine.analysis_engine import city_vote_explanation
-        _, cfg = self._run()
+        from app.engine import ElectoralEngine
+        r, cfg = self._run()
         city = next(c for c in self.cd.cities if c.name in ('湛江市', '东莞市'))
-        res = city_vote_explanation(self.cd, self.parties, cfg, city.id)
+        # 传入实际推演的城市结果，解读应与席位/得票一致
+        cr = next(x for x in r.city_results if x.city_id == city.id)
+        res = city_vote_explanation(self.cd, self.parties, cfg, city.id, cr.model_dump())
         self.assertIn('structure', res)
         self.assertGreater(len(res['structure']), 0)
         self.assertEqual(len(res['key_dims']), 3)
         self.assertGreaterEqual(len(res['narrative']), 3)
         self.assertIn('winner_party_id', res)
+        # 一致性：解读胜者/得票 = 实际推演
+        self.assertEqual(res['winner_party_id'], cr.winner_party_id)
+        stated_top = max(res['parties'], key=lambda p: p['vote_share'])
+        self.assertEqual(stated_top['party_id'], cr.winner_party_id)
+        self.assertAlmostEqual(stated_top['vote_share'],
+                               cr.vote_shares[cr.winner_party_id], places=3)
+        # 每个政党的市内席位与 city_result 一致
         for p in res['parties']:
             self.assertIn('best_dims', p)
             self.assertIn('worst_dims', p)
-            self.assertIn('vote_share', p)
-        self.assertEqual(res['winner_party_id'],
-                         max(res['parties'], key=lambda p: p['vote_share'])['party_id'])
+            self.assertEqual(res['party_seats'].get(p['party_id'], 0),
+                             cr.party_seats.get(p['party_id'], 0))
+
+    def test_city_explanation_without_result(self):
+        """未传实际结果时回退到模型预测，仍应完整可用"""
+        from app.engine.analysis_engine import city_vote_explanation
+        _, cfg = self._run()
+        city = next(c for c in self.cd.cities if c.name in ('湛江市', '东莞市'))
+        res = city_vote_explanation(self.cd, self.parties, cfg, city.id)
+        self.assertIn('winner_party_id', res)
+        self.assertGreaterEqual(len(res['parties']), 3)
 
     def test_party_system_freeze(self):
         """政党体系冻结度：应遍历全部年代，返回冻结度与首党保持率"""
