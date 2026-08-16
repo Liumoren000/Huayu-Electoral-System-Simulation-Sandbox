@@ -37,6 +37,8 @@ class ElectoralConfig(BaseModel):
     affinity_power: float = Field(default=6.0, ge=1.0, le=8.0, description="得票率浓缩指数：对亲和度做幂次变换后归一化，放大政党间差距（1=线性均匀，6≈中国式高动员分化，首党约25%，越高越两极）")
     party_system_concentration: float = Field(default=0.0, ge=0.0, le=0.5, description="政党体系集中度：全国领先党（第一党+b、第二党+b/2）获声望加成，模拟主导党/两强对峙格局（0=关闭）")
     poll_systematic_bias: float = Field(default=0.0, ge=0.0, le=0.08, description="民调系统偏差：民调对实际结果的结构性抽样偏差（1=±8pp 随机偏差，模拟现实中民调经常失准）")
+    swing_party: str = Field(default="", description="统一摆动分析用：目标摆动政党 id（非空时对所有城市该党得票统一 ±swing_pp 百分点）")
+    swing_pp: float = Field(default=0.0, ge=-20.0, le=20.0, description="统一摆动幅度（百分点，正=全党全国统一增加）")
 
 
 class SimulationRequest(BaseModel):
@@ -106,6 +108,27 @@ class GovernmentRequest(BaseModel):
 
 
 class SystemComparisonRequest(BaseModel):
+    year: int = Field(default=2023, ge=1949, le=2024)
+    config: ElectoralConfig
+    parties: list[Party]
+
+
+class SwingometerRequest(BaseModel):
+    year: int = Field(default=2023, ge=1949, le=2024)
+    config: ElectoralConfig
+    parties: list[Party]
+    party_id: str = ""
+    max_swing: float = Field(default=12.0, ge=2.0, le=20.0)
+    step: float = Field(default=1.0, ge=0.5, le=4.0)
+
+
+class WastedVotesRequest(BaseModel):
+    year: int = Field(default=2023, ge=1949, le=2024)
+    config: ElectoralConfig
+    parties: list[Party]
+
+
+class RepresentationGapRequest(BaseModel):
     year: int = Field(default=2023, ge=1949, le=2024)
     config: ElectoralConfig
     parties: list[Party]

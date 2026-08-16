@@ -26,6 +26,9 @@ import CalibrationModal from './components/CalibrationModal.jsx';
 import RegionalBlockModal from './components/RegionalBlockModal.jsx';
 import SystemComparisonModal from './components/SystemComparisonModal.jsx';
 import NicheModal from './components/NicheModal.jsx';
+import SwingometerModal from './components/SwingometerModal.jsx';
+import WastedVotesModal from './components/WastedVotesModal.jsx';
+import RepGapModal from './components/RepGapModal.jsx';
 import EraModal from './components/EraModal.jsx';
 import GovernmentModal from './components/GovernmentModal.jsx';
 import { fetchParties, fetchCities, fetchEras, runSimulation, runRobustness } from './services/api.js';
@@ -172,6 +175,9 @@ export default function App() {
   const [showRegionalBlock, setShowRegionalBlock] = useState(false);
   const [showSystemComparison, setShowSystemComparison] = useState(false);
   const [showNiche, setShowNiche] = useState(false);
+  const [showSwingometer, setShowSwingometer] = useState(false);
+  const [showWastedVotes, setShowWastedVotes] = useState(false);
+  const [showRepGap, setShowRepGap] = useState(false);
   const [snapshots, setSnapshots] = useState([]);  // { id, label, result }
   const [eras, setEras] = useState([]);
   const [showEra, setShowEra] = useState(false);
@@ -887,6 +893,9 @@ body: JSON.stringify({
                     <button onClick={() => { setShowRegionalBlock(true); setShowTools(false); }}>区域政治版图</button>
                     <button onClick={() => { setShowSystemComparison(true); setShowTools(false); }}>制度全景对比</button>
                     <button onClick={() => { setShowNiche(true); setShowTools(false); }}>政党生态位空间</button>
+                    <button onClick={() => { setShowSwingometer(true); setShowTools(false); }}>统一摆动分析</button>
+                    <button onClick={() => { setShowWastedVotes(true); setShowTools(false); }}>浪费票分析</button>
+                    <button onClick={() => { setShowRepGap(true); setShowTools(false); }}>代表性缺口</button>
                     <button onClick={() => { setShowSnap(true); setShowTools(false); }}>多快照对比</button>
                   </div>
                 )}
@@ -1256,6 +1265,33 @@ body: JSON.stringify({
         <NicheModal
           result={displayResult}
           onClose={() => setShowNiche(false)}
+        />
+      )}
+
+      {showSwingometer && (
+        <SwingometerModal
+          config={effectiveConfig}
+          parties={parties}
+          year={year}
+          onClose={() => setShowSwingometer(false)}
+        />
+      )}
+
+      {showWastedVotes && (
+        <WastedVotesModal
+          config={effectiveConfig}
+          parties={parties}
+          year={year}
+          onClose={() => setShowWastedVotes(false)}
+        />
+      )}
+
+      {showRepGap && (
+        <RepGapModal
+          config={effectiveConfig}
+          parties={parties}
+          year={year}
+          onClose={() => setShowRepGap(false)}
         />
       )}
     </div>

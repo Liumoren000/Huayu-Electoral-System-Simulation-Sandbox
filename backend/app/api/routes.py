@@ -6,7 +6,8 @@ from fastapi.responses import JSONResponse
 from app.models.config import (
     SimulationRequest, RobustnessRequest, SensitivityRequest, VoterExplainRequest,
     VoterStructureRequest, PollRequest, SwingAnalysisRequest, CalibrationRequest,
-    GovernmentRequest, SystemComparisonRequest,
+    GovernmentRequest, SystemComparisonRequest, SwingometerRequest,
+    WastedVotesRequest, RepresentationGapRequest,
 )
 from app.models.result import (
     SimulationResponse,
@@ -33,6 +34,9 @@ from app.engine.voter_model import VoterModel
 from app.engine.poll_engine import PollEngine, swing_analysis
 from app.engine.calibration_engine import historical_calibration
 from app.engine.government_engine import GovernmentEngine
+from app.engine.analysis_engine import (
+    swingometer_analysis, wasted_votes_analysis, representation_gap_analysis,
+)
 
 router = APIRouter()
 data_loader = DataLoader()
@@ -525,3 +529,42 @@ def system_comparison(request: SystemComparisonRequest):
                 system_type=st, top_party="", top_seats=0, top_vote=0.0,
                 total_seats=0, classification=f"错误: {e}"))
     return SystemComparisonResponse(year=request.year, systems=rows)
+
+
+@router.post("/simulate/swingometer")
+def simulate_swingometer(request: SwingometerRequest):
+    """
+    统一摆动分析（Swingometer）：对目标党全国得票统一增减 ±max_swing pp，
+    绘制席位-选票曲线并识别翻转阈值/过半摆动点，展示多数制的放大效应。
+    """
+    if not request.parties:
+        return JSONResponse(status_code=400, content={"error": "至少需要一个参选政党"})
+    if not request.party_id:
+        return JSONResponse(status_code=400, content={"error": "请指定目标摆动政党"})
+    city_data = data_loader.get_city_data(request.year)
+    return swingometer_analysis(city_data, request.parties, request.config,
+                                request.party_id, request.max_swing, request.step)
+
+
+@router.post("/simulate/wasted-votes")
+def simulate_wasted_votes(request: WastedVotesRequest):
+    """
+    浪费票分析：多数制下投给非赢家的票 + 赢家盈余（超出次席部分），
+    逐党统计并对比 FPTP 与 PR 的浪费票规模。
+    """
+    if not request.parties:
+        return JSONResponse(status_code=400, content={"error": "至少需要一个参选政党"})
+    city_data = data_loader.get_city_data(request.year)
+    return wasted_votes_analysis(city_data, request.parties, request.config)
+
+
+@router.post("/simulate/representation-gap")
+def simulate_representation_gap(request: RepresentationGapRequest):
+    """
+    代表性缺口：各人口群体政策立场与执政党/中位选民的距离，
+    识别「谁最不被代表」。
+    """
+    if not request.parties:
+        return JSONResponse(status_code=400, content={"error": "至少需要一个参选政党"})
+    city_data = data_loader.get_city_data(request.year)
+    return representation_gap_analysis(city_data, request.parties, request.config)

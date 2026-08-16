@@ -511,6 +511,38 @@ class RealismFeatureTest(unittest.TestCase):
             if n.overlaps:
                 self.assertLessEqual(max(n.overlaps.values()), 1.0)
 
+    def test_swingometer(self):
+        """统一摆动分析：席位-选票曲线应随摆动单调变化，且含翻转阈值"""
+        from app.engine.analysis_engine import swingometer_analysis
+        r, cfg = self._run()
+        top = max(r.party_results, key=lambda p: p.seats)
+        res = swingometer_analysis(self.cd, self.parties, cfg, top.party_id)
+        self.assertEqual(len(res['points']), 25)  # -12..+12 步长1
+        seats = [p['seats'] for p in res['points']]
+        self.assertEqual(seats[0], res['points'][0]['seats'])
+        # 摆动越大席位应越多（单调不下降）
+        for i in range(1, len(seats)):
+            self.assertGreaterEqual(seats[i], seats[i - 1])
+        self.assertGreater(res['points'][-1]['seats'], res['base_seats'])
+
+    def test_wasted_votes(self):
+        """浪费票：多数制浪费率应显著高于比例制"""
+        from app.engine.analysis_engine import wasted_votes_analysis
+        _, cfg = self._run()
+        res = wasted_votes_analysis(self.cd, self.parties, cfg)
+        self.assertGreater(res['fptp']['total_wasted_share'], res['pr']['total_wasted_share'])
+        self.assertGreater(res['fptp']['total_wasted_share'], 0.5)  # 多数制多数票浪费
+
+    def test_representation_gap(self):
+        """代表性缺口：应有 8 个人口群体，且找出最不被代表者"""
+        from app.engine.analysis_engine import representation_gap_analysis
+        _, cfg = self._run()
+        res = representation_gap_analysis(self.cd, self.parties, cfg)
+        self.assertEqual(len(res['groups']), 8)
+        self.assertIsNotNone(res['most_underrepresented'])
+        for g in res['groups']:
+            self.assertGreaterEqual(g['distance_to_government'], 0.0)
+
 
 if __name__ == '__main__':
     unittest.main()

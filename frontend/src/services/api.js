@@ -117,3 +117,33 @@ export async function runSystemComparison(request) {
   if (!res.ok) throw new Error('System comparison failed');
   return res.json();
 }
+
+export async function runSwingometer(request) {
+  const res = await fetch(`${API_BASE}/simulate/swingometer`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  if (!res.ok) throw new Error('Swingometer failed');
+  return res.json();
+}
+
+export async function runWastedVotes(request) {
+  const res = await fetch(`${API_BASE}/simulate/wasted-votes`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  if (!res.ok) throw new Error('Wasted votes analysis failed');
+  return res.json();
+}
+
+export async function runRepresentationGap(request) {
+  const res = await fetch(`${API_BASE}/simulate/representation-gap`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  if (!res.ok) throw new Error('Representation gap analysis failed');
+  return res.json();
+}

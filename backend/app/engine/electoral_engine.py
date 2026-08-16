@@ -285,6 +285,31 @@ class ElectoralEngine:
             return {pid: v / total for pid, v in adjusted.items()}
         return shares
 
+    def _apply_uniform_swing(self, shares: dict) -> dict:
+        """统一摆动（uniform swing，选情学经典概念）：给目标党在全国各市
+        得票统一增减 swing_pp 个百分点，其余政党按比例缩放，保持总和为 1。
+
+        用于 Swingometer 席位-选票曲线分析：多数制下选票的小幅摆动会
+        被放大为席位的非线性变化（凸曲线），比例制下则近似直线。
+        """
+        pid = self.config.swing_party
+        d = self.config.swing_pp or 0.0
+        if not pid or d == 0 or pid not in shares:
+            return shares
+        target = max(0.0, shares[pid] + d / 100.0)
+        rest = sum(v for k, v in shares.items() if k != pid)
+        out = {k: v for k, v in shares.items()}
+        out[pid] = target
+        if rest > 0:
+            scale = (1.0 - target) / rest if rest > 0 else 0.0
+            for k in out:
+                if k != pid:
+                    out[k] = max(0.0, out[k] * scale)
+        total = sum(out.values())
+        if total <= 0:
+            return shares
+        return {pid: v / total for pid, v in out.items()}
+
     def _run_fptp(self) -> ElectionResult:
         city_results = []
         party_seats = {p.id: 0 for p in self.parties}
@@ -297,6 +322,8 @@ class ElectoralEngine:
             turnout = self.voter_model.get_city_turnout(city, self.config.urban_rural_weight)
             shares = self.voter_model.compute_vote_shares(city, self.parties, self.config.noise_amplitude)
             shares = self._adjust_shares_for_urban_rural(shares, city)
+            # 统一摆动：目标党全国得票统一增减（Swingometer）
+            shares = self._apply_uniform_swing(shares)
             # 策略性投票/弃保：弱势候选人支持者转投可赢政党
             shares = self._apply_tactical_voting(shares, city)
             # 竞争度调节投票率（abstention_sensitivity）
@@ -370,6 +397,8 @@ class ElectoralEngine:
         for city in self.city_data.cities:
             shares = self.voter_model.compute_vote_shares(city, self.parties, self.config.noise_amplitude)
             shares = self._adjust_shares_for_urban_rural(shares, city)
+            # 统一摆动：目标党全国得票统一增减（Swingometer）
+            shares = self._apply_uniform_swing(shares)
             # 两轮制首轮弃保压力弱于小选区制：转投者可等第二轮再表达，故阻尼 0.5
             shares = self._apply_tactical_voting(shares, city, intensity=0.5)
             turnout = self.voter_model.get_city_turnout(city, self.config.urban_rural_weight)
@@ -461,6 +490,8 @@ class ElectoralEngine:
         for city in self.city_data.cities:
             shares = self.voter_model.compute_vote_shares(city, self.parties, self.config.noise_amplitude)
             shares = self._adjust_shares_for_urban_rural(shares, city)
+            # 统一摆动：目标党全国得票统一增减（Swingometer）
+            shares = self._apply_uniform_swing(shares)
             base_turnout = self.voter_model.get_city_turnout(city, self.config.urban_rural_weight)
 
             eligible = self.voter_model.get_eligible_voter_ratio(city)
@@ -868,6 +899,8 @@ class ElectoralEngine:
             shares = self._adjust_shares_for_urban_rural(shares, city)
             # 名单席位/比例代表反映"真实偏好"；选区席赢者通吃才受弃保影响
             honest = dict(shares)
+            # 统一摆动：影响选区席（Swingometer）
+            shares = self._apply_uniform_swing(shares)
             shares = self._apply_tactical_voting(shares, city)
             eligible = self.voter_model.get_eligible_voter_ratio(city)
             city_votes = city.population * eligible * turnout

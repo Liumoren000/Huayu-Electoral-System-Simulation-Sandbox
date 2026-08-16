@@ -236,6 +236,36 @@ export function generateReport(displayResult, resultA, resultB, activeScheme, co
     sections.push({ title: '政党生态位', items: nicheItems });
   }
 
+  // 3.6 浪费票（仅多数制有意义：FPTP/混合制选区席）
+  const sys = res.system_type || '';
+  if (sys === 'FPTP' || sys === 'RUNOFF' || sys === 'MMP' || sys === 'PARALLEL') {
+    const wasteItems = [];
+    const wastedBy = {};  // party_id -> 浪费份额
+    let totalWasted = 0;
+    (res.city_results || []).forEach(cr => {
+      const vs = cr.vote_shares || {};
+      const ranked = Object.entries(vs).sort((a, b) => b[1] - a[1]);
+      if (!ranked.length) return;
+      const [wid, top] = ranked[0];
+      const runnerUp = ranked[1]?.[1] ?? 0;
+      const surplus = Math.max(0, top - runnerUp);
+      Object.entries(vs).forEach(([pid, share]) => {
+        const waste = pid === wid ? surplus : share;
+        wastedBy[pid] = (wastedBy[pid] || 0) + waste;
+        totalWasted += waste;
+      });
+    });
+    const nCities = Math.max(1, res.city_results?.length || 1);
+    const wastedRate = totalWasted / nCities;
+    if (wastedRate > 0.3) {
+      const worst = Object.entries(wastedBy).sort((a, b) => b[1] - a[1])[0];
+      const worstName = (res.party_results || []).find(p => p.party_id === worst[0])?.party_name || worst[0];
+      wasteItems.push(`浪费票：该制度下 ${(wastedRate * 100).toFixed(0)}% 的选票未能转化为议席（投给失败者或超过次席的盈余），${worstName} 承担其中最大份额——这是多数制代表效能的固有代价。`);
+      if (wastedRate > 0.5) wasteItems.push(`浪费率超过五成，说明过半选民投给了落选者；比例代表制可将这一比例压至个位数。`);
+    }
+    if (wasteItems.length) sections.push({ title: '浪费票', items: wasteItems });
+  }
+
   // 4. 区域/民族版图
   const regionItems = [];
   const provResults = res.province_results || [];
