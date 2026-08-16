@@ -6,6 +6,23 @@ import math
 from app.engine import ElectoralEngine
 
 
+def _seat_structure_similarity(prev: dict, curr: dict) -> float:
+    """相邻年代席位结构相似度：席位份额向量的余弦相似度（1=完全一致）。"""
+    keys = set(prev) | set(curr)
+
+    def norm(d):
+        tot = sum(d.get(k, 0) for k in keys)
+        return {k: d.get(k, 0) / tot for k in keys} if tot > 0 else {k: 0.0 for k in keys}
+
+    a, b = norm(prev), norm(curr)
+    dot = sum(a[k] * b[k] for k in keys)
+    na = math.sqrt(sum(v * v for v in a.values()))
+    nb = math.sqrt(sum(v * v for v in b.values()))
+    if na <= 0 or nb <= 0:
+        return 0.0
+    return dot / (na * nb)
+
+
 def swingometer_analysis(city_data, parties, config, party_id: str,
                          max_swing: float = 12.0, step: float = 1.0):
     """统一摆动分析：对目标党全国得票统一增减 ±max_swing pp，绘制席位-选票曲线。
@@ -248,4 +265,258 @@ def representation_gap_analysis(city_data, parties, config):
         "median_social": round(median_soc, 3),
         "groups": groups,
         "most_underrepresented": worst,
+    }
+
+
+def party_space_competition(city_data, parties, config, party_id: str,
+                            axis: str = "economic", step: float = 0.25):
+    """政党空间竞争模拟（Downsian 空间竞争博弈）。
+
+    经典空间竞争理论：政党为赢得选票移动意识形态立场。对目标党沿指定轴
+    扫描立场 -1..1，每次重跑选举记录得票/席位/首党归属，绘制「立场→
+    选举回报」响应曲线，展示中间选民定理的博弈含义。
+    """
+    from app.models.party import Party
+    axis_attr = {
+        "economic": "economic_position",
+        "social": "social_position",
+        "regional": "regional_position",
+        "welfare": "welfare_position",
+        "environment": "environment_position",
+        "nationalism": "nationalism_position",
+        "urban_rural": "urban_rural_position",
+    }.get(axis, "economic_position")
+
+    base_engine = ElectoralEngine(city_data, parties, config, seed=42)
+    base = base_engine.run()
+    base_result = next(p for p in base.party_results if p.party_id == party_id)
+    positions = [round(x, 2) for x in
+                 [i * step for i in range(-4, 5)]]
+    # 去重 + 保证覆盖 -1..1
+    if positions[0] != -1.0:
+        positions.insert(0, -1.0)
+    if positions[-1] != 1.0:
+        positions.append(1.0)
+    positions = sorted(set(positions))
+
+    points = []
+    for pos in positions:
+        moved = []
+        for p in parties:
+            if p.id == party_id:
+                data = p.model_dump()
+                data[axis_attr] = pos
+                moved.append(Party(**data))
+            else:
+                moved.append(p)
+        r = ElectoralEngine(city_data, moved, config, seed=42).run()
+        target = next((x for x in r.party_results if x.party_id == party_id), None)
+        top = max(r.party_results, key=lambda p: p.seats)
+        points.append({
+            "position": pos,
+            "vote_share": round(target.vote_share, 4) if target else 0.0,
+            "seats": target.seats if target else 0,
+            "top_party_id": top.party_id,
+            "top_party_name": top.party_name,
+            "majority": any(p.seats > r.total_seats / 2 for p in r.party_results),
+        })
+
+    best = max(points, key=lambda x: x["seats"])
+    return {
+        "party_id": party_id,
+        "axis": axis,
+        "base_position": getattr(base_result, axis_attr, 0.0),
+        "base_seats": base_result.seats,
+        "base_vote_share": round(base_result.vote_share, 4),
+        "points": points,
+        "optimal_position": best["position"],
+        "optimal_seats": best["seats"],
+    }
+
+
+ISSUE_DIMENSIONS = [
+    ("economic", "经济", "国家干预↔市场自由", "economic_position"),
+    ("social", "社会", "传统集体↔现代个人", "social_position"),
+    ("regional", "区域", "本土内陆↔国际化沿海", "regional_position"),
+    ("welfare", "福利", "低福利↔高福利再分配", "welfare_position"),
+    ("environment", "环境", "发展优先↔环保优先", "environment_position"),
+    ("nationalism", "民族", "国际主义↔民族主义", "nationalism_position"),
+    ("urban_rural", "城乡", "农村利益↔城市利益", "urban_rural_position"),
+]
+
+
+def issue_ownership(city_data, parties, config):
+    """议题所有权（Issue Ownership）：各党在 7 个政策维度上谁最受选民信任。
+
+    对每个城市，用该维度距中位选民的亲和度判断该党是否"拥有"此议题；
+    聚合全国后得到每个党在每个维度的所有权强度（该维度上亲和度最高、
+    且与对手拉开差距的程度），识别各党议题招牌与空白领域。
+    """
+    from app.engine.voter_model import VoterModel
+    from app.models.party import Party
+
+    vm = VoterModel(seed=42, turnout_shift=config.turnout_shift,
+                    dim_tilt=config.dim_tilt or {},
+                    party_effects=config.party_effects or {},
+                    voter_stratification=config.voter_stratification,
+                    calibration=config.calibration,
+                    affinity_power=config.affinity_power)
+
+    # 每党每维度的所有权得分：城市加权的"该维度亲和度超均值幅度"
+    dim_means = {d[0]: 0.0 for d in ISSUE_DIMENSIONS}
+    counts = {d[0]: 0 for d in ISSUE_DIMENSIONS}
+    for city in city_data.cities:
+        dims = vm.get_city_dimensions(city)
+        for dk, _l, _d, attr in ISSUE_DIMENSIONS:
+            dim_means[dk] += dims.get(dk, 0.0)
+            counts[dk] += 1
+    for dk in dim_means:
+        dim_means[dk] = dim_means[dk] / max(1, counts[dk])
+
+    # 各党在各维度的"覆盖 + 极端度"（城市加权）
+    ownership = {p.id: {dk: 0.0 for dk, *_ in ISSUE_DIMENSIONS} for p in parties}
+    city_weights = 0.0
+    for city in city_data.cities:
+        w = float(city.population)
+        city_weights += w
+        dims = vm.get_city_dimensions(city)
+        # 每维度：立场最接近该维度城市中位的党 = 该维度领跑者
+        for dk, _l, _d, attr in ISSUE_DIMENSIONS:
+            city_pos = dims.get(dk, 0.0)
+            # 该党在此维度与该城市偏好的一致性（距离的反向）
+            for p in parties:
+                ppos = getattr(p, attr, 0.0)
+                match = 1.0 - abs(ppos - city_pos)
+                ownership[p.id][dk] += match * w
+    for p in parties:
+        for dk, *_ in ISSUE_DIMENSIONS:
+            ownership[p.id][dk] = round(ownership[p.id][dk] / max(1.0, city_weights), 4)
+
+    # 每个维度领跑者（所有权最高）与亚军差距
+    dims_result = []
+    for dk, label, desc, attr in ISSUE_DIMENSIONS:
+        ranked = sorted(parties, key=lambda p: -ownership[p.id][dk])
+        top, second = ranked[0], ranked[1]
+        margin = round(ownership[top.id][dk] - ownership[second.id][dk], 4)
+        dims_result.append({
+            "dimension": dk,
+            "label": label,
+            "description": desc,
+            "owner_party_id": top.id,
+            "owner_party_name": top.name,
+            "owner_color": top.color,
+            "owner_score": ownership[top.id][dk],
+            "runner_up_party_id": second.id,
+            "runner_up_party_name": second.name,
+            "margin": margin,
+            "party_scores": {p.id: ownership[p.id][dk] for p in parties},
+        })
+
+    # 各党专属议题（唯一领跑）与空白（无领跑）
+    owned = {p.id: [] for p in parties}
+    for d in dims_result:
+        owned[d["owner_party_id"]].append(d["label"])
+    party_summary = []
+    for p in parties:
+        party_summary.append({
+            "party_id": p.id,
+            "party_name": p.name,
+            "color": p.color,
+            "owned_issues": owned[p.id],
+            "owned_count": len(owned[p.id]),
+        })
+    party_summary.sort(key=lambda x: -x["owned_count"])
+    return {
+        "dimensions": dims_result,
+        "parties": party_summary,
+        "note": "议题所有权 = 政党在特定政策领域被选民视为最可信赖、最有能力处理的一方（Stokes 议题所有权理论）",
+    }
+
+
+def district_magnitude_effect(city_data, parties, config):
+    """选区规模效应：扫描每选区议席数（magnitude），观察政党碎片化/首党变化。
+
+    Duverger 定律的选区层面推论：选区议席规模越大（多议席制），政党碎片化
+    越严重（有效政党数上升）、首党份额下降——小党派凭低门槛进入议会。
+    """
+    base_mag = config.district_magnitude or 1
+    mags = [1, 2, 3, 5, 7]
+    if base_mag not in mags:
+        mags.append(base_mag)
+    mags = sorted(mags)
+    results = []
+    for mag in mags:
+        cfg = config.model_copy(update={"system_type": "STV", "district_magnitude": mag})
+        try:
+            r = ElectoralEngine(city_data, parties, cfg, seed=42).run()
+            top = max(r.party_results, key=lambda p: p.seats)
+            results.append({
+                "magnitude": mag,
+                "effective_parties_vote": round(r.effective_parties_vote, 2),
+                "effective_parties_seats": round(r.effective_parties_seats, 2),
+                "top_party_id": top.party_id,
+                "top_party_name": top.party_name,
+                "top_seats": top.seats,
+                "top_vote": round(top.vote_share, 4),
+                "gallagher": round(r.gallagher_index, 4),
+            })
+        except Exception as e:
+            results.append({"magnitude": mag, "error": str(e)})
+    return {"results": results}
+
+
+def party_system_freeze(city_data, parties, config):
+    """政党体系冻结度（Lipset-Rokkan 冻结假说）：跨年代席位结构稳定性。
+
+    用 1949-2024 的研究年代库沿时间轴运行相同配置，比较各党席位的
+    跨年代相关系数/波动，判断体系是"冻结"（党派结构稳定）还是
+    "松动"（结构性重组）。
+    """
+    from app.engine.eras import ERA_LIBRARY
+    from app.engine import DataLoader
+
+    dl = DataLoader()
+    years = [e["year"] for e in ERA_LIBRARY]
+    era_runs = []
+    prev_seats = None
+    transitions = []
+    for year in years:
+        data = dl.get_city_data(year)
+        r = ElectoralEngine(data, parties, config, seed=42).run()
+        seat_map = {p.party_id: p.seats for p in r.party_results}
+        vote_map = {p.party_id: p.vote_share for p in r.party_results}
+        top = max(r.party_results, key=lambda p: p.seats)
+        era_info = next((e for e in ERA_LIBRARY if e["year"] == year), {})
+        era_runs.append({
+            "year": year,
+            "era_label": era_info.get("name", str(year)),
+            "party_seats": seat_map,
+            "party_votes": vote_map,
+            "top_party_id": top.party_id,
+            "top_party_name": top.party_name,
+            "gallagher": round(r.gallagher_index, 4),
+            "effective_parties_seats": round(r.effective_parties_seats, 2),
+        })
+        if prev_seats is not None:
+            # 相邻年代席位份额向量的余弦相似度（结构相似度，1 = 完全冻结）
+            sim = _seat_structure_similarity(prev_seats, seat_map)
+            transitions.append(round(sim, 3))
+        prev_seats = seat_map
+
+    # 冻结度 = 相邻年代席位结构相似度的均值（1 = 完全冻结）
+    freeze_index = round(sum(transitions) / len(transitions), 3) if transitions else 0.0
+    # 第一大党保持率
+    top_unchanged = sum(1 for i in range(1, len(era_runs))
+                        if era_runs[i]["top_party_id"] == era_runs[i - 1]["top_party_id"])
+    top_retention = round(top_unchanged / max(1, len(era_runs) - 1), 3)
+
+    first = era_runs[0] if era_runs else None
+    last = era_runs[-1] if era_runs else None
+    return {
+        "runs": era_runs,
+        "freeze_index": freeze_index,
+        "top_party_retention": top_retention,
+        "first_year": first,
+        "last_year": last,
+        "note": f"冻结度 {freeze_index}（1=政党格局完全冻结）· 首党保持率 {top_retention}（Lipset-Rokkan 冻结假说）",
     }

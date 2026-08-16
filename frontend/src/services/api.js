@@ -147,3 +147,43 @@ export async function runRepresentationGap(request) {
   if (!res.ok) throw new Error('Representation gap analysis failed');
   return res.json();
 }
+
+export async function runPartySpace(request) {
+  const res = await fetch(`${API_BASE}/simulate/party-space`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  if (!res.ok) throw new Error('Party space competition failed');
+  return res.json();
+}
+
+export async function runIssueOwnership(request) {
+  const res = await fetch(`${API_BASE}/simulate/issue-ownership`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  if (!res.ok) throw new Error('Issue ownership analysis failed');
+  return res.json();
+}
+
+export async function runDistrictMagnitude(request) {
+  const res = await fetch(`${API_BASE}/simulate/district-magnitude`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  if (!res.ok) throw new Error('District magnitude analysis failed');
+  return res.json();
+}
+
+export async function runPartyFreeze(request) {
+  const res = await fetch(`${API_BASE}/simulate/party-freeze`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  if (!res.ok) throw new Error('Party system freeze analysis failed');
+  return res.json();
+}

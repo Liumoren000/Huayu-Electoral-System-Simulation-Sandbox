@@ -8,6 +8,7 @@ from app.models.config import (
     VoterStructureRequest, PollRequest, SwingAnalysisRequest, CalibrationRequest,
     GovernmentRequest, SystemComparisonRequest, SwingometerRequest,
     WastedVotesRequest, RepresentationGapRequest,
+    PartySpaceRequest, IssueOwnershipRequest, DistrictMagnitudeRequest, FreezeRequest,
 )
 from app.models.result import (
     SimulationResponse,
@@ -36,6 +37,8 @@ from app.engine.calibration_engine import historical_calibration
 from app.engine.government_engine import GovernmentEngine
 from app.engine.analysis_engine import (
     swingometer_analysis, wasted_votes_analysis, representation_gap_analysis,
+    party_space_competition, issue_ownership, district_magnitude_effect,
+    party_system_freeze,
 )
 
 router = APIRouter()
@@ -568,3 +571,54 @@ def simulate_representation_gap(request: RepresentationGapRequest):
         return JSONResponse(status_code=400, content={"error": "至少需要一个参选政党"})
     city_data = data_loader.get_city_data(request.year)
     return representation_gap_analysis(city_data, request.parties, request.config)
+
+
+@router.post("/simulate/party-space")
+def simulate_party_space(request: PartySpaceRequest):
+    """
+    政党空间竞争模拟（Downsian）：移动目标党意识形态立场沿某轴扫描，
+    绘制「立场→得票/席位」响应曲线，展示中间选民定理的博弈含义。
+    """
+    if not request.parties:
+        return JSONResponse(status_code=400, content={"error": "至少需要一个参选政党"})
+    if not request.party_id:
+        return JSONResponse(status_code=400, content={"error": "请指定目标政党"})
+    city_data = data_loader.get_city_data(request.year)
+    return party_space_competition(city_data, request.parties, request.config,
+                                   request.party_id, request.axis, request.step)
+
+
+@router.post("/simulate/issue-ownership")
+def simulate_issue_ownership(request: IssueOwnershipRequest):
+    """
+    议题所有权（Issue Ownership）：各党在 7 个政策维度上谁最受选民信任，
+    识别各党议题招牌与空白领域。
+    """
+    if not request.parties:
+        return JSONResponse(status_code=400, content={"error": "至少需要一个参选政党"})
+    city_data = data_loader.get_city_data(request.year)
+    return issue_ownership(city_data, request.parties, request.config)
+
+
+@router.post("/simulate/district-magnitude")
+def simulate_district_magnitude(request: DistrictMagnitudeRequest):
+    """
+    选区规模效应：扫描每选区议席数（magnitude），观察政党碎片化/首党变化，
+    验证 Duverger 定律的选区层面推论。
+    """
+    if not request.parties:
+        return JSONResponse(status_code=400, content={"error": "至少需要一个参选政党"})
+    city_data = data_loader.get_city_data(request.year)
+    return district_magnitude_effect(city_data, request.parties, request.config)
+
+
+@router.post("/simulate/party-freeze")
+def simulate_party_freeze(request: FreezeRequest):
+    """
+    政党体系冻结度（Lipset-Rokkan）：跨 1949-2024 年代席位结构稳定性，
+    判断政党格局是「冻结」还是「松动」。
+    """
+    if not request.parties:
+        return JSONResponse(status_code=400, content={"error": "至少需要一个参选政党"})
+    city_data = data_loader.get_city_data(request.year)
+    return party_system_freeze(city_data, request.parties, request.config)

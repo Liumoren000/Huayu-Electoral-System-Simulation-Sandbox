@@ -750,6 +750,7 @@ class ElectoralEngine:
 
     def _run_stv(self) -> ElectionResult:
         total = self.config.total_seats
+        mag = max(1, self.config.district_magnitude)
 
         prov_cities = {}
         for c in self.city_data.cities:
@@ -765,21 +766,28 @@ class ElectoralEngine:
         province_party_seats = {}
 
         for prov, cities in prov_cities.items():
-            ballots = []
-            first_prefs = {p.id: 0 for p in self.parties}
-            for c in cities:
-                rankings = self.voter_model.sample_voter_rankings(c, self.parties, n=self.config.voter_samples, noise_amplitude=self.config.noise_amplitude)
-                ballots.extend(rankings)
-                for ranking in rankings:
-                    if ranking:
-                        first_prefs[ranking[0]] += 1
-                # 城市显示胜者 = 首偏好最高者
-                city_winners[c.id] = max(first_prefs, key=first_prefs.get)
-            seats_n = max(1, prov_seats_map.get(prov, 1))
-            prov_seats = self._stv_province(ballots, seats_n)
-            province_party_seats[prov] = prov_seats
-            for pid, n in prov_seats.items():
-                party_seats[pid] = party_seats.get(pid, 0) + n
+            prov_seats_n = max(1, prov_seats_map.get(prov, 1))
+            # 按 magnitude 把省内城市聚合成多个多议席选区
+            districts = self._group_cities_into_districts(cities, prov_seats_n, mag)
+            prov_winners = {}
+            for group, seats_n in districts:
+                ballots = []
+                first_prefs = {p.id: 0 for p in self.parties}
+                for c in group:
+                    rankings = self.voter_model.sample_voter_rankings(
+                        c, self.parties, n=self.config.voter_samples,
+                        noise_amplitude=self.config.noise_amplitude)
+                    ballots.extend(rankings)
+                    for ranking in rankings:
+                        if ranking:
+                            first_prefs[ranking[0]] += 1
+                    city_winners[c.id] = max(first_prefs, key=first_prefs.get)
+                    prov_winners[c.id] = max(first_prefs, key=first_prefs.get)
+                prov_seats = self._stv_province(ballots, seats_n)
+                for pid, n in prov_seats.items():
+                    province_party_seats[prov] = province_party_seats.get(prov, {})
+                    province_party_seats[prov][pid] = province_party_seats[prov].get(pid, 0) + n
+                    party_seats[pid] = party_seats.get(pid, 0) + n
 
         city_party_seats = {
             cid: {city_winners.get(cid, self.parties[0].id): n}
@@ -823,6 +831,51 @@ class ElectoralEngine:
         return self._build_result(city_results, party_results, 0,
                                   city_party_seats=city_party_seats,
                                   province_party_seats=province_party_seats)
+
+    def _group_cities_into_districts(self, cities: list, prov_seats: int, mag: int) -> list:
+        """把省内城市按人口聚合成多议席选区（每选区 mag 席）。
+
+        贪心：累加城市人口直到累计席位达到 mag，切成一个选区。
+        剩余城市并入最后一个选区，保证席位数总和 = prov_seats。
+        返回 [(cities 子列表, seats_n), ...]
+        """
+        n = len(cities)
+        if n <= 0:
+            return []
+        if prov_seats <= mag or n <= 1:
+            return [(cities, prov_seats)]
+        # 拆成 n_full 个 mag 席选区 + 1 个余数选区（余数为 0 则无尾区）
+        n_full, rem = divmod(prov_seats, mag)
+        seat_per_district = [mag] * n_full
+        if rem > 0:
+            seat_per_district.append(rem)
+        n_districts = len(seat_per_district)
+        # 按人口把城市分进 n_districts 个连续组
+        total_pop = sum(c.population for c in cities)
+        groups = []
+        idx = 0
+        for d in range(n_districts):
+            target = (d + 1) * total_pop / n_districts
+            acc = 0
+            group = []
+            while idx < n and acc + cities[idx].population <= target + 1:
+                group.append(cities[idx])
+                acc += cities[idx].population
+                idx += 1
+            if not group:
+                if idx < n:
+                    group.append(cities[idx])
+                    idx += 1
+            groups.append(group)
+        # 剩余城市并入最后一组
+        if idx < n:
+            groups[-1].extend(cities[idx:])
+        result = [(g, seat_per_district[d]) for d, g in enumerate(groups) if g]
+        # 兜底：若分组结果为空或席位数不足，退回单一选区
+        total_seats_assigned = sum(s for _, s in result)
+        if total_seats_assigned != prov_seats or not result:
+            return [(cities, prov_seats)]
+        return result
 
     def _stv_province(self, ballots: list[list[str]], seats: int) -> dict[str, int]:
         """

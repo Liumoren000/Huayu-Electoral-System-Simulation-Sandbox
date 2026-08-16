@@ -543,6 +543,60 @@ class RealismFeatureTest(unittest.TestCase):
         for g in res['groups']:
             self.assertGreaterEqual(g['distance_to_government'], 0.0)
 
+    def test_party_space_competition(self):
+        """政党空间竞争：立场扫描应覆盖 -1..1，且存在最优回报点"""
+        from app.engine.analysis_engine import party_space_competition
+        r, cfg = self._run()
+        top = max(r.party_results, key=lambda p: p.seats)
+        res = party_space_competition(self.cd, self.parties, cfg, top.party_id, 'economic')
+        positions = [p['position'] for p in res['points']]
+        self.assertEqual(positions[0], -1.0)
+        self.assertEqual(positions[-1], 1.0)
+        self.assertGreater(len(res['points']), 5)
+        self.assertIn('optimal_seats', res)
+        # 极端右移应使左翼政党得票显著下降
+        right = res['points'][-1]
+        self.assertLess(right['vote_share'], res['base_vote_share'])
+
+    def test_issue_ownership(self):
+        """议题所有权：7 个维度各有领跑者，且各党议题数合计 = 维度数"""
+        from app.engine.analysis_engine import issue_ownership
+        _, cfg = self._run()
+        res = issue_ownership(self.cd, self.parties, cfg)
+        self.assertEqual(len(res['dimensions']), 7)
+        for d in res['dimensions']:
+            self.assertIn('owner_party_id', d)
+            self.assertGreater(d['margin'], -1.0)
+        total_owned = sum(p['owned_count'] for p in res['parties'])
+        self.assertEqual(total_owned, 7)  # 每维度恰好一个领跑者
+
+    def test_district_magnitude(self):
+        """选区规模：STV 下 mag 增大应增加有效政党数/降低首党份额"""
+        from app.engine.analysis_engine import district_magnitude_effect
+        _, cfg = self._run()
+        res = district_magnitude_effect(self.cd, self.parties, cfg)
+        self.assertEqual(len(res['results']), 5)
+        mags = [r['magnitude'] for r in res['results']]
+        self.assertEqual(mags, [1, 2, 3, 5, 7])
+        for r in res['results']:
+            self.assertGreaterEqual(r['effective_parties_seats'], 1.0)
+        # 规模增大 → 首党席位总体下降
+        first_seats = [r['top_seats'] for r in res['results']]
+        self.assertGreaterEqual(first_seats[0], first_seats[-1])
+
+    def test_party_system_freeze(self):
+        """政党体系冻结度：应遍历全部年代，返回冻结度与首党保持率"""
+        from app.engine.analysis_engine import party_system_freeze
+        _, cfg = self._run()
+        res = party_system_freeze(self.cd, self.parties, cfg)
+        self.assertGreaterEqual(len(res['runs']), 5)
+        self.assertGreaterEqual(res['freeze_index'], 0.0)
+        self.assertLessEqual(res['freeze_index'], 1.0)
+        self.assertIn('top_party_retention', res)
+        for run in res['runs']:
+            self.assertIn('party_seats', run)
+            self.assertGreaterEqual(sum(run['party_seats'].values()), run['party_seats'].get(list(run['party_seats'])[0], 0))
+
 
 if __name__ == '__main__':
     unittest.main()

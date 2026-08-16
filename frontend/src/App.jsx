@@ -29,6 +29,10 @@ import NicheModal from './components/NicheModal.jsx';
 import SwingometerModal from './components/SwingometerModal.jsx';
 import WastedVotesModal from './components/WastedVotesModal.jsx';
 import RepGapModal from './components/RepGapModal.jsx';
+import PartySpaceModal from './components/PartySpaceModal.jsx';
+import IssueOwnershipModal from './components/IssueOwnershipModal.jsx';
+import DistrictMagnitudeModal from './components/DistrictMagnitudeModal.jsx';
+import PartyFreezeModal from './components/PartyFreezeModal.jsx';
 import EraModal from './components/EraModal.jsx';
 import GovernmentModal from './components/GovernmentModal.jsx';
 import { fetchParties, fetchCities, fetchEras, runSimulation, runRobustness } from './services/api.js';
@@ -178,6 +182,10 @@ export default function App() {
   const [showSwingometer, setShowSwingometer] = useState(false);
   const [showWastedVotes, setShowWastedVotes] = useState(false);
   const [showRepGap, setShowRepGap] = useState(false);
+  const [showPartySpace, setShowPartySpace] = useState(false);
+  const [showIssueOwnership, setShowIssueOwnership] = useState(false);
+  const [showDistrictMagnitude, setShowDistrictMagnitude] = useState(false);
+  const [showPartyFreeze, setShowPartyFreeze] = useState(false);
   const [snapshots, setSnapshots] = useState([]);  // { id, label, result }
   const [eras, setEras] = useState([]);
   const [showEra, setShowEra] = useState(false);
@@ -896,6 +904,10 @@ body: JSON.stringify({
                     <button onClick={() => { setShowSwingometer(true); setShowTools(false); }}>统一摆动分析</button>
                     <button onClick={() => { setShowWastedVotes(true); setShowTools(false); }}>浪费票分析</button>
                     <button onClick={() => { setShowRepGap(true); setShowTools(false); }}>代表性缺口</button>
+                    <button onClick={() => { setShowPartySpace(true); setShowTools(false); }}>政党空间竞争</button>
+                    <button onClick={() => { setShowIssueOwnership(true); setShowTools(false); }}>议题所有权</button>
+                    <button onClick={() => { setShowDistrictMagnitude(true); setShowTools(false); }}>选区规模效应</button>
+                    <button onClick={() => { setShowPartyFreeze(true); setShowTools(false); }}>政党体系冻结度</button>
                     <button onClick={() => { setShowSnap(true); setShowTools(false); }}>多快照对比</button>
                   </div>
                 )}
@@ -1292,6 +1304,42 @@ body: JSON.stringify({
           parties={parties}
           year={year}
           onClose={() => setShowRepGap(false)}
+        />
+      )}
+
+      {showPartySpace && (
+        <PartySpaceModal
+          config={effectiveConfig}
+          parties={parties}
+          year={year}
+          onClose={() => setShowPartySpace(false)}
+        />
+      )}
+
+      {showIssueOwnership && (
+        <IssueOwnershipModal
+          config={effectiveConfig}
+          parties={parties}
+          year={year}
+          onClose={() => setShowIssueOwnership(false)}
+        />
+      )}
+
+      {showDistrictMagnitude && (
+        <DistrictMagnitudeModal
+          config={effectiveConfig}
+          parties={parties}
+          year={year}
+          onClose={() => setShowDistrictMagnitude(false)}
+        />
+      )}
+
+      {showPartyFreeze && (
+        <PartyFreezeModal
+          config={effectiveConfig}
+          parties={parties}
+          year={year}
+          onClose={() => setShowPartyFreeze(false)}
         />
       )}
     </div>

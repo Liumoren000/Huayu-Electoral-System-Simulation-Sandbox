@@ -266,6 +266,18 @@ export function generateReport(displayResult, resultA, resultB, activeScheme, co
     if (wasteItems.length) sections.push({ title: '浪费票', items: wasteItems });
   }
 
+  // 3.7 政党空间竞争（Downsian）观察：意识形态阵营分布
+  if (res.party_results && res.party_results.length > 1) {
+    const econ = res.party_results.map(p => ({ n: p.party_name, x: p.economic_position ?? 0, s: p.seats }));
+    const eLeft = econ.filter(p => p.x < 0).reduce((a, p) => a + p.s, 0);
+    const eRight = econ.filter(p => p.x > 0).reduce((a, p) => a + p.s, 0);
+    const spaceItems = [];
+    spaceItems.push(`经济谱系分布：左翼（经济干预）政党合计 ${eLeft} 席，右翼（市场自由）政党合计 ${eRight} 席，中间派席位 ${total - eLeft - eRight} 席——选民政党空间竞争的均衡位置反映当前制度对中间派聚合的激励。`);
+    const mostExtreme = [...econ].sort((a, b) => Math.abs(b.x) - Math.abs(a.x))[0];
+    if (mostExtreme) spaceItems.push(`最极化政党为「${mostExtreme.n}」（经济立场 ${mostExtreme.x > 0 ? '+' : ''}${mostExtreme.x}），仅获 ${mostExtreme.s} 席——极端立场政党在多数制下的空间惩罚明显。`);
+    sections.push({ title: '政党空间竞争', items: spaceItems });
+  }
+
   // 4. 区域/民族版图
   const regionItems = [];
   const provResults = res.province_results || [];
