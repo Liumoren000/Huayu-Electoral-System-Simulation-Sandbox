@@ -187,3 +187,13 @@ export async function runPartyFreeze(request) {
   if (!res.ok) throw new Error('Party system freeze analysis failed');
   return res.json();
 }
+
+export async function explainCityVote(request) {
+  const res = await fetch(`${API_BASE}/simulate/city-explain`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  if (!res.ok) throw new Error('City vote explanation failed');
+  return res.json();
+}

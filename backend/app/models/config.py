@@ -159,3 +159,10 @@ class FreezeRequest(BaseModel):
     year: int = Field(default=2023, ge=1949, le=2024)
     config: ElectoralConfig
     parties: list[Party]
+
+
+class CityExplainRequest(BaseModel):
+    year: int = Field(default=2023, ge=1949, le=2024)
+    city_id: str = ""
+    config: ElectoralConfig
+    parties: list[Party]

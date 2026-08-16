@@ -1,18 +1,50 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { explainCityVote } from '../services/api.js';
 
-export default function ProvinceDetail({ province, result, cities, onClose, manualSeats }) {
+export default function ProvinceDetail({ province, result, cities, onClose, manualSeats, config, parties, year }) {
+  const [explanation, setExplanation] = useState(null);
+  const [expLoading, setExpLoading] = useState(false);
+  const [expError, setExpError] = useState('');
+
+  const cityNameMap = {};
+  if (cities?.cities) {
+    cities.cities.forEach(c => {
+      cityNameMap[c.name] = c;
+    });
+  }
+  const isCityView = !!cityNameMap[province];
+
+  useEffect(() => {
+    setExplanation(null);
+    setExpError('');
+    if (!isCityView || !parties?.length || !config) return;
+    let cancelled = false;
+    setExpLoading(true);
+    (async () => {
+      try {
+        const cityId = cityNameMap[province]?.id;
+        if (!cityId) return;
+        const res = await explainCityVote({ year, config, parties, city_id: cityId });
+        if (!cancelled) setExplanation(res);
+      } catch (e) {
+        if (!cancelled) setExpError(e.message);
+      } finally {
+        if (!cancelled) setExpLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+    /* eslint-disable-next-line react-hooks/exhaustive-deps */
+  }, [province, isCityView]);
+
   if (!province || !result) return null;
 
   const cityProvinceMap = {};
-  const cityNameMap = {};
   if (cities?.cities) {
     cities.cities.forEach(c => {
       cityProvinceMap[c.id] = c.province;
       cityNameMap[c.name] = c;
     });
   }
-
-  const isCityView = !!cityNameMap[province];
 
   let provinceCities;
   if (isCityView) {
@@ -74,6 +106,73 @@ export default function ProvinceDetail({ province, result, cities, onClose, manu
       </div>
 
       <div className="province-detail-body">
+        {isCityView && (
+          <div className="city-explain-block">
+            <div className="province-seats-title">为什么这座城市这样投票</div>
+            {expLoading && <div style={{ fontSize: 12, color: 'var(--accent-blue)' }}>解读生成中...</div>}
+            {expError && <div style={{ fontSize: 12, color: 'var(--accent-orange)' }}>{expError}</div>}
+            {explanation && !explanation.error && (
+              <>
+                <div className="city-explain-narrative">
+                  {explanation.narrative.map((line, i) => (
+                    <p key={i} style={{ margin: '4px 0', lineHeight: 1.6 }}>{line}</p>
+                  ))}
+                </div>
+
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', margin: '6px 0' }}>
+                  {explanation.structure.map(s => (
+                    <span key={s.label} className="city-struct-chip">
+                      {s.label}
+                      {s.value ? <b> {s.value}</b> : null}
+                      <span className="city-struct-note">{s.note}</span>
+                    </span>
+                  ))}
+                </div>
+
+                <div className="city-explain-dims">
+                  {explanation.key_dims.map(k => (
+                    <div key={k.dimension} className="city-explain-dim">
+                      <span className="city-explain-dim-label">{k.label}</span>
+                      <span className="city-explain-dim-pole">偏向「{k.pole}」</span>
+                      <span className="city-explain-dim-dev">
+                        {k.deviation > 0 ? '+' : ''}{k.deviation.toFixed(2)} vs 全国
+                      </span>
+                    </div>
+                  ))}
+                </div>
+
+                <table className="province-city-table" style={{ marginTop: 8 }}>
+                  <thead>
+                    <tr>
+                      <th>政党</th>
+                      <th style={{ textAlign: 'right' }}>得票</th>
+                      <th style={{ textAlign: 'right' }}>亲和度</th>
+                      <th>强势维度</th>
+                      <th>弱势维度</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {explanation.parties.map(p => (
+                      <tr key={p.party_id} className={p.is_winner ? 'city-explain-winner' : ''}>
+                        <td>
+                          <span className="city-winner-dot" style={{ background: p.color }} />
+                          {p.party_name}
+                          {p.is_winner && <span style={{ fontSize: 10, color: 'var(--accent-green)', marginLeft: 6 }}>胜出</span>}
+                        </td>
+                        <td style={{ textAlign: 'right', fontWeight: p.is_winner ? 700 : 400 }}>
+                          {(p.vote_share * 100).toFixed(1)}%
+                        </td>
+                        <td style={{ textAlign: 'right' }}>{p.affinity.toFixed(2)}</td>
+                        <td style={{ fontSize: 11, color: 'var(--text-muted)' }}>{p.best_dims.join('、')}</td>
+                        <td style={{ fontSize: 11, color: 'var(--text-muted)' }}>{p.worst_dims.join('、')}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </>
+            )}
+          </div>
+        )}
         {hasManualSeats && (
           <div className="province-seats-section">
             <div className="province-seats-title">手动分配席位 ({manualTotal}席)</div>

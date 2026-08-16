@@ -520,3 +520,202 @@ def party_system_freeze(city_data, parties, config):
         "last_year": last,
         "note": f"冻结度 {freeze_index}（1=政党格局完全冻结）· 首党保持率 {top_retention}（Lipset-Rokkan 冻结假说）",
     }
+
+
+DIM_LABELS = {
+    "economic": "经济立场",
+    "social": "社会立场",
+    "regional": "区域立场",
+    "welfare": "福利立场",
+    "environment": "环境立场",
+    "nationalism": "民族立场",
+    "urban_rural": "城乡立场",
+}
+
+DIM_POLES = {
+    "economic": ("国家干预/再分配", "市场自由/去管制"),
+    "social": ("传统/集体主义", "现代/个人主义"),
+    "regional": ("沿海/国际化", "内陆/本土化"),
+    "welfare": ("低福利/自给", "高福利/再分配"),
+    "environment": ("发展优先", "环保优先"),
+    "nationalism": ("国际主义/多元", "民族主义/保护"),
+    "urban_rural": ("农村/农业利益", "城市居民利益"),
+}
+
+
+def _city_structure_bullets(city) -> list[dict]:
+    """把城市原始人口/经济指标翻译成可读的结构标签。"""
+    bullets = []
+    ur = city.urbanization_rate or 0.5
+    if ur > 0.65:
+        bullets.append({"label": "高度城镇化", "value": f"{ur*100:.0f}%", "note": "现代都市选民多，社会立场偏开放"})
+    elif ur < 0.45:
+        bullets.append({"label": "城镇化偏低", "value": f"{ur*100:.0f}%", "note": "农村/县域选民多，偏好农村利益与稳健政策"})
+    else:
+        bullets.append({"label": "城镇化中等", "value": f"{ur*100:.0f}%", "note": "城乡选民兼有，立场相对温和"})
+
+    ag = city.aging_rate or 0.0
+    if ag > 0.16:
+        bullets.append({"label": "老龄化偏重", "value": f"{ag*100:.0f}%", "note": "老年选民比重高，更看重福利养老与稳定"})
+    else:
+        bullets.append({"label": "人口结构年轻", "value": f"{ag*100:.0f}%", "note": "年轻选民居多，社会立场更现代"})
+
+    ed = city.education_index or 0.0
+    if ed > 0.75:
+        bullets.append({"label": "教育程度高", "value": f"{ed*100:.0f}%", "note": "高学历选民倾向市场自由与个人权利"})
+    elif ed < 0.55:
+        bullets.append({"label": "教育程度偏低", "value": f"{ed*100:.0f}%", "note": "低学历选民更依赖产业政策与再分配"})
+
+    gdp = city.gdp_per_capita or 0.0
+    if gdp > 120000:
+        bullets.append({"label": "人均GDP高", "value": f"{gdp/10000:.1f}万", "note": "富裕地区更看重市场效率与环境"})
+    elif gdp < 50000:
+        bullets.append({"label": "人均GDP偏低", "value": f"{gdp/10000:.1f}万", "note": "经济压力大，偏好再分配与产业扶持"})
+
+    sec = city.secondary_industry_pct or 0.0
+    if sec > 0.45:
+        bullets.append({"label": "工业主导", "value": f"{sec*100:.0f}%", "note": "产业工人多，亲近工会与产业政策"})
+    ter = city.tertiary_industry_pct or 0.0
+    if ter > 0.55:
+        bullets.append({"label": "服务业发达", "value": f"{ter*100:.0f}%", "note": "白领与服务业主导，倾向市场与城市议题"})
+
+    eth = getattr(city, 'ethnic_share', 0.0) or 0.0
+    if eth > 0.1:
+        bullets.append({"label": "少数民族占比高", "value": f"{eth*100:.0f}%", "note": "民族/区域议题显著，民族政党有稳定基本盘"})
+
+    region_note = {
+        'coastal': '沿海地区，国际化程度高，开放议题突出',
+        'inland': '内陆地区，本地产业与内陆发展议题突出',
+        'western': '西部民族地区，区域扶持与民族议题突出',
+        'northeast': '东北老工业基地，转型压力大、产业政策诉求强',
+    }.get(city.region_type, '')
+    if region_note:
+        bullets.append({"label": city.region_type + "地区", "value": "", "note": region_note})
+    return bullets
+
+
+def city_vote_explanation(city_data, parties, config, city_id: str):
+    """城市投票成因解读：为什么这座城市投给了谁。
+
+    结合城市人口/经济结构、7 维政策偏好位置、各党亲和度分解，
+    生成一份可读的「投票成因报告」——解释胜者为何胜、败者为何败、
+    城市基本盘偏向何处、关键摇摆维度的权重。
+    """
+    from app.engine.voter_model import VoterModel
+
+    city = next((c for c in city_data.cities if c.id == city_id), None)
+    if city is None:
+        return {"error": "city not found"}
+
+    vm = VoterModel(seed=42, turnout_shift=config.turnout_shift,
+                    dim_tilt=config.dim_tilt or {},
+                    party_effects=config.party_effects or {},
+                    voter_stratification=config.voter_stratification,
+                    calibration=config.calibration,
+                    affinity_power=config.affinity_power)
+    expl = vm.explain_city(city, parties, config.noise_amplitude)
+    city_pos = expl['city_position']
+
+    # 全国/全省均值参照
+    def avg_dim(dims_list):
+        n = max(1, len(dims_list))
+        return {k: sum(d.get(k, 0.0) for d in dims_list) / n for k in DIM_LABELS}
+
+    all_dims = [vm.get_city_dimensions(c) for c in city_data.cities]
+    national_dims = avg_dim(all_dims)
+    prov_dims = avg_dim([vm.get_city_dimensions(c) for c in city_data.cities
+                         if c.province == city.province])
+
+    # 各党在 7 维的匹配分 + 得票
+    party_rows = sorted(expl['parties'], key=lambda r: -r['vote_share'])
+    winner = party_rows[0]
+
+    # 城市最突出的立场（偏离全国最远的维度）→ 关键议题
+    deviations = []
+    for k in DIM_LABELS:
+        dev = round(city_pos.get(k, 0.0) - national_dims.get(k, 0.0), 3)
+        deviations.append((k, dev))
+    key_dims = sorted(deviations, key=lambda x: abs(x[1]), reverse=True)[:3]
+
+    # 每个政党的强项维度（匹配分最高的）
+    for row in party_rows:
+        dim_scores = {
+            k: round(row.get(k, 0.0), 3)
+            for k in DIM_LABELS
+        }
+        best = sorted(dim_scores.items(), key=lambda x: -x[1])[:2]
+        worst = sorted(dim_scores.items(), key=lambda x: x[1])[:2]
+        row['best_dims'] = [DIM_LABELS[k] for k, _ in best]
+        row['worst_dims'] = [DIM_LABELS[k] for k, _ in worst]
+        row['dim_scores'] = dim_scores
+        row['is_winner'] = (row['party_id'] == winner['party_id'])
+
+    # 叙事段落
+    narrative = _build_city_narrative(city, city_pos, party_rows, key_dims,
+                                      national_dims, prov_dims, winner)
+
+    return {
+        "city": {
+            "id": city.id,
+            "name": city.name,
+            "province": city.province,
+            "population": city.population,
+            "region_type": city.region_type,
+        },
+        "structure": _city_structure_bullets(city),
+        "position": {k: round(city_pos.get(k, 0.0), 3) for k in DIM_LABELS},
+        "national_position": {k: round(v, 3) for k, v in national_dims.items()},
+        "province_position": {k: round(v, 3) for k, v in prov_dims.items()},
+        "key_dims": [
+            {"dimension": k, "label": DIM_LABELS[k],
+             "deviation": dev, "pole": DIM_POLES[k][0] if dev < 0 else DIM_POLES[k][1]}
+            for k, dev in key_dims
+        ],
+        "turnout": expl['turnout'],
+        "parties": [
+            {
+                "party_id": r['party_id'], "party_name": r['party_name'],
+                "color": r['color'], "vote_share": r['vote_share'],
+                "affinity": r['affinity'], "weighted_affinity": r['weighted_affinity'],
+                "distance": r['distance'], "best_dims": r['best_dims'],
+                "worst_dims": r['worst_dims'], "dim_scores": r['dim_scores'],
+                "is_winner": r['is_winner'],
+            }
+            for r in party_rows
+        ],
+        "winner_party_id": winner['party_id'],
+        "winner_party_name": winner['party_name'],
+        "winner_color": winner['color'],
+        "narrative": narrative,
+    }
+
+
+def _build_city_narrative(city, city_pos, party_rows, key_dims, national_dims,
+                          prov_dims, winner) -> list[str]:
+    """把解读拼成自然语言段落列表。"""
+    lines = []
+    reg = {'coastal': '沿海', 'inland': '内陆', 'western': '西部', 'northeast': '东北'}.get(city.region_type, city.region_type)
+    lines.append(f"「{city.name}」位于{reg}，是{city.province}的一座城市，人口约{city.population//10000}万。它的选民偏好首先由产业结构与人口构成塑造——{_city_structure_bullets(city)[0]['note'] if _city_structure_bullets(city) else ''}")
+
+    # 关键维度
+    if key_dims:
+        parts = []
+        for k, dev in key_dims:
+            pole = DIM_POLES[k][0] if dev < 0 else DIM_POLES[k][1]
+            parts.append(f"{DIM_LABELS[k]}较全国{'偏左' if dev < 0 else '偏右'}（{'+' if dev > 0 else ''}{dev:.2f}，偏向「{pole}」）")
+        lines.append("政策偏好上，" + "；".join(parts) + "。这是该市选情最关键的三组变量。")
+
+    # 胜者归因
+    w = winner
+    lines.append(f"最终「{w['party_name']}」以 {w['vote_share']*100:.1f}% 胜出——它在 {w['best_dims'][0]}、{w['best_dims'][1]} 上与本市选民最契合，亲和度达 {w['affinity']:.2f}，综合匹配度最高。")
+
+    # 次席归因
+    if len(party_rows) > 1:
+        second = party_rows[1]
+        lines.append(f"次席「{second['party_name']}」获得 {second['vote_share']*100:.1f}%（亲和 {second['affinity']:.2f}），它的 {second['best_dims'][0]} 主张有一定号召力，但在 {second['worst_dims'][0]} 上与本市偏好存在明显落差，难以翻盘。")
+
+    # 市内外对比
+    city_econ = city_pos.get('economic', 0.0)
+    lines.append(f"与省内均值相比，本市在主要维度上{'大体一致' if abs(city_econ - prov_dims.get('economic', 0.0)) < 0.1 else '有所偏离'}——市政选举的得票结构因此与全省宏观走势{'相近' if abs(city_econ - prov_dims.get('economic', 0.0)) < 0.15 else '分化'}。")
+
+    return lines

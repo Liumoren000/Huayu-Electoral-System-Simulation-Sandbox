@@ -584,6 +584,24 @@ class RealismFeatureTest(unittest.TestCase):
         first_seats = [r['top_seats'] for r in res['results']]
         self.assertGreaterEqual(first_seats[0], first_seats[-1])
 
+    def test_city_vote_explanation(self):
+        """城市投票成因解读：应返回结构标签、关键维度、叙事与各党归因"""
+        from app.engine.analysis_engine import city_vote_explanation
+        _, cfg = self._run()
+        city = next(c for c in self.cd.cities if c.name in ('湛江市', '东莞市'))
+        res = city_vote_explanation(self.cd, self.parties, cfg, city.id)
+        self.assertIn('structure', res)
+        self.assertGreater(len(res['structure']), 0)
+        self.assertEqual(len(res['key_dims']), 3)
+        self.assertGreaterEqual(len(res['narrative']), 3)
+        self.assertIn('winner_party_id', res)
+        for p in res['parties']:
+            self.assertIn('best_dims', p)
+            self.assertIn('worst_dims', p)
+            self.assertIn('vote_share', p)
+        self.assertEqual(res['winner_party_id'],
+                         max(res['parties'], key=lambda p: p['vote_share'])['party_id'])
+
     def test_party_system_freeze(self):
         """政党体系冻结度：应遍历全部年代，返回冻结度与首党保持率"""
         from app.engine.analysis_engine import party_system_freeze

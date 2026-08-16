@@ -1019,6 +1019,9 @@ body: JSON.stringify({
             cities={cities}
             onClose={() => setSelectedProvince(null)}
             manualSeats={manualSeats}
+            config={effectiveConfig}
+            parties={parties}
+            year={year}
           />
         )}
 

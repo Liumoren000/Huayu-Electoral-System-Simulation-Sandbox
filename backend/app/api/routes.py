@@ -9,6 +9,7 @@ from app.models.config import (
     GovernmentRequest, SystemComparisonRequest, SwingometerRequest,
     WastedVotesRequest, RepresentationGapRequest,
     PartySpaceRequest, IssueOwnershipRequest, DistrictMagnitudeRequest, FreezeRequest,
+    CityExplainRequest,
 )
 from app.models.result import (
     SimulationResponse,
@@ -38,7 +39,7 @@ from app.engine.government_engine import GovernmentEngine
 from app.engine.analysis_engine import (
     swingometer_analysis, wasted_votes_analysis, representation_gap_analysis,
     party_space_competition, issue_ownership, district_magnitude_effect,
-    party_system_freeze,
+    party_system_freeze, city_vote_explanation,
 )
 
 router = APIRouter()
@@ -622,3 +623,18 @@ def simulate_party_freeze(request: FreezeRequest):
         return JSONResponse(status_code=400, content={"error": "至少需要一个参选政党"})
     city_data = data_loader.get_city_data(request.year)
     return party_system_freeze(city_data, request.parties, request.config)
+
+
+@router.post("/simulate/city-explain")
+def simulate_city_explain(request: CityExplainRequest):
+    """
+    城市投票成因解读：结合城市人口/经济结构、7 维政策偏好位置与各党亲和度，
+    生成「为什么这座城市投给了谁」的可读报告。
+    """
+    if not request.parties:
+        return JSONResponse(status_code=400, content={"error": "至少需要一个参选政党"})
+    if not request.city_id:
+        return JSONResponse(status_code=400, content={"error": "请指定城市"})
+    city_data = data_loader.get_city_data(request.year)
+    return city_vote_explanation(city_data, request.parties, request.config,
+                                 request.city_id)
