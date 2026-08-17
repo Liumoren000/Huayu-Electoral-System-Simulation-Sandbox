@@ -68,26 +68,6 @@ export async function fetchVoterStructure(request) {
   return res.json();
 }
 
-export async function runPoll(request) {
-  const res = await fetch(`${API_BASE}/simulate/poll`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(request),
-  });
-  if (!res.ok) throw new Error('Poll simulation failed');
-  return res.json();
-}
-
-export async function runSwingAnalysis(request) {
-  const res = await fetch(`${API_BASE}/simulate/swing`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(request),
-  });
-  if (!res.ok) throw new Error('Swing analysis failed');
-  return res.json();
-}
-
 export async function runCalibration(request) {
   const res = await fetch(`${API_BASE}/simulate/calibrate`, {
     method: 'POST',
@@ -95,36 +75,6 @@ export async function runCalibration(request) {
     body: JSON.stringify(request),
   });
   if (!res.ok) throw new Error('Calibration failed');
-  return res.json();
-}
-
-export async function runGovernment(request) {
-  const res = await fetch(`${API_BASE}/simulate/government`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(request),
-  });
-  if (!res.ok) throw new Error('Government simulation failed');
-  return res.json();
-}
-
-export async function runSystemComparison(request) {
-  const res = await fetch(`${API_BASE}/simulate/system-comparison`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(request),
-  });
-  if (!res.ok) throw new Error('System comparison failed');
-  return res.json();
-}
-
-export async function runSwingometer(request) {
-  const res = await fetch(`${API_BASE}/simulate/swingometer`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(request),
-  });
-  if (!res.ok) throw new Error('Swingometer failed');
   return res.json();
 }
 
@@ -158,16 +108,6 @@ export async function runPartySpace(request) {
   return res.json();
 }
 
-export async function runIssueOwnership(request) {
-  const res = await fetch(`${API_BASE}/simulate/issue-ownership`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(request),
-  });
-  if (!res.ok) throw new Error('Issue ownership analysis failed');
-  return res.json();
-}
-
 export async function runDistrictMagnitude(request) {
   const res = await fetch(`${API_BASE}/simulate/district-magnitude`, {
     method: 'POST',
@@ -175,16 +115,6 @@ export async function runDistrictMagnitude(request) {
     body: JSON.stringify(request),
   });
   if (!res.ok) throw new Error('District magnitude analysis failed');
-  return res.json();
-}
-
-export async function runPartyFreeze(request) {
-  const res = await fetch(`${API_BASE}/simulate/party-freeze`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(request),
-  });
-  if (!res.ok) throw new Error('Party system freeze analysis failed');
   return res.json();
 }
 

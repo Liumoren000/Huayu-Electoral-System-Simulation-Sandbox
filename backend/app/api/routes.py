@@ -5,10 +5,9 @@ from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 from app.models.config import (
     SimulationRequest, RobustnessRequest, SensitivityRequest, VoterExplainRequest,
-    VoterStructureRequest, PollRequest, SwingAnalysisRequest, CalibrationRequest,
-    GovernmentRequest, SystemComparisonRequest, SwingometerRequest,
+    VoterStructureRequest, CalibrationRequest,
     WastedVotesRequest, RepresentationGapRequest,
-    PartySpaceRequest, IssueOwnershipRequest, DistrictMagnitudeRequest, FreezeRequest,
+    PartySpaceRequest, DistrictMagnitudeRequest,
     CityExplainRequest, ForensicsRequest,
 )
 from app.models.result import (
@@ -25,21 +24,15 @@ from app.models.result import (
     DimensionExplain,
     PartyAffinityExplain,
     VoterExplainResponse,
-    PollResponse,
-    SwingAnalysisResponse,
     CalibrationResponse,
-    SystemComparisonResponse,
-    SystemComparisonRow,
 )
 from app.engine import DataLoader, generate_default_parties, ElectoralEngine, CoalitionEngine
 from app.engine.voter_model import VoterModel
-from app.engine.poll_engine import PollEngine, swing_analysis
 from app.engine.calibration_engine import historical_calibration
-from app.engine.government_engine import GovernmentEngine
 from app.engine.analysis_engine import (
-    swingometer_analysis, wasted_votes_analysis, representation_gap_analysis,
-    party_space_competition, issue_ownership, district_magnitude_effect,
-    party_system_freeze, city_vote_explanation, election_forensics,
+    wasted_votes_analysis, representation_gap_analysis,
+    party_space_competition, district_magnitude_effect,
+    city_vote_explanation, election_forensics,
 )
 
 router = APIRouter()
@@ -132,19 +125,6 @@ def simulate(request: SimulationRequest):
         coalition_a=coalition_a,
         coalition_b=coalition_b,
     )
-
-
-@router.post("/simulate/government")
-def simulate_government(request: GovernmentRequest):
-    """政府任期/寿命模拟：给定方案与执政联盟，模拟任期存活、政策绩效与倒阁风险"""
-    if not request.parties:
-        return JSONResponse(status_code=400, content={"error": "至少需要一个参选政党"})
-    city_data = data_loader.get_city_data(request.year)
-    engine = ElectoralEngine(city_data, request.parties, request.config, seed=42)
-    result = engine.run()
-    gov = GovernmentEngine(request.parties, seed=7)
-    return gov.run(result, ruling_parties=request.ruling_parties,
-                   term_months=request.term_months)
 
 
 @router.post("/simulate/robustness")
@@ -357,32 +337,6 @@ DIMENSION_META = [
 ]
 
 
-@router.post("/simulate/poll")
-def simulate_poll(request: PollRequest):
-    """
-    竞选期民调与舆论模拟：生成各周民调支持率曲线、舆论事件冲击，
-    并基于当前制度给出选前席位预测与蒙特卡洛胜率/过半率。
-    """
-    if not request.parties:
-        return JSONResponse(status_code=400, content={"error": "至少需要一个参选政党"})
-    city_data = data_loader.get_city_data(request.year)
-    engine = PollEngine(city_data, request.parties, request.config,
-                        weeks=request.weeks, volatility=request.volatility)
-    return engine.run()
-
-
-@router.post("/simulate/swing")
-def simulate_swing(request: SwingAnalysisRequest):
-    """
-    选区级摇摆/风向标分析：按胜差划分 tossup/lean/safe 选区，
-    并识别与全国最大党一致、胜差接近全国均值的方向标选区（bellwether）。
-    """
-    if not request.parties:
-        return JSONResponse(status_code=400, content={"error": "至少需要一个参选政党"})
-    city_data = data_loader.get_city_data(request.year)
-    return swing_analysis(city_data, request.parties, request.config)
-
-
 @router.post("/simulate/calibrate")
 def simulate_calibrate(request: CalibrationRequest):
     """
@@ -494,62 +448,6 @@ def voter_structure(request: VoterStructureRequest):
                                 city_vote_shares, result.party_results)
 
 
-@router.post("/simulate/system-comparison")
-def system_comparison(request: SystemComparisonRequest):
-    """
-    制度全景对比：同一选情配置下并行运行全部 9 种选举制度，
-    返回各制度的首党/比例性/有效政党数/格局等摘要，直观展示
-    "制度决定结果"（Duverger 定律、比例性-代表性权衡）。
-    """
-    if not request.parties:
-        return JSONResponse(status_code=400, content={"error": "至少需要一个参选政党"})
-
-    city_data = data_loader.get_city_data(request.year)
-    systems = ["FPTP", "RUNOFF", "IRV", "APPROVAL", "BORDA",
-               "PR", "MMP", "PARALLEL", "STV"]
-    rows = []
-    for st in systems:
-        cfg = request.config.model_copy(update={"system_type": st})
-        try:
-            r = ElectoralEngine(city_data, request.parties, cfg, seed=42).run()
-            top = max(r.party_results, key=lambda p: p.seats)
-            majority = any(p.seats > r.total_seats / 2 for p in r.party_results)
-            rows.append(SystemComparisonRow(
-                system_type=st,
-                top_party=top.party_name,
-                top_seats=top.seats,
-                top_vote=round(top.vote_share, 4),
-                total_seats=r.total_seats,
-                gallagher=round(r.gallagher_index, 4),
-                eff_parties_vote=round(r.effective_parties_vote, 2),
-                eff_parties_seats=round(r.effective_parties_seats, 2),
-                majority_possible=majority,
-                overhang=r.overhang_seats,
-                polarization=round(r.polarization_index, 3),
-                classification=r.party_system_classification,
-            ))
-        except Exception as e:
-            rows.append(SystemComparisonRow(
-                system_type=st, top_party="", top_seats=0, top_vote=0.0,
-                total_seats=0, classification=f"错误: {e}"))
-    return SystemComparisonResponse(year=request.year, systems=rows)
-
-
-@router.post("/simulate/swingometer")
-def simulate_swingometer(request: SwingometerRequest):
-    """
-    统一摆动分析（Swingometer）：对目标党全国得票统一增减 ±max_swing pp，
-    绘制席位-选票曲线并识别翻转阈值/过半摆动点，展示多数制的放大效应。
-    """
-    if not request.parties:
-        return JSONResponse(status_code=400, content={"error": "至少需要一个参选政党"})
-    if not request.party_id:
-        return JSONResponse(status_code=400, content={"error": "请指定目标摆动政党"})
-    city_data = data_loader.get_city_data(request.year)
-    return swingometer_analysis(city_data, request.parties, request.config,
-                                request.party_id, request.max_swing, request.step)
-
-
 @router.post("/simulate/wasted-votes")
 def simulate_wasted_votes(request: WastedVotesRequest):
     """
@@ -589,18 +487,6 @@ def simulate_party_space(request: PartySpaceRequest):
                                    request.party_id, request.axis, request.step)
 
 
-@router.post("/simulate/issue-ownership")
-def simulate_issue_ownership(request: IssueOwnershipRequest):
-    """
-    议题所有权（Issue Ownership）：各党在 7 个政策维度上谁最受选民信任，
-    识别各党议题招牌与空白领域。
-    """
-    if not request.parties:
-        return JSONResponse(status_code=400, content={"error": "至少需要一个参选政党"})
-    city_data = data_loader.get_city_data(request.year)
-    return issue_ownership(city_data, request.parties, request.config)
-
-
 @router.post("/simulate/district-magnitude")
 def simulate_district_magnitude(request: DistrictMagnitudeRequest):
     """
@@ -611,18 +497,6 @@ def simulate_district_magnitude(request: DistrictMagnitudeRequest):
         return JSONResponse(status_code=400, content={"error": "至少需要一个参选政党"})
     city_data = data_loader.get_city_data(request.year)
     return district_magnitude_effect(city_data, request.parties, request.config)
-
-
-@router.post("/simulate/party-freeze")
-def simulate_party_freeze(request: FreezeRequest):
-    """
-    政党体系冻结度（Lipset-Rokkan）：跨 1949-2024 年代席位结构稳定性，
-    判断政党格局是「冻结」还是「松动」。
-    """
-    if not request.parties:
-        return JSONResponse(status_code=400, content={"error": "至少需要一个参选政党"})
-    city_data = data_loader.get_city_data(request.year)
-    return party_system_freeze(city_data, request.parties, request.config)
 
 
 @router.post("/simulate/city-explain")

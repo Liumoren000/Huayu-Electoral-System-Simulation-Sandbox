@@ -8,34 +8,25 @@ import ProvinceDetail from './components/ProvinceDetail.jsx';
 import ManualSeatModal from './components/ManualSeatModal.jsx';
 import ComparePanel from './components/ComparePanel.jsx';
 import ScriptModal from './components/ScriptModal.jsx';
-import BubbleChartModal from './components/BubbleChartModal.jsx';
 import TippingSeatsModal from './components/TippingSeatsModal.jsx';
 import AttackDefenseModal from './components/AttackDefenseModal.jsx';
 import SankeyModal from './components/SankeyModal.jsx';
-import CoalitionMatrixModal from './components/CoalitionMatrixModal.jsx';
 import RadarModal from './components/RadarModal.jsx';
 import ReportModal from './components/ReportModal.jsx';
 import SnapshotModal from './components/SnapshotModal.jsx';
 import VoterModelModal from './components/VoterModelModal.jsx';
 import VoterStructureModal from './components/VoterStructureModal.jsx';
-import PollModal from './components/PollModal.jsx';
-import SwingAnalysisModal from './components/SwingAnalysisModal.jsx';
 import CoalitionNegotiationModal from './components/CoalitionNegotiationModal.jsx';
 
 import CalibrationModal from './components/CalibrationModal.jsx';
 import RegionalBlockModal from './components/RegionalBlockModal.jsx';
-import SystemComparisonModal from './components/SystemComparisonModal.jsx';
 import NicheModal from './components/NicheModal.jsx';
-import SwingometerModal from './components/SwingometerModal.jsx';
 import WastedVotesModal from './components/WastedVotesModal.jsx';
 import RepGapModal from './components/RepGapModal.jsx';
 import PartySpaceModal from './components/PartySpaceModal.jsx';
-import IssueOwnershipModal from './components/IssueOwnershipModal.jsx';
 import DistrictMagnitudeModal from './components/DistrictMagnitudeModal.jsx';
-import PartyFreezeModal from './components/PartyFreezeModal.jsx';
 import ForensicsModal from './components/ForensicsModal.jsx';
 import EraModal from './components/EraModal.jsx';
-import GovernmentModal from './components/GovernmentModal.jsx';
 import { fetchParties, fetchCities, fetchEras, runSimulation, runRobustness } from './services/api.js';
 import { API_BASE } from './services/api.js';
 import { findCoalitions } from './utils/coalition.js';
@@ -165,31 +156,22 @@ export default function App() {
   const [scriptIdx, setScriptIdx] = useState(-1);  // -1 = 基准
 
   const [showTools, setShowTools] = useState(false);
-  const [showBubble, setShowBubble] = useState(false);
   const [showTipping, setShowTipping] = useState(false);
   const [showAttack, setShowAttack] = useState(false);
   const [showSankey, setShowSankey] = useState(false);
-  const [showMatrix, setShowMatrix] = useState(false);
   const [showRadar, setShowRadar] = useState(false);
   const [showReport, setShowReport] = useState(false);
   const [showSnap, setShowSnap] = useState(false);
   const [showVoterModel, setShowVoterModel] = useState(false);
   const [showVoterStructure, setShowVoterStructure] = useState(false);
-  const [showPoll, setShowPoll] = useState(false);
-  const [showGovernment, setShowGovernment] = useState(false);
-  const [showSwing, setShowSwing] = useState(false);
   const [showNegotiation, setShowNegotiation] = useState(false);
   const [showCalibration, setShowCalibration] = useState(false);
   const [showRegionalBlock, setShowRegionalBlock] = useState(false);
-  const [showSystemComparison, setShowSystemComparison] = useState(false);
   const [showNiche, setShowNiche] = useState(false);
-  const [showSwingometer, setShowSwingometer] = useState(false);
   const [showWastedVotes, setShowWastedVotes] = useState(false);
   const [showRepGap, setShowRepGap] = useState(false);
   const [showPartySpace, setShowPartySpace] = useState(false);
-  const [showIssueOwnership, setShowIssueOwnership] = useState(false);
   const [showDistrictMagnitude, setShowDistrictMagnitude] = useState(false);
-  const [showPartyFreeze, setShowPartyFreeze] = useState(false);
   const [showForensics, setShowForensics] = useState(false);
   const [snapshots, setSnapshots] = useState([]);  // { id, label, result }
   const [eras, setEras] = useState([]);
@@ -889,30 +871,21 @@ body: JSON.stringify({
                 </button>
                 {showTools && (
                   <div className="tools-menu">
-                    <button onClick={() => { setShowPoll(true); setShowTools(false); }}>竞选民调</button>
-                    <button onClick={() => { setShowGovernment(true); setShowTools(false); }}>政府任期模拟</button>
-                    <button onClick={() => { setShowSwing(true); setShowTools(false); }}>摇摆/风向标选区</button>
                     <button onClick={() => { setShowNegotiation(true); setShowTools(false); }}>组阁谈判模拟</button>
-                    <button onClick={() => { setShowBubble(true); setShowTools(false); }}>席位—选票偏差气泡</button>
                     <button onClick={() => { setShowTipping(true); setShowTools(false); }}>翻转临界席</button>
                     <button onClick={() => { setAttackInitialMode('coalition'); setShowAttack(true); setShowTools(false); }}>组阁攻防推演</button>
                     <button onClick={() => { setShowSankey(true); setShowTools(false); }}>省域席位流向</button>
-                    <button onClick={() => { setShowMatrix(true); setShowTools(false); }}>联盟可能性矩阵</button>
                     <button onClick={() => { setShowRadar(true); setShowTools(false); }}>综合代表指数</button>
                     <button onClick={() => { setShowReport(true); setShowTools(false); }}>自动解读报告</button>
                     <button onClick={() => { setShowVoterModel(true); setShowTools(false); }}>选民模型透明面板</button>
                     <button onClick={() => { setShowVoterStructure(true); setShowTools(false); }}>选民结构构成</button>
                     <button onClick={() => { setShowCalibration(true); setShowTools(false); }}>历史选举校准</button>
                     <button onClick={() => { setShowRegionalBlock(true); setShowTools(false); }}>区域政治版图</button>
-                    <button onClick={() => { setShowSystemComparison(true); setShowTools(false); }}>制度全景对比</button>
                     <button onClick={() => { setShowNiche(true); setShowTools(false); }}>政党生态位空间</button>
-                    <button onClick={() => { setShowSwingometer(true); setShowTools(false); }}>统一摆动分析</button>
                     <button onClick={() => { setShowWastedVotes(true); setShowTools(false); }}>浪费票分析</button>
                     <button onClick={() => { setShowRepGap(true); setShowTools(false); }}>代表性缺口</button>
                     <button onClick={() => { setShowPartySpace(true); setShowTools(false); }}>政党空间竞争</button>
-                    <button onClick={() => { setShowIssueOwnership(true); setShowTools(false); }}>议题所有权</button>
                     <button onClick={() => { setShowDistrictMagnitude(true); setShowTools(false); }}>选区规模效应</button>
-                    <button onClick={() => { setShowPartyFreeze(true); setShowTools(false); }}>政党体系冻结度</button>
                     <button onClick={() => { setShowForensics(true); setShowTools(false); }}>选举取证审计</button>
                     <button onClick={() => { setShowSnap(true); setShowTools(false); }}>多快照对比</button>
                   </div>
@@ -1122,14 +1095,6 @@ body: JSON.stringify({
           onClose={() => setShowEra(false)}
         />
       )}
-      {showBubble && (
-        <BubbleChartModal
-          resultA={displayResultA}
-          resultB={displayResultB}
-          activeScheme={activeScheme}
-          onClose={() => setShowBubble(false)}
-        />
-      )}
       {showTipping && (
         <TippingSeatsModal
           result={displayResult}
@@ -1148,13 +1113,6 @@ body: JSON.stringify({
         <SankeyModal
           result={displayResult}
           onClose={() => setShowSankey(false)}
-        />
-      )}
-      {showMatrix && (
-        <CoalitionMatrixModal
-          coalition={scriptIdx >= 0 ? scriptItems[scriptIdx]?.coalition : (activeScheme === 'B' ? coalitionB : coalition)}
-          result={displayResult}
-          onClose={() => setShowMatrix(false)}
         />
       )}
       {showRadar && (
@@ -1211,40 +1169,6 @@ body: JSON.stringify({
         />
       )}
 
-      {showPoll && (
-        <PollModal
-          year={year}
-          config={effectiveConfig}
-          totalSeats={totalSeats}
-          minSeats={minSeats}
-          parties={parties}
-          onClose={() => setShowPoll(false)}
-        />
-      )}
-
-      {showGovernment && (
-        <GovernmentModal
-          year={year}
-          config={effectiveConfig}
-          totalSeats={totalSeats}
-          minSeats={minSeats}
-          parties={parties}
-          coalition={scriptIdx >= 0 ? scriptItems[scriptIdx]?.coalition : (activeScheme === 'B' ? coalitionB : coalition)}
-          onClose={() => setShowGovernment(false)}
-        />
-      )}
-
-      {showSwing && (
-        <SwingAnalysisModal
-          year={year}
-          config={effectiveConfig}
-          totalSeats={totalSeats}
-          minSeats={minSeats}
-          parties={parties}
-          onClose={() => setShowSwing(false)}
-        />
-      )}
-
       {showNegotiation && (
         <CoalitionNegotiationModal
           result={displayResult}
@@ -1271,30 +1195,10 @@ body: JSON.stringify({
         />
       )}
 
-      {showSystemComparison && (
-        <SystemComparisonModal
-          config={effectiveConfig}
-          totalSeats={totalSeats}
-          minSeats={minSeats}
-          parties={parties}
-          year={year}
-          onClose={() => setShowSystemComparison(false)}
-        />
-      )}
-
       {showNiche && (
         <NicheModal
           result={displayResult}
           onClose={() => setShowNiche(false)}
-        />
-      )}
-
-      {showSwingometer && (
-        <SwingometerModal
-          config={effectiveConfig}
-          parties={parties}
-          year={year}
-          onClose={() => setShowSwingometer(false)}
         />
       )}
 
@@ -1325,30 +1229,12 @@ body: JSON.stringify({
         />
       )}
 
-      {showIssueOwnership && (
-        <IssueOwnershipModal
-          config={effectiveConfig}
-          parties={parties}
-          year={year}
-          onClose={() => setShowIssueOwnership(false)}
-        />
-      )}
-
       {showDistrictMagnitude && (
         <DistrictMagnitudeModal
           config={effectiveConfig}
           parties={parties}
           year={year}
           onClose={() => setShowDistrictMagnitude(false)}
-        />
-      )}
-
-      {showPartyFreeze && (
-        <PartyFreezeModal
-          config={effectiveConfig}
-          parties={parties}
-          year={year}
-          onClose={() => setShowPartyFreeze(false)}
         />
       )}
 

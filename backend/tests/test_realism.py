@@ -423,35 +423,6 @@ class RealismFeatureTest(unittest.TestCase):
         self.assertEqual([(p.party_id, p.seats, p.vote_share) for p in a.party_results],
                          [(p.party_id, p.seats, p.vote_share) for p in b.party_results])
 
-    def test_poll_systematic_bias_diverges_final(self):
-        """民调系统偏差开启后，末周民调与实际得票率存在结构性差距"""
-        from app.engine.poll_engine import PollEngine
-        cfg = ElectoralConfig(system_type='FPTP', total_seats=450, poll_systematic_bias=0.04)
-        pe = PollEngine(self.cd, self.parties, cfg, seed=7, weeks=12, volatility=0.04)
-        resp = pe.run()
-        last = {}
-        for pt in resp.series:
-            if pt.week == 12:
-                last[pt.party_id] = pt.share
-        # 至少一个党末周民调与实际得票率差 > 2pp（结构性偏差的体现）
-        diverged = any(abs(last.get(pid, 0) - resp.final_share.get(pid, 0)) > 0.02
-                       for pid in resp.final_share)
-        self.assertTrue(diverged, "系统偏差下民调与实际结果应有 >2pp 的差距")
-
-    def test_poll_no_bias_close_to_final(self):
-        """民调系统偏差关闭时，末周民调接近实际得票率"""
-        from app.engine.poll_engine import PollEngine
-        cfg = ElectoralConfig(system_type='FPTP', total_seats=450)
-        pe = PollEngine(self.cd, self.parties, cfg, seed=7, weeks=12, volatility=0.04)
-        resp = pe.run()
-        last = {}
-        for pt in resp.series:
-            if pt.week == 12:
-                last[pt.party_id] = pt.share
-        worst = max(abs(last.get(pid, 0) - resp.final_share.get(pid, 0))
-                    for pid in resp.final_share)
-        self.assertLess(worst, 0.06, "无系统偏差时末周民调应与实际得票率较接近")
-
     def test_party_system_classification_present(self):
         """结果应包含 Sartori 政党体系分类"""
         r, _ = self._run()
@@ -523,18 +494,6 @@ class RealismFeatureTest(unittest.TestCase):
         self.assertTrue(mv['winner_party_name'])
         self.assertTrue(mv['closest_party_name'])
 
-    def test_system_comparison_endpoint(self):
-        """制度全景对比应返回全部 9 种制度"""
-        from app.engine.data_loader import generate_default_parties
-        from app.api.routes import system_comparison, SystemComparisonRequest
-        parties = generate_default_parties()
-        cfg = ElectoralConfig(system_type='FPTP', total_seats=450)
-        req = SystemComparisonRequest(year=2023, config=cfg, parties=parties)
-        resp = system_comparison(req)
-        self.assertEqual(len(resp.systems), 9)
-        pr = next(s for s in resp.systems if s.system_type == 'PR')
-        self.assertLess(pr.gallagher, 0.05)
-
     def test_winner_bonus(self):
         """胜者红利：FPTP 首党大幅受益，PR 接近 0"""
         fptp, _ = self._run()
@@ -553,20 +512,6 @@ class RealismFeatureTest(unittest.TestCase):
             self.assertGreaterEqual(n.niche_width, 0.0)
             if n.overlaps:
                 self.assertLessEqual(max(n.overlaps.values()), 1.0)
-
-    def test_swingometer(self):
-        """统一摆动分析：席位-选票曲线应随摆动单调变化，且含翻转阈值"""
-        from app.engine.analysis_engine import swingometer_analysis
-        r, cfg = self._run()
-        top = max(r.party_results, key=lambda p: p.seats)
-        res = swingometer_analysis(self.cd, self.parties, cfg, top.party_id)
-        self.assertEqual(len(res['points']), 25)  # -12..+12 步长1
-        seats = [p['seats'] for p in res['points']]
-        self.assertEqual(seats[0], res['points'][0]['seats'])
-        # 摆动越大席位应越多（单调不下降）
-        for i in range(1, len(seats)):
-            self.assertGreaterEqual(seats[i], seats[i - 1])
-        self.assertGreater(res['points'][-1]['seats'], res['base_seats'])
 
     def test_wasted_votes(self):
         """浪费票：多数制浪费率应显著高于比例制"""
@@ -600,18 +545,6 @@ class RealismFeatureTest(unittest.TestCase):
         # 极端右移应使左翼政党得票显著下降
         right = res['points'][-1]
         self.assertLess(right['vote_share'], res['base_vote_share'])
-
-    def test_issue_ownership(self):
-        """议题所有权：7 个维度各有领跑者，且各党议题数合计 = 维度数"""
-        from app.engine.analysis_engine import issue_ownership
-        _, cfg = self._run()
-        res = issue_ownership(self.cd, self.parties, cfg)
-        self.assertEqual(len(res['dimensions']), 7)
-        for d in res['dimensions']:
-            self.assertIn('owner_party_id', d)
-            self.assertGreater(d['margin'], -1.0)
-        total_owned = sum(p['owned_count'] for p in res['parties'])
-        self.assertEqual(total_owned, 7)  # 每维度恰好一个领跑者
 
     def test_district_magnitude(self):
         """选区规模：STV 下 mag 增大应增加有效政党数/降低首党份额"""
@@ -726,19 +659,6 @@ class RealismFeatureTest(unittest.TestCase):
         self.assertIn('chi2', res['checks']['benford'])
         self.assertIn('verdict', res)
         self.assertTrue(all(0.0 <= s <= 1.0 for s in res['scores'].values()))
-
-    def test_party_system_freeze(self):
-        """政党体系冻结度：应遍历全部年代，返回冻结度与首党保持率"""
-        from app.engine.analysis_engine import party_system_freeze
-        _, cfg = self._run()
-        res = party_system_freeze(self.cd, self.parties, cfg)
-        self.assertGreaterEqual(len(res['runs']), 5)
-        self.assertGreaterEqual(res['freeze_index'], 0.0)
-        self.assertLessEqual(res['freeze_index'], 1.0)
-        self.assertIn('top_party_retention', res)
-        for run in res['runs']:
-            self.assertIn('party_seats', run)
-            self.assertGreaterEqual(sum(run['party_seats'].values()), run['party_seats'].get(list(run['party_seats'])[0], 0))
 
 
 if __name__ == '__main__':

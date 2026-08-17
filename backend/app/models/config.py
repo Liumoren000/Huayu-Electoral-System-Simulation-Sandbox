@@ -36,9 +36,6 @@ class ElectoralConfig(BaseModel):
     turnout_differential: float = Field(default=0.0, ge=0.0, le=1.0, description="群体差异化投票率：老年/高学历/高收入/城市选民投票率显著更高，城市投票率按人口结构加权（0=关闭，1=完全差异化）")
     affinity_power: float = Field(default=6.0, ge=1.0, le=8.0, description="得票率浓缩指数：对亲和度做幂次变换后归一化，放大政党间差距（1=线性均匀，6≈中国式高动员分化，首党约25%，越高越两极）")
     party_system_concentration: float = Field(default=0.0, ge=0.0, le=0.5, description="政党体系集中度：全国领先党（第一党+b、第二党+b/2）获声望加成，模拟主导党/两强对峙格局（0=关闭）")
-    poll_systematic_bias: float = Field(default=0.0, ge=0.0, le=0.08, description="民调系统偏差：民调对实际结果的结构性抽样偏差（1=±8pp 随机偏差，模拟现实中民调经常失准）")
-    swing_party: str = Field(default="", description="统一摆动分析用：目标摆动政党 id（非空时对所有城市该党得票统一 ±swing_pp 百分点）")
-    swing_pp: float = Field(default=0.0, ge=-20.0, le=20.0, description="统一摆动幅度（百分点，正=全党全国统一增加）")
 
     # ===== 数据投票真实性（模拟数据形态贴近真实选举公报）=====
     integer_votes: bool = Field(default=True, description="整数票数：各党得票转为整数票（最大余数法），数据形如真实选举公报（XX 党 123,456 票）")
@@ -83,20 +80,6 @@ class VoterStructureRequest(BaseModel):
     parties: list[Party]
 
 
-class PollRequest(BaseModel):
-    year: int = Field(default=2023, ge=1949, le=2024)
-    config: ElectoralConfig
-    parties: list[Party]
-    weeks: int = Field(default=12, ge=4, le=30)
-    volatility: float = Field(default=0.04, ge=0.0, le=0.2, description="民调随机波动幅度")
-
-
-class SwingAnalysisRequest(BaseModel):
-    year: int = Field(default=2023, ge=1949, le=2024)
-    config: ElectoralConfig
-    parties: list[Party]
-
-
 class ForensicsRequest(BaseModel):
     year: int = Field(default=2023, ge=1949, le=2024)
     config: ElectoralConfig
@@ -108,29 +91,6 @@ class CalibrationRequest(BaseModel):
     config: ElectoralConfig
     parties: list[Party]
     baseline_year: int = Field(default=0, ge=0, le=2024, description="0 = 自动取 year-4（上一届）")
-
-
-class GovernmentRequest(BaseModel):
-    year: int = Field(default=2023, ge=1949, le=2024)
-    config: ElectoralConfig
-    parties: list[Party]
-    ruling_parties: list[str] = Field(default_factory=list, description="指定执政联盟（空 = 自动推荐）")
-    term_months: int = Field(default=60, ge=24, le=120, description="法定最长任期（月）")
-
-
-class SystemComparisonRequest(BaseModel):
-    year: int = Field(default=2023, ge=1949, le=2024)
-    config: ElectoralConfig
-    parties: list[Party]
-
-
-class SwingometerRequest(BaseModel):
-    year: int = Field(default=2023, ge=1949, le=2024)
-    config: ElectoralConfig
-    parties: list[Party]
-    party_id: str = ""
-    max_swing: float = Field(default=12.0, ge=2.0, le=20.0)
-    step: float = Field(default=1.0, ge=0.5, le=4.0)
 
 
 class WastedVotesRequest(BaseModel):
@@ -154,19 +114,7 @@ class PartySpaceRequest(BaseModel):
     step: float = Field(default=0.25, ge=0.05, le=0.5)
 
 
-class IssueOwnershipRequest(BaseModel):
-    year: int = Field(default=2023, ge=1949, le=2024)
-    config: ElectoralConfig
-    parties: list[Party]
-
-
 class DistrictMagnitudeRequest(BaseModel):
-    year: int = Field(default=2023, ge=1949, le=2024)
-    config: ElectoralConfig
-    parties: list[Party]
-
-
-class FreezeRequest(BaseModel):
     year: int = Field(default=2023, ge=1949, le=2024)
     config: ElectoralConfig
     parties: list[Party]
