@@ -10,8 +10,14 @@ def wasted_votes_analysis(city_data, parties, config):
     """浪费票分析：多数制下投给非赢家的票 + 赢家超出第二名之盈余。
 
     FPTP 等赢者全得制度中，浪费票 = 失败者得票 + 赢家盈余（超过次席部分）。
-    比例制中浪费票仅来自未过门槛的政党。逐党统计并对比 FPTP vs PR。
+    比例制中浪费票仅来自未过门槛的政党。按当前配置的制度计算主结果，
+    并以 PR 作对照展示「胜者全得」的制度效能代价。
+
+    每选区一席的多数制（FPTP/RUNOFF/IRV/APPROVAL/BORDA）用城市赢者全得口径；
+    有比例补偿或多议席的制度（PR/MMP/PARALLEL/STV）用全国「未获席位党的票」口径。
     """
+    WINNER_TAKE_ALL = {"FPTP", "RUNOFF", "IRV", "APPROVAL", "BORDA"}
+
     def _compute(system_type):
         cfg = config.model_copy(update={"system_type": system_type})
         engine = ElectoralEngine(city_data, parties, cfg, seed=42)
@@ -20,8 +26,8 @@ def wasted_votes_analysis(city_data, parties, config):
         wasted = {p.id: 0.0 for p in parties}
         surplus = {p.id: 0.0 for p in parties}
         loser_votes = {p.id: 0.0 for p in parties}
-        if system_type == "PR":
-            # 比例制：浪费票 = 未获席位政党的得票（门槛以下/未达配额）
+        if system_type not in WINNER_TAKE_ALL:
+            # 比例/多议席制：浪费票 = 未获席位政党的得票（门槛以下/未达配额/未分得席）
             vote_by_id = {pr.party_id: pr.vote_share for pr in result.party_results}
             seat_by_id = {pr.party_id: pr.seats for pr in result.party_results}
             for pid, v in vote_by_id.items():
@@ -88,9 +94,10 @@ def wasted_votes_analysis(city_data, parties, config):
             "parties": rows,
         }
 
-    fptp = _compute("FPTP")
+    current_system = config.system_type
+    current = _compute(current_system)
     pr = _compute("PR")
-    return {"fptp": fptp, "pr": pr}
+    return {"current": current, "pr": pr}
 
 
 def party_space_competition(city_data, parties, config, party_id: str,

@@ -518,8 +518,23 @@ class RealismFeatureTest(unittest.TestCase):
         from app.engine.analysis_engine import wasted_votes_analysis
         _, cfg = self._run()
         res = wasted_votes_analysis(self.cd, self.parties, cfg)
-        self.assertGreater(res['fptp']['total_wasted_share'], res['pr']['total_wasted_share'])
-        self.assertGreater(res['fptp']['total_wasted_share'], 0.5)  # 多数制多数票浪费
+        self.assertGreater(res['current']['total_wasted_share'], res['pr']['total_wasted_share'])
+        self.assertGreater(res['current']['total_wasted_share'], 0.5)  # 多数制多数票浪费
+        self.assertEqual(res['current']['system_type'], cfg.system_type)
+
+    def test_wasted_votes_follows_system(self):
+        """浪费票结果应随配置制度变化（STV 浪费率低于 FPTP）"""
+        from app.engine.analysis_engine import wasted_votes_analysis
+        fptp_cfg = ElectoralConfig(system_type='FPTP', total_seats=450)
+        stv_cfg = ElectoralConfig(system_type='STV', total_seats=450)
+        fptp_res = wasted_votes_analysis(self.cd, self.parties, fptp_cfg)
+        stv_res = wasted_votes_analysis(self.cd, self.parties, stv_cfg)
+        self.assertEqual(fptp_res['current']['system_type'], 'FPTP')
+        self.assertEqual(stv_res['current']['system_type'], 'STV')
+        self.assertNotEqual(fptp_res['current']['total_wasted_share'],
+                            stv_res['current']['total_wasted_share'])
+        self.assertGreater(fptp_res['current']['total_wasted_share'],
+                           stv_res['current']['total_wasted_share'])
 
     def test_party_space_competition(self):
         """政党空间竞争：立场扫描应覆盖 -1..1，且存在最优回报点"""
