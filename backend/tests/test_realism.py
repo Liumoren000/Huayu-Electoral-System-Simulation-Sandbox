@@ -521,16 +521,6 @@ class RealismFeatureTest(unittest.TestCase):
         self.assertGreater(res['fptp']['total_wasted_share'], res['pr']['total_wasted_share'])
         self.assertGreater(res['fptp']['total_wasted_share'], 0.5)  # 多数制多数票浪费
 
-    def test_representation_gap(self):
-        """代表性缺口：应有 8 个人口群体，且找出最不被代表者"""
-        from app.engine.analysis_engine import representation_gap_analysis
-        _, cfg = self._run()
-        res = representation_gap_analysis(self.cd, self.parties, cfg)
-        self.assertEqual(len(res['groups']), 8)
-        self.assertIsNotNone(res['most_underrepresented'])
-        for g in res['groups']:
-            self.assertGreaterEqual(g['distance_to_government'], 0.0)
-
     def test_party_space_competition(self):
         """政党空间竞争：立场扫描应覆盖 -1..1，且存在最优回报点"""
         from app.engine.analysis_engine import party_space_competition
@@ -545,20 +535,6 @@ class RealismFeatureTest(unittest.TestCase):
         # 极端右移应使左翼政党得票显著下降
         right = res['points'][-1]
         self.assertLess(right['vote_share'], res['base_vote_share'])
-
-    def test_district_magnitude(self):
-        """选区规模：STV 下 mag 增大应增加有效政党数/降低首党份额"""
-        from app.engine.analysis_engine import district_magnitude_effect
-        _, cfg = self._run()
-        res = district_magnitude_effect(self.cd, self.parties, cfg)
-        self.assertEqual(len(res['results']), 5)
-        mags = [r['magnitude'] for r in res['results']]
-        self.assertEqual(mags, [1, 2, 3, 5, 7])
-        for r in res['results']:
-            self.assertGreaterEqual(r['effective_parties_seats'], 1.0)
-        # 规模增大 → 首党席位总体下降
-        first_seats = [r['top_seats'] for r in res['results']]
-        self.assertGreaterEqual(first_seats[0], first_seats[-1])
 
     def test_city_vote_explanation(self):
         """城市投票成因解读：应返回结构标签、关键维度、叙事与各党归因"""

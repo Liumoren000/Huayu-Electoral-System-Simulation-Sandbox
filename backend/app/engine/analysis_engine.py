@@ -1,6 +1,6 @@
 """
-选举分析工具集：浪费票（Wasted Votes）、代表性缺口（Representation Gap）、
-政党空间竞争、选区规模效应、选举取证审计、城市投票成因解读。
+选举分析工具集：浪费票（Wasted Votes）、政党空间竞争、
+选举取证审计、城市投票成因解读。
 """
 import math
 from app.engine import ElectoralEngine
@@ -93,91 +93,6 @@ def wasted_votes_analysis(city_data, parties, config):
     return {"fptp": fptp, "pr": pr}
 
 
-def representation_gap_analysis(city_data, parties, config):
-    """代表性缺口：各人口群体（年龄/教育/城乡/收入）的政策立场
-    与执政党/中位选民的距离，识别「谁最不被代表」。
-
-    群体立场 = 城市基准维度 + 群体偏好偏移，按人口加权取中位。
-    距离 = 群体立场与执政党立场（经济+社会两轴曼哈顿距离）。
-    """
-    from app.engine.voter_model import VoterModel
-
-    vm = VoterModel(seed=42, turnout_shift=config.turnout_shift,
-                    dim_tilt=config.dim_tilt or {},
-                    party_effects=config.party_effects or {},
-                    voter_stratification=config.voter_stratification,
-                    calibration=config.calibration,
-                    affinity_power=config.affinity_power)
-    result = ElectoralEngine(city_data, parties, config, seed=42).run()
-    top = max(result.party_results, key=lambda p: p.seats)
-
-    def _weighted_median(pts):
-        total = sum(w for _, w in pts)
-        if total <= 0:
-            return 0.0
-        pts.sort()
-        acc = 0.0
-        for v, w in pts:
-            acc += w
-            if acc >= total / 2.0:
-                return v
-        return pts[-1][0]
-
-    # 中位选民
-    econ_pts, soc_pts = [], []
-    for city in city_data.cities:
-        dims = vm.get_city_dimensions(city)
-        econ_pts.append((dims.get('economic', 0.0), float(city.population)))
-        soc_pts.append((dims.get('social', 0.0), float(city.population)))
-    median_econ = _weighted_median(econ_pts)
-    median_soc = _weighted_median(soc_pts)
-
-    groups = []
-    structure = vm._STRUCTURE_GROUPS
-    for dim_key, dim in structure.items():
-        for (gkey, glabel, _spec, offset) in dim['groups']:
-            ge, gs = [], []
-            for city in city_data.cities:
-                dims = vm.get_city_dimensions(city)
-                e = dims.get('economic', 0.0) + offset.get('economic', 0.0)
-                s = dims.get('social', 0.0) + offset.get('social', 0.0)
-                w = float(city.population)
-                ge.append((max(-1.0, min(1.0, e)), w))
-                gs.append((max(-1.0, min(1.0, s)), w))
-            g_econ = _weighted_median(ge)
-            g_soc = _weighted_median(gs)
-            dist_gov = round(abs(g_econ - top.economic_position) + abs(g_soc - top.social_position), 3)
-            dist_median = round(abs(g_econ - median_econ) + abs(g_soc - median_soc), 3)
-            groups.append({
-                "group_key": gkey,
-                "group_label": glabel,
-                "dimension": dim_key,
-                "dimension_label": dim['label'],
-                "economic": round(g_econ, 3),
-                "social": round(g_soc, 3),
-                "distance_to_government": dist_gov,
-                "distance_to_median": dist_median,
-            })
-
-    # 最不被代表：到执政党距离最远、且与中位选民也远（双重偏离）
-    if groups:
-        worst = max(groups, key=lambda g: g["distance_to_government"])
-    else:
-        worst = None
-
-    return {
-        "government_party_id": top.party_id,
-        "government_party_name": top.party_name,
-        "government_color": top.color,
-        "government_economic": top.economic_position,
-        "government_social": top.social_position,
-        "median_economic": round(median_econ, 3),
-        "median_social": round(median_soc, 3),
-        "groups": groups,
-        "most_underrepresented": worst,
-    }
-
-
 def party_space_competition(city_data, parties, config, party_id: str,
                             axis: str = "economic", step: float = 0.25):
     """政党空间竞争模拟（Downsian 空间竞争博弈）。
@@ -242,38 +157,6 @@ def party_space_competition(city_data, parties, config, party_id: str,
         "optimal_position": best["position"],
         "optimal_seats": best["seats"],
     }
-
-
-def district_magnitude_effect(city_data, parties, config):
-    """选区规模效应：扫描每选区议席数（magnitude），观察政党碎片化/首党变化。
-
-    Duverger 定律的选区层面推论：选区议席规模越大（多议席制），政党碎片化
-    越严重（有效政党数上升）、首党份额下降——小党派凭低门槛进入议会。
-    """
-    base_mag = config.district_magnitude or 1
-    mags = [1, 2, 3, 5, 7]
-    if base_mag not in mags:
-        mags.append(base_mag)
-    mags = sorted(mags)
-    results = []
-    for mag in mags:
-        cfg = config.model_copy(update={"system_type": "STV", "district_magnitude": mag})
-        try:
-            r = ElectoralEngine(city_data, parties, cfg, seed=42).run()
-            top = max(r.party_results, key=lambda p: p.seats)
-            results.append({
-                "magnitude": mag,
-                "effective_parties_vote": round(r.effective_parties_vote, 2),
-                "effective_parties_seats": round(r.effective_parties_seats, 2),
-                "top_party_id": top.party_id,
-                "top_party_name": top.party_name,
-                "top_seats": top.seats,
-                "top_vote": round(top.vote_share, 4),
-                "gallagher": round(r.gallagher_index, 4),
-            })
-        except Exception as e:
-            results.append({"magnitude": mag, "error": str(e)})
-    return {"results": results}
 
 
 def _benford_chi_square(counts: list[int]) -> tuple[float, float]:

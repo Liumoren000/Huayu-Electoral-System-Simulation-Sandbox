@@ -88,16 +88,6 @@ export async function runWastedVotes(request) {
   return res.json();
 }
 
-export async function runRepresentationGap(request) {
-  const res = await fetch(`${API_BASE}/simulate/representation-gap`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(request),
-  });
-  if (!res.ok) throw new Error('Representation gap analysis failed');
-  return res.json();
-}
-
 export async function runPartySpace(request) {
   const res = await fetch(`${API_BASE}/simulate/party-space`, {
     method: 'POST',
@@ -105,16 +95,6 @@ export async function runPartySpace(request) {
     body: JSON.stringify(request),
   });
   if (!res.ok) throw new Error('Party space competition failed');
-  return res.json();
-}
-
-export async function runDistrictMagnitude(request) {
-  const res = await fetch(`${API_BASE}/simulate/district-magnitude`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(request),
-  });
-  if (!res.ok) throw new Error('District magnitude analysis failed');
   return res.json();
 }
 

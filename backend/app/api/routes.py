@@ -6,8 +6,8 @@ from fastapi.responses import JSONResponse
 from app.models.config import (
     SimulationRequest, RobustnessRequest, SensitivityRequest, VoterExplainRequest,
     VoterStructureRequest, CalibrationRequest,
-    WastedVotesRequest, RepresentationGapRequest,
-    PartySpaceRequest, DistrictMagnitudeRequest,
+    WastedVotesRequest,
+    PartySpaceRequest,
     CityExplainRequest, ForensicsRequest,
 )
 from app.models.result import (
@@ -30,8 +30,7 @@ from app.engine import DataLoader, generate_default_parties, ElectoralEngine, Co
 from app.engine.voter_model import VoterModel
 from app.engine.calibration_engine import historical_calibration
 from app.engine.analysis_engine import (
-    wasted_votes_analysis, representation_gap_analysis,
-    party_space_competition, district_magnitude_effect,
+    wasted_votes_analysis, party_space_competition,
     city_vote_explanation, election_forensics,
 )
 
@@ -460,18 +459,6 @@ def simulate_wasted_votes(request: WastedVotesRequest):
     return wasted_votes_analysis(city_data, request.parties, request.config)
 
 
-@router.post("/simulate/representation-gap")
-def simulate_representation_gap(request: RepresentationGapRequest):
-    """
-    代表性缺口：各人口群体政策立场与执政党/中位选民的距离，
-    识别「谁最不被代表」。
-    """
-    if not request.parties:
-        return JSONResponse(status_code=400, content={"error": "至少需要一个参选政党"})
-    city_data = data_loader.get_city_data(request.year)
-    return representation_gap_analysis(city_data, request.parties, request.config)
-
-
 @router.post("/simulate/party-space")
 def simulate_party_space(request: PartySpaceRequest):
     """
@@ -485,18 +472,6 @@ def simulate_party_space(request: PartySpaceRequest):
     city_data = data_loader.get_city_data(request.year)
     return party_space_competition(city_data, request.parties, request.config,
                                    request.party_id, request.axis, request.step)
-
-
-@router.post("/simulate/district-magnitude")
-def simulate_district_magnitude(request: DistrictMagnitudeRequest):
-    """
-    选区规模效应：扫描每选区议席数（magnitude），观察政党碎片化/首党变化，
-    验证 Duverger 定律的选区层面推论。
-    """
-    if not request.parties:
-        return JSONResponse(status_code=400, content={"error": "至少需要一个参选政党"})
-    city_data = data_loader.get_city_data(request.year)
-    return district_magnitude_effect(city_data, request.parties, request.config)
 
 
 @router.post("/simulate/city-explain")

@@ -11,7 +11,6 @@ import ScriptModal from './components/ScriptModal.jsx';
 import TippingSeatsModal from './components/TippingSeatsModal.jsx';
 import AttackDefenseModal from './components/AttackDefenseModal.jsx';
 import SankeyModal from './components/SankeyModal.jsx';
-import RadarModal from './components/RadarModal.jsx';
 import ReportModal from './components/ReportModal.jsx';
 import SnapshotModal from './components/SnapshotModal.jsx';
 import VoterModelModal from './components/VoterModelModal.jsx';
@@ -22,9 +21,7 @@ import CalibrationModal from './components/CalibrationModal.jsx';
 import RegionalBlockModal from './components/RegionalBlockModal.jsx';
 import NicheModal from './components/NicheModal.jsx';
 import WastedVotesModal from './components/WastedVotesModal.jsx';
-import RepGapModal from './components/RepGapModal.jsx';
 import PartySpaceModal from './components/PartySpaceModal.jsx';
-import DistrictMagnitudeModal from './components/DistrictMagnitudeModal.jsx';
 import ForensicsModal from './components/ForensicsModal.jsx';
 import EraModal from './components/EraModal.jsx';
 import { fetchParties, fetchCities, fetchEras, runSimulation, runRobustness } from './services/api.js';
@@ -159,7 +156,6 @@ export default function App() {
   const [showTipping, setShowTipping] = useState(false);
   const [showAttack, setShowAttack] = useState(false);
   const [showSankey, setShowSankey] = useState(false);
-  const [showRadar, setShowRadar] = useState(false);
   const [showReport, setShowReport] = useState(false);
   const [showSnap, setShowSnap] = useState(false);
   const [showVoterModel, setShowVoterModel] = useState(false);
@@ -169,9 +165,7 @@ export default function App() {
   const [showRegionalBlock, setShowRegionalBlock] = useState(false);
   const [showNiche, setShowNiche] = useState(false);
   const [showWastedVotes, setShowWastedVotes] = useState(false);
-  const [showRepGap, setShowRepGap] = useState(false);
   const [showPartySpace, setShowPartySpace] = useState(false);
-  const [showDistrictMagnitude, setShowDistrictMagnitude] = useState(false);
   const [showForensics, setShowForensics] = useState(false);
   const [snapshots, setSnapshots] = useState([]);  // { id, label, result }
   const [eras, setEras] = useState([]);
@@ -875,7 +869,6 @@ body: JSON.stringify({
                     <button onClick={() => { setShowTipping(true); setShowTools(false); }}>翻转临界席</button>
                     <button onClick={() => { setAttackInitialMode('coalition'); setShowAttack(true); setShowTools(false); }}>组阁攻防推演</button>
                     <button onClick={() => { setShowSankey(true); setShowTools(false); }}>省域席位流向</button>
-                    <button onClick={() => { setShowRadar(true); setShowTools(false); }}>综合代表指数</button>
                     <button onClick={() => { setShowReport(true); setShowTools(false); }}>自动解读报告</button>
                     <button onClick={() => { setShowVoterModel(true); setShowTools(false); }}>选民模型透明面板</button>
                     <button onClick={() => { setShowVoterStructure(true); setShowTools(false); }}>选民结构构成</button>
@@ -883,9 +876,7 @@ body: JSON.stringify({
                     <button onClick={() => { setShowRegionalBlock(true); setShowTools(false); }}>区域政治版图</button>
                     <button onClick={() => { setShowNiche(true); setShowTools(false); }}>政党生态位空间</button>
                     <button onClick={() => { setShowWastedVotes(true); setShowTools(false); }}>浪费票分析</button>
-                    <button onClick={() => { setShowRepGap(true); setShowTools(false); }}>代表性缺口</button>
                     <button onClick={() => { setShowPartySpace(true); setShowTools(false); }}>政党空间竞争</button>
-                    <button onClick={() => { setShowDistrictMagnitude(true); setShowTools(false); }}>选区规模效应</button>
                     <button onClick={() => { setShowForensics(true); setShowTools(false); }}>选举取证审计</button>
                     <button onClick={() => { setShowSnap(true); setShowTools(false); }}>多快照对比</button>
                   </div>
@@ -1115,14 +1106,6 @@ body: JSON.stringify({
           onClose={() => setShowSankey(false)}
         />
       )}
-      {showRadar && (
-        <RadarModal
-          resultA={displayResultA}
-          resultB={displayResultB}
-          activeScheme={activeScheme}
-          onClose={() => setShowRadar(false)}
-        />
-      )}
       {showReport && (
         <ReportModal
           displayResult={displayResult}
@@ -1211,30 +1194,12 @@ body: JSON.stringify({
         />
       )}
 
-      {showRepGap && (
-        <RepGapModal
-          config={effectiveConfig}
-          parties={parties}
-          year={year}
-          onClose={() => setShowRepGap(false)}
-        />
-      )}
-
       {showPartySpace && (
         <PartySpaceModal
           config={effectiveConfig}
           parties={parties}
           year={year}
           onClose={() => setShowPartySpace(false)}
-        />
-      )}
-
-      {showDistrictMagnitude && (
-        <DistrictMagnitudeModal
-          config={effectiveConfig}
-          parties={parties}
-          year={year}
-          onClose={() => setShowDistrictMagnitude(false)}
         />
       )}
 

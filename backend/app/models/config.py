@@ -99,12 +99,6 @@ class WastedVotesRequest(BaseModel):
     parties: list[Party]
 
 
-class RepresentationGapRequest(BaseModel):
-    year: int = Field(default=2023, ge=1949, le=2024)
-    config: ElectoralConfig
-    parties: list[Party]
-
-
 class PartySpaceRequest(BaseModel):
     year: int = Field(default=2023, ge=1949, le=2024)
     config: ElectoralConfig
@@ -112,12 +106,6 @@ class PartySpaceRequest(BaseModel):
     party_id: str = ""
     axis: str = "economic"
     step: float = Field(default=0.25, ge=0.05, le=0.5)
-
-
-class DistrictMagnitudeRequest(BaseModel):
-    year: int = Field(default=2023, ge=1949, le=2024)
-    config: ElectoralConfig
-    parties: list[Party]
 
 
 class CityExplainRequest(BaseModel):
