@@ -494,7 +494,12 @@ class ElectoralEngine:
             shares = self._adjust_shares_for_urban_rural(shares, city)
             # 统一摆动：目标党全国得票统一增减（Swingometer）
             shares = self._apply_uniform_swing(shares)
-            base_turnout = self.voter_model.get_city_turnout(city, self.config.urban_rural_weight)
+            # 竞争度调节投票率（abstention_sensitivity）：与 FPTP 口径一致
+            comp = 1.0 - self._top_margin(shares)
+            base_turnout = self.voter_model.get_city_turnout(
+                city, self.config.urban_rural_weight,
+                competitiveness=comp,
+                abstention_sensitivity=self.config.abstention_sensitivity or 0.0)
 
             eligible = self.voter_model.get_eligible_voter_ratio(city)
             city_votes = city.population * eligible * base_turnout
@@ -682,6 +687,12 @@ class ElectoralEngine:
 
     # ========== 排名票制度（单议席） ==========
 
+    def _ranked_sample_size(self, population: float) -> int:
+        """按城市人口平方根缩放排名票采样数，兼顾大城代表性与小城多样性"""
+        base = self.config.voter_samples
+        scale = max(1.0, (population / 1_000_000) ** 0.5)
+        return max(base, min(int(round(base * scale)), 400))
+
     def _run_ranked(self, winner_fn) -> ElectionResult:
         """IRV / 同意投票 / 波达计分 共用：每城市按人口得若干议席，城市胜者一致"""
         total = self.config.total_seats
@@ -689,16 +700,21 @@ class ElectoralEngine:
 
         city_winners = {}
         for cid, info in city_info.items():
-            rankings = self.voter_model.sample_voter_rankings(info['city'], self.parties, n=self.config.voter_samples, noise_amplitude=self.config.noise_amplitude)
+            n = self._ranked_sample_size(info['city'].population)
+            rankings = self.voter_model.sample_voter_rankings(
+                info['city'], self.parties, n=n,
+                noise_amplitude=self.config.noise_amplitude)
             city_winners[cid] = winner_fn(rankings)
 
         party_seats = self._count_city_seats(city_seats, city_winners)
+        # 排名票制度：得票率以全国人口加权首偏好为口径，与席位同源
+        first_shares = self._ranked_vote_shares()
         party_results = [
             PartySeatResult(
                 party_id=p.id,
                 party_name=p.name,
                 seats=party_seats.get(p.id, 0),
-                vote_share=round(party_votes[p.id] / total_votes, 4) if total_votes > 0 else 0,
+                vote_share=round(first_shares.get(p.id, 0.0), 4),
                 color=p.color,
                 economic_position=p.economic_position,
                 social_position=p.social_position,
@@ -752,7 +768,9 @@ class ElectoralEngine:
 
     def _run_stv(self) -> ElectionResult:
         total = self.config.total_seats
-        mag = max(1, self.config.district_magnitude)
+        # STV 默认以整省为多议席选区（保留比例性）；仅当用户显式调大
+        # district_magnitude 时才按该 magnitude 拆分为更小的多议席选区。
+        mag = self.config.district_magnitude if (self.config.district_magnitude or 1) > 1 else 1_000_000
 
         prov_cities = {}
         for c in self.city_data.cities:
@@ -774,18 +792,21 @@ class ElectoralEngine:
             prov_winners = {}
             for group, seats_n in districts:
                 ballots = []
-                first_prefs = {p.id: 0 for p in self.parties}
+                ballot_weights = []
                 for c in group:
                     rankings = self.voter_model.sample_voter_rankings(
                         c, self.parties, n=self.config.voter_samples,
                         noise_amplitude=self.config.noise_amplitude)
                     ballots.extend(rankings)
+                    # 城市人口加权：大城市选票权重更高，避免被小城等权稀释
+                    ballot_weights.extend([max(1.0, float(c.population))] * len(rankings))
+                    first_prefs = {p.id: 0 for p in self.parties}
                     for ranking in rankings:
                         if ranking:
                             first_prefs[ranking[0]] += 1
                     city_winners[c.id] = max(first_prefs, key=first_prefs.get)
                     prov_winners[c.id] = max(first_prefs, key=first_prefs.get)
-                prov_seats = self._stv_province(ballots, seats_n)
+                prov_seats = self._stv_province(ballots, seats_n, ballot_weights)
                 for pid, n in prov_seats.items():
                     province_party_seats[prov] = province_party_seats.get(prov, {})
                     province_party_seats[prov][pid] = province_party_seats[prov].get(pid, 0) + n
@@ -802,6 +823,7 @@ class ElectoralEngine:
             shares = self.voter_model.compute_vote_shares(city, self.parties, self.config.noise_amplitude)
             shares = self._adjust_shares_for_urban_rural(shares, city)
             winner_id = city_winners.get(city.id, max(shares, key=shares.get))
+            comp = 1.0 - self._top_margin(shares)
             city_results.append(CityResult(
                 city_id=city.id,
                 city_name=city.name,
@@ -809,21 +831,23 @@ class ElectoralEngine:
                 winner_party_id=winner_id,
                 winner_party_name=self.party_map[winner_id].name,
                 vote_shares={pid: round(s, 4) for pid, s in shares.items()},
-                turnout=self.voter_model.get_city_turnout(city, self.config.urban_rural_weight),
+                turnout=self.voter_model.get_city_turnout(
+                    city, self.config.urban_rural_weight,
+                    competitiveness=comp,
+                    abstention_sensitivity=self.config.abstention_sensitivity or 0.0),
                 affinities=self.voter_model.get_city_affinities(city, self.parties, self.config.noise_amplitude),
                 dimensions=self.voter_model.get_city_dimensions(city),
             ))
 
         party_results = []
+        # 排名票制度：得票率以全国人口加权首偏好为口径，与席位同源
+        first_shares = self._ranked_vote_shares()
         for p in self.parties:
-            vote_share = sum(
-                cr.vote_shares.get(p.id, 0) for cr in city_results
-            ) / len(city_results) if city_results else 0
             party_results.append(PartySeatResult(
                 party_id=p.id,
                 party_name=p.name,
                 seats=party_seats.get(p.id, 0),
-                vote_share=round(vote_share, 4),
+                vote_share=round(first_shares.get(p.id, 0.0), 4),
                 color=p.color,
                 economic_position=p.economic_position,
                 social_position=p.social_position,
@@ -833,6 +857,21 @@ class ElectoralEngine:
         return self._build_result(city_results, party_results, 0,
                                   city_party_seats=city_party_seats,
                                   province_party_seats=province_party_seats)
+
+    def _ranked_vote_shares(self) -> dict[str, float]:
+        """全国人口加权首偏好得票率（与排名票制度席位同源）"""
+        first = {p.id: 0.0 for p in self.parties}
+        total = 0.0
+        for city in self.city_data.cities:
+            for ranking in self.voter_model.sample_voter_rankings(
+                    city, self.parties, n=self.config.voter_samples,
+                    noise_amplitude=self.config.noise_amplitude):
+                if ranking:
+                    first[ranking[0]] += city.population
+                total += city.population
+        if total <= 0:
+            return {p.id: 1.0 / len(self.parties) for p in self.parties}
+        return {pid: v / total for pid, v in first.items()}
 
     def _group_cities_into_districts(self, cities: list, prov_seats: int, mag: int) -> list:
         """把省内城市按人口聚合成多议席选区（每选区 mag 席）。
@@ -879,16 +918,20 @@ class ElectoralEngine:
             return [(cities, prov_seats)]
         return result
 
-    def _stv_province(self, ballots: list[list[str]], seats: int) -> dict[str, int]:
+    def _stv_province(self, ballots: list[list[str]], seats: int,
+                      ballot_weights: list[float] = None) -> dict[str, int]:
         """
         STV（省级多议席，政党可连任）：Droop 配额 + 盈余降权转移 + 末位淘汰。
 
         政党每次当选占用一个议席；当选后其票重按 (votes-quota)/votes 收缩，
         盈余继续参与后续轮次，从而支持同一政党赢得多个议席。
+
+        ballot_weights 可传入城市人口权重，使大城市选票不被小城市稀释。
         """
         party_ids = {p.id for p in self.parties}
-        quota = math.floor(len(ballots) / (seats + 1)) + 1
-        weights = [1.0] * len(ballots)
+        weights = list(ballot_weights) if ballot_weights else [1.0] * len(ballots)
+        total_weight = sum(weights)
+        quota = math.floor(total_weight / (seats + 1)) + 1
         party_seats = {pid: 0 for pid in party_ids}
         eliminated: set[str] = set()
 
@@ -914,7 +957,7 @@ class ElectoralEngine:
                     continue
                 party_seats[pid] += 1
                 progressed = True
-                if v > quota:
+                if v >= quota:
                     frac = max(0.0, (v - quota) / v)
                     for i in range(len(ballots)):
                         if current_top(i) == pid:
@@ -949,7 +992,6 @@ class ElectoralEngine:
         total_votes = 0.0
 
         for city in self.city_data.cities:
-            turnout = self.voter_model.get_city_turnout(city, self.config.urban_rural_weight)
             shares = self.voter_model.compute_vote_shares(city, self.parties, self.config.noise_amplitude)
             shares = self._adjust_shares_for_urban_rural(shares, city)
             # 名单席位/比例代表反映"真实偏好"；选区席赢者通吃才受弃保影响
@@ -957,6 +999,12 @@ class ElectoralEngine:
             # 统一摆动：影响选区席（Swingometer）
             shares = self._apply_uniform_swing(shares)
             shares = self._apply_tactical_voting(shares, city)
+            # 竞争度调节投票率（abstention_sensitivity）：与 FPTP 口径一致
+            comp = 1.0 - self._top_margin(shares)
+            turnout = self.voter_model.get_city_turnout(
+                city, self.config.urban_rural_weight,
+                competitiveness=comp,
+                abstention_sensitivity=self.config.abstention_sensitivity or 0.0)
             eligible = self.voter_model.get_eligible_voter_ratio(city)
             city_votes = city.population * eligible * turnout
             for pid, share in honest.items():

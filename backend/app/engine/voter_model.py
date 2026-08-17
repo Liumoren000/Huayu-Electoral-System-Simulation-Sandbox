@@ -243,16 +243,15 @@ class VoterModel:
         反映城市内年龄/收入/教育分层。
         """
         rng = random.Random(self.seed * 1000000 + int(city.id))
-        city_pos = self.get_city_dimensions(city)
         segments = self._city_segments(city) if self.voter_stratification else [{'weight': 1, 'offset': {}}]
-        party_pos = {p.id: {d: getattr(p, d + '_position', 0.0) for d in self.POLICY_DIMS} for p in parties}
         rankings = []
         for _ in range(n):
             seg = self._pick_segment(segments, rng)
             noise = noise_amplitude * (rng.uniform(1.5, 3.0) if self._is_swing(rng) else 1.0)
-            vpos = {d: city_pos.get(d, 0) + seg['offset'].get(d, 0) + rng.gauss(0, noise)
-                    for d in self.POLICY_DIMS}
-            ordered = sorted(parties, key=lambda p: self._policy_distance(vpos, party_pos[p.id]))
+            # 与亲和度模型同构：按 7 维加权匹配分排序（含亚群偏移与选民噪声）
+            ordered = sorted(
+                parties,
+                key=lambda p: -self._affinity_score(city, p, seg['offset']) + rng.gauss(0, noise))
             rankings.append([p.id for p in ordered])
         return rankings
 
@@ -270,6 +269,44 @@ class VoterModel:
                 out[pid] = max(0.001, out[pid] + delta)
         return out
 
+    def _affinity_score(self, city: City, party: Party, segment_offset: dict = None) -> float:
+        """加权 7 维匹配分（无噪声），供亲和度与排名模型共用，保证两者一致"""
+        scores = []
+
+        econ_score = self._economic_match(city, party, segment_offset)
+        scores.append(('economic', econ_score, 0.25))
+
+        social_score = self._social_match(city, party, segment_offset)
+        scores.append(('social', social_score, 0.15))
+
+        regional_score = self._regional_match(city, party, segment_offset)
+        scores.append(('regional', regional_score, 0.15))
+
+        city_welfare = self._city_tilt(city, 'welfare', self._city_welfare_preference(city))
+        city_welfare += (segment_offset or {}).get('welfare', 0.0)
+        welfare_score = max(0, 1.0 - abs(city_welfare - getattr(party, 'welfare_position', 0)) * 0.8)
+        scores.append(('welfare', welfare_score, 0.10))
+
+        city_env = self._city_tilt(city, 'environment', self._city_environment_preference(city))
+        city_env += (segment_offset or {}).get('environment', 0.0)
+        env_score = max(0, 1.0 - abs(city_env - getattr(party, 'environment_position', 0)) * 0.8)
+        scores.append(('environment', env_score, 0.10))
+
+        city_nat = self._city_tilt(city, 'nationalism', self._city_nationalism(city))
+        city_nat += (segment_offset or {}).get('nationalism', 0.0)
+        nat_score = max(0, 1.0 - abs(city_nat - getattr(party, 'nationalism_position', 0)) * 1.0)
+        ethnic_share = getattr(city, 'ethnic_share', 0.0) or 0.0
+        if getattr(party, 'camp', '') == 'ethnic' and ethnic_share > 0:
+            nat_score = min(1.0, nat_score + ethnic_share * 0.35)
+        scores.append(('nationalism', nat_score, 0.15))
+
+        city_ur = self._city_tilt(city, 'urban_rural', self._city_urban_rural(city))
+        city_ur += (segment_offset or {}).get('urban_rural', 0.0)
+        ur_score = max(0, 1.0 - abs(city_ur - getattr(party, 'urban_rural_position', 0)) * 0.9)
+        scores.append(('urban_rural', ur_score, 0.10))
+
+        return sum(s * w for _, s, w in scores)
+
     def compute_city_party_affinity(self, city: City, party: Party, noise_amplitude: float = 0.03,
                                     segment_offset: dict = None) -> float:
         """
@@ -279,49 +316,7 @@ class VoterModel:
         经济(25%) > 社会(15%) = 区域(15%) = 民族认同(15%) > 福利(10%) = 环保(10%) = 城乡(10%)。
         民族/区域认同给予足额权重——多民族国家中文化认同是选票结构的重要来源。
         """
-        scores = []
-
-        # 经济维度匹配 (25%)
-        econ_score = self._economic_match(city, party, segment_offset)
-        scores.append(('economic', econ_score, 0.25))
-
-        # 社会维度匹配 (15%)
-        social_score = self._social_match(city, party, segment_offset)
-        scores.append(('social', social_score, 0.15))
-
-        # 区域维度匹配 (15%)
-        regional_score = self._regional_match(city, party, segment_offset)
-        scores.append(('regional', regional_score, 0.15))
-
-        # 福利维度匹配 (10%)
-        city_welfare = self._city_tilt(city, 'welfare', self._city_welfare_preference(city))
-        city_welfare += (segment_offset or {}).get('welfare', 0.0)
-        welfare_score = max(0, 1.0 - abs(city_welfare - getattr(party, 'welfare_position', 0)) * 0.8)
-        scores.append(('welfare', welfare_score, 0.10))
-
-        # 环保维度匹配 (10%)
-        city_env = self._city_tilt(city, 'environment', self._city_environment_preference(city))
-        city_env += (segment_offset or {}).get('environment', 0.0)
-        env_score = max(0, 1.0 - abs(city_env - getattr(party, 'environment_position', 0)) * 0.8)
-        scores.append(('environment', env_score, 0.10))
-
-        # 民族认同匹配 (15%)
-        city_nat = self._city_tilt(city, 'nationalism', self._city_nationalism(city))
-        city_nat += (segment_offset or {}).get('nationalism', 0.0)
-        nat_score = max(0, 1.0 - abs(city_nat - getattr(party, 'nationalism_position', 0)) * 1.0)
-        # 民族构成加成：少数民族占比高的城市，民族自治党（camp=ethnic）获得真实选区基础
-        ethnic_share = getattr(city, 'ethnic_share', 0.0) or 0.0
-        if getattr(party, 'camp', '') == 'ethnic' and ethnic_share > 0:
-            nat_score = min(1.0, nat_score + ethnic_share * 0.35)
-        scores.append(('nationalism', nat_score, 0.15))
-
-        # 城乡利益匹配 (10%)
-        city_ur = self._city_tilt(city, 'urban_rural', self._city_urban_rural(city))
-        city_ur += (segment_offset or {}).get('urban_rural', 0.0)
-        ur_score = max(0, 1.0 - abs(city_ur - getattr(party, 'urban_rural_position', 0)) * 0.9)
-        scores.append(('urban_rural', ur_score, 0.10))
-
-        raw_score = sum(s * w for _, s, w in scores)
+        raw_score = self._affinity_score(city, party, segment_offset)
 
         # 添加随机扰动模拟现实不确定性（幅度可调）
         noise = self.rng.gauss(0, noise_amplitude)
@@ -811,7 +806,7 @@ class VoterModel:
             amp = noise_amplitude
             base = self.compute_city_party_affinity(city, party, amp, segment_offset)
             # 摇摆选民：全国性竞选浪潮（跨城市相关的系统冲击）+ 局部扰动
-            if self.swing_voter_pct > 0 and segment_offset is None:
+            if self.swing_voter_pct > 0:
                 swing_amp = noise_amplitude * 2.0
                 local = self.compute_city_party_affinity(city, party, swing_amp, segment_offset)
                 wave = self._national_swing_for(party.id)

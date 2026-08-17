@@ -1,4 +1,5 @@
 import unittest
+import math
 
 from app.engine import DataLoader, ElectoralEngine, generate_default_parties
 from app.models.config import ElectoralConfig
@@ -306,6 +307,48 @@ class RealismFeatureTest(unittest.TestCase):
         # 席位守恒
         self.assertEqual(sum(p.seats for p in r1.party_results), 450)
         self.assertAlmostEqual(sum(swung.values()), 1.0, places=3)
+
+    def test_stv_proportional_by_first_prefs(self):
+        """STV 席位应与人口加权首偏好比例一致（得票率口径=首偏好，不依赖亲和度浓缩）"""
+        r = ElectoralEngine(self.cd, self.parties,
+                            ElectoralConfig(system_type='STV', total_seats=450, threshold=0.03),
+                            seed=42).run()
+        first = {p.party_id: p.vote_share for p in r.party_results}
+        seats = {p.party_id: p.seats for p in r.party_results}
+        total = sum(seats.values())
+        # Gallagher 指数：STV 属比例制，应显著低于单议席制（FPTP ~14）
+        g = math.sqrt(0.5 * sum((first[pid] * 100 - seats[pid] / total * 100) ** 2 for pid in seats))
+        self.assertLess(g, 6.0, "STV 应保持高度比例性（席位≈首偏好）")
+        # 得票率口径为首偏好：总和为 1
+        self.assertAlmostEqual(sum(first.values()), 1.0, places=3)
+        # 每党席位占比应与首偏好同向
+        for pid in seats:
+            if first[pid] > 0.02:
+                self.assertGreater(seats[pid], 0, f"{pid} 首偏好>{2}% 应获席位")
+
+    def test_swing_voters_work_with_stratification(self):
+        """摇摆选民在分层模式下同样生效（不得被 voter_stratification 静默关闭）"""
+        r0, _ = self._run(swing_voter_pct=0.0, voter_stratification=True)
+        r1, _ = self._run(swing_voter_pct=0.6, voter_stratification=True)
+        base = {p.party_id: p.vote_share for p in r0.party_results}
+        swung = {p.party_id: p.vote_share for p in r1.party_results}
+        shifts = [abs(swung[pid] - base[pid]) for pid in base]
+        self.assertGreater(max(shifts), 0.003,
+                           "分层模式下摇摆选民应产生全国性浪潮偏移")
+        self.assertEqual(sum(p.seats for p in r1.party_results), 450)
+
+    def test_abstention_sensitivity_applies_all_systems(self):
+        """竞争-投票率联动应作用于全部制度（FPTP/PR/STV），而非仅 FPTP"""
+        for st in ('FPTP', 'PR', 'STV'):
+            cfg_off = ElectoralConfig(system_type=st, total_seats=450, abstention_sensitivity=0.0)
+            cfg_on = ElectoralConfig(system_type=st, total_seats=450, abstention_sensitivity=1.0)
+            r_off = ElectoralEngine(self.cd, self.parties, cfg_off, seed=42).run()
+            r_on = ElectoralEngine(self.cd, self.parties, cfg_on, seed=42).run()
+            t_off = {c.city_id: c.turnout for c in r_off.city_results}
+            t_on = {c.city_id: c.turnout for c in r_on.city_results}
+            diffs = [abs(t_on[cid] - t_off[cid]) for cid in t_off]
+            self.assertGreater(sum(1 for d in diffs if d > 0.001), 10,
+                               f"{st} 下竞争度调节应产生投票率差异")
 
     def test_city_has_ethnic_share_field(self):
         """每个城市都有少数民族占比字段（0-1），且分布符合现实（西部/边疆高）"""
