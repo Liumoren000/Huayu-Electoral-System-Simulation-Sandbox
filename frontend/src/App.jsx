@@ -33,6 +33,7 @@ import PartySpaceModal from './components/PartySpaceModal.jsx';
 import IssueOwnershipModal from './components/IssueOwnershipModal.jsx';
 import DistrictMagnitudeModal from './components/DistrictMagnitudeModal.jsx';
 import PartyFreezeModal from './components/PartyFreezeModal.jsx';
+import ForensicsModal from './components/ForensicsModal.jsx';
 import EraModal from './components/EraModal.jsx';
 import GovernmentModal from './components/GovernmentModal.jsx';
 import { fetchParties, fetchCities, fetchEras, runSimulation, runRobustness } from './services/api.js';
@@ -60,6 +61,9 @@ const defaultConfig = {
   affinity_power: 6,
   party_system_concentration: 0,
   poll_systematic_bias: 0,
+  integer_votes: true,
+  turnout_structure_sensitivity: 0,
+  spatial_autocorrelation: 0,
 };
 
 function largestRemainderAllocation(pops, totalSeats, minSeats) {
@@ -186,6 +190,7 @@ export default function App() {
   const [showIssueOwnership, setShowIssueOwnership] = useState(false);
   const [showDistrictMagnitude, setShowDistrictMagnitude] = useState(false);
   const [showPartyFreeze, setShowPartyFreeze] = useState(false);
+  const [showForensics, setShowForensics] = useState(false);
   const [snapshots, setSnapshots] = useState([]);  // { id, label, result }
   const [eras, setEras] = useState([]);
   const [showEra, setShowEra] = useState(false);
@@ -908,6 +913,7 @@ body: JSON.stringify({
                     <button onClick={() => { setShowIssueOwnership(true); setShowTools(false); }}>议题所有权</button>
                     <button onClick={() => { setShowDistrictMagnitude(true); setShowTools(false); }}>选区规模效应</button>
                     <button onClick={() => { setShowPartyFreeze(true); setShowTools(false); }}>政党体系冻结度</button>
+                    <button onClick={() => { setShowForensics(true); setShowTools(false); }}>选举取证审计</button>
                     <button onClick={() => { setShowSnap(true); setShowTools(false); }}>多快照对比</button>
                   </div>
                 )}
@@ -1343,6 +1349,15 @@ body: JSON.stringify({
           parties={parties}
           year={year}
           onClose={() => setShowPartyFreeze(false)}
+        />
+      )}
+
+      {showForensics && (
+        <ForensicsModal
+          config={effectiveConfig}
+          parties={parties}
+          year={year}
+          onClose={() => setShowForensics(false)}
         />
       )}
     </div>

@@ -522,6 +522,146 @@ def party_system_freeze(city_data, parties, config):
     }
 
 
+def _benford_chi_square(counts: list[int]) -> tuple[float, float]:
+    """首位数 Benford 分布拟合：返回 (chi2, max_deviation)。
+
+    Benford 定律：真实选举中政党得票数的首位数字近似对数分布（1 最多，9 最少）。
+    完全均匀的首位分布或强烈偏向某位往往提示数据被"捏造"或大量相同取整。
+    """
+    digits = {str(d): 0 for d in range(1, 10)}
+    for c in counts:
+        if c <= 0:
+            continue
+        first = str(c)[0]
+        digits[first] = digits.get(first, 0) + 1
+    total = sum(digits.values())
+    if total < 20:
+        return 0.0, 0.0
+    chi2 = 0.0
+    max_dev = 0.0
+    for d in range(1, 10):
+        expected = total * math.log10(1 + 1.0 / d)
+        observed = digits[str(d)]
+        chi2 += (observed - expected) ** 2 / max(1e-9, expected)
+        max_dev = max(max_dev, abs(observed - expected) / max(1, total))
+    return chi2, max_dev
+
+
+def _last_digit_uniformity(counts: list[int]) -> float:
+    """末位数字分布均匀性：真实手工投票数据末位接近均匀分布。
+
+    伪造数据往往有规律的末位偏好（偏爱 0/5 或某些数字）。用 chi2 衡量
+    与均匀分布的偏离，返回 0（偏离大）~1（完全均匀）。
+    """
+    freq = {d: 0 for d in range(10)}
+    for c in counts:
+        if c <= 0:
+            continue
+        freq[c % 10] += 1
+    total = sum(freq.values())
+    if total < 20:
+        return 0.0
+    expected = total / 10.0
+    chi2 = sum((v - expected) ** 2 / max(1e-9, expected) for v in freq.values())
+    return max(0.0, 1.0 - chi2 / (expected * 3.0))
+
+
+def election_forensics(city_data, parties, config):
+    """选举取证审计：检验模拟投票数据在统计形态上是否"像真实选举"。
+
+    四项检验（真实选举数据取证常用）：
+    1. Benford 首位数：政党得票数首位分布应近似对数分布（1 最多）。
+    2. 末位数字均匀性：手工/真实计票末位近似均匀，无规律偏好。
+    3. 投票率-竞争度关联：胶着选区投票率显著更高，碾压选区偏低。
+    4. 边际选区密度：真实多数制存在相当比例的 5% 内胶着选区。
+
+    返回每项检验的统计量与 0-100 真实性评分。
+    """
+    engine = ElectoralEngine(city_data, parties, config, seed=42)
+    result = engine.run()
+
+    # 1/2. 收集全市各党整数票（无整数票时退回得票率×总票估算）
+    counts = []
+    for cr in result.city_results:
+        if cr.votes:
+            counts.extend(v for v in cr.votes.values() if v > 0)
+        else:
+            total = cr.total_votes or int(cr.turnout * 0.78 * 1_000_000)
+            counts.extend(int(v * total) for v in cr.vote_shares.values() if v > 0)
+
+    benford_chi2, benford_dev = _benford_chi_square(counts)
+    # chi2 越小越接近 Benford：自由度为 8，chi2<15.5 (p>0.05) 视为真实形态
+    benford_score = max(0.0, min(1.0, 1.0 - benford_chi2 / 40.0))
+    last_score = _last_digit_uniformity(counts)
+
+    # 3. 投票率-竞争度关联：计算各市胜差与投票率的 Spearman 相关
+    margins = []
+    turnouts = []
+    for cr in result.city_results:
+        shares = sorted(cr.vote_shares.values(), reverse=True)
+        if len(shares) < 2:
+            continue
+        margins.append(shares[0] - shares[1])
+        turnouts.append(cr.turnout)
+    n = len(margins)
+    rho = 0.0
+    if n >= 10:
+        # Spearman 秩相关（用名次而非原值，稳健于非线性）
+        rank = lambda xs: {v: i / max(1, len(xs) - 1) for i, v in enumerate(sorted(xs))}
+        rm, rt = [rank(margins)[m] for m in margins], [rank(turnouts)[t] for t in turnouts]
+        mean_m, mean_t = sum(rm) / n, sum(rt) / n
+        num = sum((rm[i] - mean_m) * (rt[i] - mean_t) for i in range(n))
+        den = math.sqrt(sum((x - mean_m) ** 2 for x in rm) * sum((y - mean_t) ** 2 for y in rt))
+        rho = num / den if den > 0 else 0.0
+    # 真实形态：胜差越小投票率越高 → rho 显著为负
+    competition_score = max(0.0, min(1.0, 0.5 - rho * 1.5))
+
+    # 4. 边际选区密度：胜差 <5pp 的城市占比
+    tight = sum(1 for m in margins if m < 0.05) / max(1, len(margins))
+    # 真实 FPTP 体系 5% 内边际选区占比约 10-20%，太高（摆荡机器）或太低（无竞争）都不真
+    tight_score = 1.0 - abs(tight - 0.15) / 0.15
+
+    scores = {
+        "benford": round(benford_score, 3),
+        "last_digit": round(last_score, 3),
+        "competition_turnout": round(competition_score, 3),
+        "marginal_seats": round(max(0.0, tight_score), 3),
+    }
+    realism = round(sum(scores.values()) / 4 * 100, 1)
+
+    return {
+        "realism_score": realism,
+        "scores": scores,
+        "checks": {
+            "benford": {
+                "chi2": round(benford_chi2, 2),
+                "max_deviation": round(benford_dev, 4),
+                "conclusion": "首位数分布接近 Benford 对数分布，符合真实选举形态"
+                if benford_chi2 < 15.5 else "首位分布偏离 Benford，可能存在取整/造数痕迹",
+            },
+            "last_digit": {
+                "uniformity": round(last_score, 3),
+                "conclusion": "末位数字接近均匀分布，无系统性凑整偏好"
+                if last_score > 0.6 else "末位数字存在规律偏好，提示数据被加工",
+            },
+            "competition_turnout": {
+                "spearman_rho": round(rho, 3),
+                "conclusion": "胶着选区投票率更高，符合现实动员规律"
+                if rho < -0.1 else "投票率与竞争度关联偏弱",
+            },
+            "marginal_seats": {
+                "share": round(tight, 3),
+                "conclusion": f"边际选区（5%内）占比 {tight*100:.1f}%，处于现实多数制常见区间"
+                if 0.05 <= tight <= 0.35 else f"边际选区占比 {tight*100:.1f}%，偏离现实多数制典型分布",
+            },
+        },
+        "verdict": "数据形态高度接近真实选举公报" if realism >= 75
+        else "数据形态基本接近真实选举" if realism >= 55
+        else "数据形态偏离真实选举，建议开启真实感参数",
+        "note": "本审计针对数据统计形态（非选举操纵判定）：模拟数据应避免过于工整的首位/末位分布与异常整齐的边际结构。",
+    }
+
+
 DIM_LABELS = {
     "economic": "经济立场",
     "social": "社会立场",

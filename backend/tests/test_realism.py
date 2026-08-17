@@ -620,6 +620,70 @@ class RealismFeatureTest(unittest.TestCase):
         self.assertIn('winner_party_id', res)
         self.assertGreaterEqual(len(res['parties']), 3)
 
+    def test_integer_votes(self):
+        """整数票数：各城市各党票数应为整数且总和恰为该市总票数"""
+        r, _ = self._run()
+        for cr in r.city_results:
+            self.assertGreater(cr.total_votes, 0)
+            self.assertEqual(sum(cr.votes.values()), cr.total_votes,
+                             f"{cr.city_name} 各党票数之和应等于总票数")
+            self.assertEqual(cr.votes.get(cr.winner_party_id, 0),
+                             max(cr.votes.values()), f"{cr.city_name} 胜者票数应最多")
+        # 全国总票数与城市口径一致（整数票聚合）
+        self.assertEqual(sum(cr.total_votes for cr in r.city_results), r.total_votes,
+                         "全国总票数应等于各市整数票之和")
+
+    def test_integer_votes_disabled(self):
+        """关闭整数票时 votes/total_votes 为空，其余结构不变"""
+        r, _ = self._run(integer_votes=False)
+        self.assertTrue(all(cr.total_votes == 0 for cr in r.city_results))
+        self.assertTrue(all(not cr.votes for cr in r.city_results))
+
+    def test_turnout_structure_sensitivity(self):
+        """投票率结构关联：高 GDP 城市投票率显著高于低 GDP 城市"""
+        import statistics
+        r0, _ = self._run()
+        r1, _ = self._run(turnout_structure_sensitivity=1.0)
+        by_gdp = {}
+        for cr, city in zip(r1.city_results, self.cd.cities):
+            key = 'high' if city.gdp_per_capita > 100000 else 'low'
+            by_gdp.setdefault(key, []).append(cr.turnout)
+        high, low = statistics.mean(by_gdp['high']), statistics.mean(by_gdp['low'])
+        self.assertGreater(high, low + 0.03, "结构关联开启后高 GDP 城市投票率应明显更高")
+        self.assertGreaterEqual(min(cr.turnout for cr in r1.city_results), 0.35)
+        self.assertLessEqual(max(cr.turnout for cr in r1.city_results), 0.85)
+
+    def test_spatial_autocorrelation(self):
+        """空间自相关：同省城市得票率差异应小于基线（相邻地区更相似）"""
+        import statistics
+        from collections import defaultdict
+        r0, _ = self._run()
+        r1, _ = self._run(spatial_autocorrelation=0.9)
+        top_party0 = max(r0.party_results, key=lambda p: p.vote_share).party_id
+
+        def intra_prov_std(res):
+            by_prov = defaultdict(list)
+            for c in res.city_results:
+                by_prov[c.province].append(c.vote_shares.get(top_party0, 0))
+            diffs = [statistics.stdev(v) for v in by_prov.values() if len(v) >= 2]
+            return statistics.mean(diffs) if diffs else 0.0
+
+        self.assertLess(intra_prov_std(r1), intra_prov_std(r0) + 1e-9,
+                        "空间自相关开启后同省得票率应更趋同")
+
+    def test_election_forensics(self):
+        """选举取证审计：返回 0-100 真实性评分与四项检验结论"""
+        from app.engine.analysis_engine import election_forensics
+        _, cfg = self._run()
+        res = election_forensics(self.cd, self.parties, cfg)
+        self.assertGreaterEqual(res['realism_score'], 0.0)
+        self.assertLessEqual(res['realism_score'], 100.0)
+        self.assertEqual(len(res['scores']), 4)
+        self.assertIn('benford', res['checks'])
+        self.assertIn('chi2', res['checks']['benford'])
+        self.assertIn('verdict', res)
+        self.assertTrue(all(0.0 <= s <= 1.0 for s in res['scores'].values()))
+
     def test_party_system_freeze(self):
         """政党体系冻结度：应遍历全部年代，返回冻结度与首党保持率"""
         from app.engine.analysis_engine import party_system_freeze

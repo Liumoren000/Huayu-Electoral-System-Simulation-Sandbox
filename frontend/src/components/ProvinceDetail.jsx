@@ -305,13 +305,17 @@ export default function ProvinceDetail({ province, result, cities, onClose, manu
                         <div className="city-shares">
                           {sortedShares.slice(0, 3).map(([pid, share]) => {
                             const party = partyMap[pid];
+                            const votes = cr.votes?.[pid];
                             return (
                               <div key={pid} className="city-share-row">
                                 <span className="city-share-party">
                                   <span className="city-winner-dot" style={{ background: party?.color || '#999', width: 5, height: 5 }} />
                                   {party?.name || pid}
                                 </span>
-                                <span className="city-share-pct">{(share * 100).toFixed(1)}%</span>
+                                <span className="city-share-pct">
+                                  {votes != null && cr.total_votes ? `${votes.toLocaleString()} 票 · ` : ''}
+                                  {(share * 100).toFixed(1)}%
+                                </span>
                               </div>
                             );
                           })}

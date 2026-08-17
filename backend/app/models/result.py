@@ -15,6 +15,8 @@ class CityResult(BaseModel):
     affinities: dict[str, float] = {}  # party_id -> raw affinity score
     dimensions: dict[str, float] = {}  # economic, social, regional position
     party_seats: dict[str, int] = {}  # party_id -> seats won in this city
+    votes: dict[str, int] = {}  # party_id -> 整数票数（真实选举公报形态）
+    total_votes: int = 0  # 该市实际投出整数票数
 
 
 class PartySeatResult(BaseModel):

@@ -64,7 +64,9 @@ class VoterModel:
                  party_effects: dict = None, party_loyalty: float = 0.0,
                  swing_voter_pct: float = 0.0, voter_stratification: bool = False,
                  calibration: bool = False, turnout_differential: float = 0.0,
-                 affinity_power: float = 6.0, party_system_concentration: float = 0.0):
+                 affinity_power: float = 6.0, party_system_concentration: float = 0.0,
+                 turnout_structure_sensitivity: float = 0.0,
+                 spatial_autocorrelation: float = 0.0):
         self.rng = random.Random(seed)
         self.seed = seed
         self.turnout_shift = turnout_shift
@@ -77,7 +79,10 @@ class VoterModel:
         self.turnout_differential = turnout_differential
         self.affinity_power = affinity_power
         self.party_system_concentration = party_system_concentration
+        self.turnout_structure_sensitivity = turnout_structure_sensitivity or 0.0
+        self.spatial_autocorrelation = spatial_autocorrelation or 0.0
         self._national_swing = {}
+        self._province_noise = {}
 
     def reset_run(self, seed: int = None) -> None:
         """
@@ -88,6 +93,7 @@ class VoterModel:
         同轮内各城市一致、不同轮之间不同，模拟一轮选战的全国性氛围。
         """
         self._national_swing = {}
+        self._province_noise = {}
 
     def _national_swing_for(self, party_id: str) -> float:
         """该轮内对某党的全国性浪潮冲击（确定性：同一轮内恒定）"""
@@ -98,6 +104,25 @@ class VoterModel:
             r = random.Random(h)
             self._national_swing[party_id] = r.gauss(0.0, 0.045)
         return self._national_swing[party_id]
+
+    def _province_swing_for(self, province: str, party_id: str, amplitude: float = 0.05) -> float:
+        """
+        省级政治冲击：同省所有城市共享的确定性随机偏移。
+
+        现实中的选举地理呈现空间自相关——相邻/同省选区受共同的省级政治文化、
+        经济周期与本地媒体环境影响，得票率彼此更相似（如邻接县常同色）。
+        该冲击按 (seed, province, party_id) 确定性采样，同省各城市一致，
+        从而在城市间得票率中注入空间结构而非纯独立噪声。
+        """
+        if self.spatial_autocorrelation <= 0:
+            return 0.0
+        key = (province, party_id)
+        if key not in self._province_noise:
+            import zlib
+            h = zlib.crc32(f"{self.seed}:prov:{province}:{party_id}".encode())
+            r = random.Random(h)
+            self._province_noise[key] = r.gauss(0.0, amplitude)
+        return self._province_noise[key]
 
     def _tilt(self, dim: str, base: float) -> float:
         """全国选民在某一政策维度上的偏好偏移（选举剧本机制）"""
@@ -300,6 +325,13 @@ class VoterModel:
 
         # 添加随机扰动模拟现实不确定性（幅度可调）
         noise = self.rng.gauss(0, noise_amplitude)
+        # 空间自相关：同省城市共享省级政治冲击（相邻地区得票更相似）
+        if self.spatial_autocorrelation > 0:
+            prov_noise = self._province_swing_for(city.province, party.id,
+                                                  amplitude=noise_amplitude * 1.5)
+            # 省级冲击按强度混合进城市噪声：0=纯城市噪声，高=省级共性占主导
+            noise = noise * (1.0 - self.spatial_autocorrelation) \
+                + prov_noise * self.spatial_autocorrelation
         return max(0.01, raw_score + noise)
 
     def get_city_dimensions(self, city: City) -> dict[str, float]:
@@ -391,6 +423,28 @@ class VoterModel:
         if abstention_sensitivity > 0 and competitiveness is not None:
             # competitiveness = 1 - 胜差，胶着 → 投票率提高；碾压 → 略降
             turnout += (competitiveness - 0.6) * abstention_sensitivity * 0.20
+
+        # 投票率结构关联：人均GDP/教育/老龄化与参与度的更强结构关联。
+        # 现实证据：高收入、高学历城市参与度显著更高（选举政治参与的收入梯度）。
+        # 强度 0=关闭（保留历史基准）；>0 时按对数 GDP 与结构因子上调/下调。
+        s = self.turnout_structure_sensitivity or 0.0
+        if s > 0:
+            gdp = max(city.gdp_per_capita, 1000.0)
+            # 对数 GDP 映射到 0~1（覆盖 1k~200k 元），高收入 → 投票率更高
+            gmin, gmax = 2000.0, 200000.0
+            ln_ratio = (math.log(gdp) - math.log(gmin)) / max(1e-9, math.log(gmax) - math.log(gmin))
+            gdp_factor = (ln_ratio - 0.45) * 0.16  # 高收入 +8pp，低收入 -8pp 左右
+            # 教育指数直接映射
+            edu_struct = (city.education_index - 0.6) * 0.10
+            # 老龄化：中等偏老参与度更高，过老回落
+            aging_struct = 0.0
+            if city.aging_rate < 0.12:
+                aging_struct = (city.aging_rate - 0.10) * 0.2
+            elif city.aging_rate < 0.24:
+                aging_struct = 0.02 + (city.aging_rate - 0.12) * 0.1
+            else:
+                aging_struct = 0.03 - (city.aging_rate - 0.24) * 0.5
+            turnout += (gdp_factor + edu_struct + aging_struct) * s
 
         turnout += self.turnout_shift
         return round(max(0.35, min(0.85, turnout)), 4)

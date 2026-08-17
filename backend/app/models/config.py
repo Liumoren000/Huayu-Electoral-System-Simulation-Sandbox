@@ -40,6 +40,11 @@ class ElectoralConfig(BaseModel):
     swing_party: str = Field(default="", description="统一摆动分析用：目标摆动政党 id（非空时对所有城市该党得票统一 ±swing_pp 百分点）")
     swing_pp: float = Field(default=0.0, ge=-20.0, le=20.0, description="统一摆动幅度（百分点，正=全党全国统一增加）")
 
+    # ===== 数据投票真实性（模拟数据形态贴近真实选举公报）=====
+    integer_votes: bool = Field(default=True, description="整数票数：各党得票转为整数票（最大余数法），数据形如真实选举公报（XX 党 123,456 票）")
+    turnout_structure_sensitivity: float = Field(default=0.0, ge=0.0, le=1.0, description="投票率结构关联强度：投票率与人均GDP/教育/老龄化结构更强关联（0=关闭，1=完全结构化）")
+    spatial_autocorrelation: float = Field(default=0.0, ge=0.0, le=0.9, description="空间自相关：同省城市共享省级政治冲击（相邻城市得票更相似，0=关闭，0.9=高度同质）")
+
 
 class SimulationRequest(BaseModel):
     year: int = Field(default=2023, ge=1949, le=2024)
@@ -87,6 +92,12 @@ class PollRequest(BaseModel):
 
 
 class SwingAnalysisRequest(BaseModel):
+    year: int = Field(default=2023, ge=1949, le=2024)
+    config: ElectoralConfig
+    parties: list[Party]
+
+
+class ForensicsRequest(BaseModel):
     year: int = Field(default=2023, ge=1949, le=2024)
     config: ElectoralConfig
     parties: list[Party]

@@ -244,6 +244,44 @@ export default function Sidebar({
             onChange={e => setBothConfigs('party_system_concentration', parseFloat(e.target.value))}
           />
         </div>
+        <div className="realism-check">
+          <label className="check-label">
+            <input
+              type="checkbox"
+              checked={config.integer_votes !== false}
+              onChange={e => setBothConfigs('integer_votes', e.target.checked)}
+            />
+            <span>整数票数（真实选举公报形态）</span>
+          </label>
+        </div>
+        <div className="slider-row">
+          <label>
+            <span>投票率结构关联</span>
+            <span>{Math.round((config.turnout_structure_sensitivity ?? 0) * 100)}%</span>
+          </label>
+          <input
+            type="range"
+            min="0"
+            max="1"
+            step="0.05"
+            value={config.turnout_structure_sensitivity ?? 0}
+            onChange={e => setBothConfigs('turnout_structure_sensitivity', parseFloat(e.target.value))}
+          />
+        </div>
+        <div className="slider-row">
+          <label>
+            <span>空间自相关（同省相似）</span>
+            <span>{Math.round((config.spatial_autocorrelation ?? 0) * 100)}%</span>
+          </label>
+          <input
+            type="range"
+            min="0"
+            max="0.9"
+            step="0.05"
+            value={config.spatial_autocorrelation ?? 0}
+            onChange={e => setBothConfigs('spatial_autocorrelation', parseFloat(e.target.value))}
+          />
+        </div>
         </div>
         )}
       </div>

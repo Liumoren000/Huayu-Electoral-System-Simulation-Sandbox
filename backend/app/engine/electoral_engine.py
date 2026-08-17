@@ -24,6 +24,8 @@ class ElectoralEngine:
             turnout_differential=config.turnout_differential or 0.0,
             affinity_power=config.affinity_power,
             party_system_concentration=config.party_system_concentration or 0.0,
+            turnout_structure_sensitivity=config.turnout_structure_sensitivity or 0.0,
+            spatial_autocorrelation=config.spatial_autocorrelation or 0.0,
         )
         self.party_map = {p.id: p for p in parties}
         self._split_ticket_cache = {}
@@ -1024,6 +1026,44 @@ class ElectoralEngine:
             ))
         return results
 
+    def _integer_votes_for_city(self, cr: CityResult) -> tuple[dict[str, int], int]:
+        """
+        将城市得票率转为整数票数（真实选举公报形态）。
+
+        用最大余数法（Hamilton 法）：先按份额取整，把剩余票按小数部分从大到小
+        逐个分配给各党，保证各党票数总和恰为该市总票数。总票数 =
+        人口 × 适龄占比 × 投票率，取整。
+        """
+        city = next((c for c in self.city_data.cities if c.id == cr.city_id), None)
+        if city is None:
+            return {}, 0
+        total = int(city.population * (cr.eligible_voter_ratio or 0.78) * (cr.turnout or 0.6))
+        if total <= 0 or not cr.vote_shares:
+            return {}, 0
+        raw = {pid: share * total for pid, share in cr.vote_shares.items()}
+        votes = {pid: int(v) for pid, v in raw.items()}
+        diff = sum(votes.values()) - total
+        if diff > 0:
+            # 份额 4 位舍入使总和略超 1：反复从小数部分最小的政党回退
+            order = sorted(raw.items(), key=lambda kv: kv[1] - int(kv[1]))
+            idx = 0
+            while diff > 0:
+                pid = order[idx % len(order)][0]
+                if votes[pid] > 0:
+                    votes[pid] -= 1
+                    diff -= 1
+                idx += 1
+        elif diff < 0:
+            # 最大余数法：把不足的部分按小数部分从大到小逐个分配给各党
+            order = sorted(raw.items(), key=lambda kv: kv[1] - int(kv[1]), reverse=True)
+            idx = 0
+            while diff < 0:
+                pid = order[idx % len(order)][0]
+                votes[pid] += 1
+                diff += 1
+                idx += 1
+        return votes, total
+
     def _build_result(self, city_results: list[CityResult], party_results: list[PartySeatResult],
                       total_votes: float, city_seats_map: dict = None,
                       city_party_seats: dict = None, province_party_seats: dict = None,
@@ -1053,6 +1093,17 @@ class ElectoralEngine:
                 ps = city_party_seats.get(cr.city_id)
                 if ps:
                     cr.party_seats = ps
+        # 数据投票真实性：整数票数（真实选举公报形态）
+        if self.config.integer_votes:
+            for cr in city_results:
+                votes, total = self._integer_votes_for_city(cr)
+                if total > 0:
+                    cr.votes = votes
+                    cr.total_votes = total
+            # 全国公报口径：总票数 = 各市整数票之和（而非浮点 share 累积）
+            sum_city_votes = sum(cr.total_votes for cr in city_results)
+            if sum_city_votes > 0:
+                total_votes = sum_city_votes
         if not province_party_seats:
             if province_proportional:
                 province_party_seats = self._province_proportional_seats(province_results)

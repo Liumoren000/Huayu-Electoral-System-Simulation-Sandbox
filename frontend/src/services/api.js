@@ -188,6 +188,16 @@ export async function runPartyFreeze(request) {
   return res.json();
 }
 
+export async function runElectionForensics(request) {
+  const res = await fetch(`${API_BASE}/simulate/election-forensics`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  if (!res.ok) throw new Error('Election forensics audit failed');
+  return res.json();
+}
+
 export async function explainCityVote(request) {
   const res = await fetch(`${API_BASE}/simulate/city-explain`, {
     method: 'POST',
