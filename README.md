@@ -94,7 +94,7 @@ npm run dev
 - **政党空间竞争**：各党在政策空间的距离矩阵与竞争压力
 
 ### 制度效应
-- **浪费票分析**：各党"浪费票"（远超/低于获得席位的边际票）分解与策略含义
+- **浪费票分析**：各党"浪费票"分解与策略含义，**随当前制度动态变化**——每区一席的多数制（FPTP/RUNOFF/IRV/APPROVAL/BORDA）按"败者票 + 赢家盈余"口径，比例/多议席制（PR/MMP/PARALLEL/STV）按"未获席位党的票"口径，并始终以 PR 作对照，量化「胜者全得」的效能代价
 - **碎片化分析**（页首按钮）：对比 FPTP / PR / RUNOFF 下的政党碎片化与首党主导性
 
 ### 联盟与政府
@@ -158,6 +158,6 @@ npm run dev
 | `/api/simulate/city-explain` | POST | 城市得票解读（与推演结果一致） |
 | `/api/simulate/party-space` | POST | 政党空间竞争分析 |
 | `/api/simulate/sensitivity` | POST | 参数敏感性分析 |
-| `/api/simulate/wasted-votes` | POST | 浪费票分析 |
+| `/api/simulate/wasted-votes` | POST | 浪费票分析（随配置制度动态计算，PR 作对照） |
 | `/api/voter-model/explain` | POST | 选民行为模型透明分解 |
 | `/api/voter-model/structure` | POST | 选民结构构成 |
